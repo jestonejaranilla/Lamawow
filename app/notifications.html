@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/png" href="../assets/images/favicon.png">
+  <link rel="manifest" href="../manifest.json">
+  <link rel="apple-touch-icon" href="../assets/images/favicon.png">
+  <meta name="theme-color" content="#9a3608">
+  <title>Notification Settings | ATLAS PSU</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="../assets/js/app-core.js"></script>
+  <link rel="stylesheet" href="../assets/css/main-style.css">
+  <link rel="stylesheet" href="../assets/css/app-style.css">
+  <script src="../assets/js/app-script.js" defer></script>
+</head>
+<body class="page-app" data-page="notifications">
+
+  <header class="app-top">
+    <a class="app-back" id="appBack" href="menu.html" aria-label="Back">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <h1 class="app-title">Notification Settings</h1>
+  </header>
+
+  <div class="app-shell">
+    <nav class="app-nav" id="appNav" aria-label="Menu"></nav>
+    <main class="app-content">
+      <section class="app-card">
+        <h2>Alerts</h2>
+        <label class="app-row">
+          <div class="app-row-text"><strong>System notifications</strong><span id="permHint"></span></div>
+          <input type="checkbox" class="app-switch" id="swSystem">
+        </label>
+        <label class="app-row">
+          <div class="app-row-text"><strong>Sound</strong></div>
+          <input type="checkbox" class="app-switch" data-switch="sound">
+        </label>
+        <label class="app-row">
+          <div class="app-row-text"><strong>Vibration</strong><span>On supported phones</span></div>
+          <input type="checkbox" class="app-switch" data-switch="vibrate">
+        </label>
+        <div class="app-actions">
+          <button type="button" class="app-btn" id="btnTestAlert">Send test alert</button>
+        </div>
+      </section>
+
+      <section class="app-card">
+        <h2>Quiet hours</h2>
+        <label class="app-row">
+          <div class="app-row-text"><strong>Mute sound and vibration</strong></div>
+          <input type="checkbox" class="app-switch" data-switch="quiet">
+        </label>
+        <div class="app-row app-time-row" id="quietTimes">
+          <div class="app-field"><label for="quietStart">From</label><input type="time" class="app-input" id="quietStart" data-time="quietStart"></div>
+          <div class="app-field"><label for="quietEnd">Until</label><input type="time" class="app-input" id="quietEnd" data-time="quietEnd"></div>
+        </div>
+      </section>
+
+      <section class="app-card" data-role-only="chairperson">
+        <h2>Optimization</h2>
+        <label class="app-row">
+          <div class="app-row-text"><strong>When a run finishes</strong></div>
+          <input type="checkbox" class="app-switch" data-switch="notifyOptimization">
+        </label>
+        <label class="app-row">
+          <div class="app-row-text"><strong>Capacity violations found</strong></div>
+          <input type="checkbox" class="app-switch" data-switch="notifyViolations">
+        </label>
+      </section>
+
+      <section class="app-card" data-role-only="faculty">
+        <h2>Class reminders</h2>
+        <label class="app-row">
+          <div class="app-row-text"><strong>Remind me before class</strong></div>
+          <input type="checkbox" class="app-switch" data-faculty-switch="enabled">
+        </label>
+        <div class="app-row">
+          <div class="app-row-text"><strong>Lead time</strong></div>
+          <select class="app-input" id="facLead" aria-label="Lead time">
+            <option value="5">5 minutes</option>
+            <option value="10">10 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+          </select>
+        </div>
+        <label class="app-row">
+          <div class="app-row-text"><strong>Alert when class starts</strong></div>
+          <input type="checkbox" class="app-switch" data-faculty-switch="atStart">
+        </label>
+      </section>
+    </main>
+  </div>
+
+  <div id="toastNotif" class="toast-notif" aria-live="polite"></div>
+</body>
+</html>

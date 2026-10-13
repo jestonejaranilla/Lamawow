@@ -100,7 +100,7 @@ The chairperson reviews assignments in the timetable grid and analytics panels, 
 - Workload analytics, fairness report, and specialization match report
 - Active academic period (year and semester) filter
 - Editable rooms, class sizes, and soft constraints, synced to the backend at runtime
-- CSV and print-ready PDF export
+- CSV export and a formal A4 portrait PDF report (letterhead, summary, master schedule, signature block, page numbers)
 
 **Faculty side**
 - Faculty sign in by choosing their name from the faculty list saved in the browser
@@ -112,8 +112,9 @@ The chairperson reviews assignments in the timetable grid and analytics panels, 
 - Profile and reminder settings per faculty member
 
 **Everywhere**
-- Responsive layout: top bar on desktop, bottom tab bar on phones
-- Zoomable schedule viewer and draggable scroll handle on touch devices
+- Responsive layout: centered sticky top navigation on desktop; on phones a back button, page title and menu button on top with a bottom tab bar
+- Application pages: menu, application settings (text size, reduced motion, start page, saved data, install), notification settings (system alerts, sound, vibration, quiet hours, class reminders or optimization alerts), account settings, appearance (light, night, automatic by device, automatic by time) and an About page
+- Zoomable schedule viewer and a slim draggable scroll handle on touch devices
 - Installable web app (`manifest.json`)
 
 ---
@@ -193,14 +194,26 @@ faculty/
   dashboard.html              Faculty app: Dashboard (My Schedule, My Week, All Faculty)
                               and Settings
 
+app/                          Application pages shared by both roles
+  menu.html                   Mobile menu (desktop opens the first section)
+  application-settings.html   Text size, motion, start page, saved data, install
+  notifications.html          Alerts, quiet hours, reminders / optimization alerts
+  account.html                Profile, data export, log out
+  appearance.html             Light, night, automatic themes
+  about.html                  About the system
+
 assets/
   css/main-style.css          Design system (rust orange, slate, off-white) and shared components
   css/faculty-style.css       Faculty page components
+  css/app-style.css           Application pages
   js/main-script.js           Chairperson logic: optimization, charts, faculty and subject
                               management, export, soft constraints, localStorage sync
   js/faculty-script.js        Faculty logic: schedule from cache, live clock, reminders, settings
   js/login-script.js          Login and sign up for both roles
-  js/shared-ui.js             Bottom tab bar, scroll handle, zoomable schedule viewer
+  js/app-core.js              Device preferences (theme, text size, alerts), loaded first on every page
+  js/app-script.js            Logic for the application pages
+  js/shared-ui.js             Top bar title and back button, bottom tab bar, scroll handle,
+                              zoomable schedule viewer
   images/favicon.png          Logo and app icon
 ```
 

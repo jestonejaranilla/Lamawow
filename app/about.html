@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/png" href="../assets/images/favicon.png">
+  <link rel="manifest" href="../manifest.json">
+  <link rel="apple-touch-icon" href="../assets/images/favicon.png">
+  <meta name="theme-color" content="#9a3608">
+  <title>About | ATLAS PSU</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="../assets/js/app-core.js"></script>
+  <link rel="stylesheet" href="../assets/css/main-style.css">
+  <link rel="stylesheet" href="../assets/css/app-style.css">
+  <script src="../assets/js/app-script.js" defer></script>
+</head>
+<body class="page-app" data-page="about">
+
+  <header class="app-top">
+    <a class="app-back" id="appBack" href="menu.html" aria-label="Back">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <h1 class="app-title">About</h1>
+  </header>
+
+  <div class="app-shell">
+    <nav class="app-nav" id="appNav" aria-label="Menu"></nav>
+    <main class="app-content">
+      <section class="app-card app-about-head">
+        <img src="../assets/images/favicon.png" alt="" width="64" height="64">
+        <div>
+          <div class="app-profile-name">ATLAS PSU</div>
+          <div class="app-profile-meta">Version 1.0 · Thesis prototype</div>
+        </div>
+      </section>
+      <section class="app-card app-about-list">
+        <details class="about-item" open><summary>What it is</summary><div class="about-body"><p>ATLAS PSU: A Teaching Load Assignment and Management System for Department Chairpersons of the College of Sciences at Palawan State University.</p><p>It recommends faculty teaching loads. Chairpersons review, edit and finalize every assignment, and faculty members see the finished schedule.</p></div></details>
+        <details class="about-item"><summary>The problem</summary><div class="about-body"><ul><li>Teaching loads are assigned by hand with spreadsheets.</li><li>The existing college tool only plots schedules. It does not assign, check constraints or resolve conflicts.</li><li>Matching specialization to subjects takes the most time.</li><li>Time, room and subject preferences, class sizes and block scheduling are not handled.</li><li>Fairness of the result is hard to confirm.</li></ul></div></details>
+        <details class="about-item"><summary>Purpose</summary><div class="about-body"><p>Generate optimized faculty-to-subject assignments from specialization, availability and CHED load limits, then give chairpersons workload charts and a fairness report to decide with.</p></div></details>
+        <details class="about-item"><summary>How it works</summary><div class="about-body"><ol><li><strong>CP-SAT solver</strong> builds a schedule that satisfies every hard constraint.</li><li><strong>Genetic algorithm</strong> tunes it against time, room and subject preferences.</li><li><strong>Analytics</strong> measure utilization, fairness and specialization match.</li><li><strong>Review</strong>: edit assignments, then export to CSV or PDF.</li></ol></div></details>
+        <details class="about-item"><summary>Who it is for</summary><div class="about-body"><p>Department chairpersons of Information Technology, Computer Science, Medical Biology, Marine Biology and Environmental Science. Faculty members have a read-only view of their own schedule and the department schedule.</p></div></details>
+        <details class="about-item"><summary>Where it comes from</summary><div class="about-body"><p>Palawan State University, Puerto Princesa City, Palawan. A capstone thesis project of Computer Studies, built from April to July 2026.</p><p>Structured interviews with the Information Technology and Computer Science chairpersons on June 8, 2026 shaped the design. Their clearest request: help with decisions, not a system that decides alone.</p></div></details>
+        <details class="about-item"><summary>Who made it</summary><div class="about-body"><p>Arthur V. Baldosano Jr., sole full-stack developer and researcher: requirements, system design, the Flask backend, the scheduling engine and this interface.</p></div></details>
+        <details class="about-item"><summary>Status</summary><div class="about-body"><ul><li>Proposal prototype defense completed. Final thesis defense ahead.</li><li>Data is held in memory and files. A Postgres database is planned.</li><li>Not yet piloted by a department chairperson.</li></ul></div></details>
+        <details class="about-item"><summary>Technology</summary><div class="about-body"><p>Python, Flask, Google OR-Tools CP-SAT, a custom genetic algorithm, vanilla JavaScript, Chart.js. Installable as a web app.</p></div></details>
+        <details class="about-item"><summary>Your data</summary><div class="about-body"><p>Schedules and settings stay in this browser. Only the optimization request goes to the server. Sign in does not perform real authentication yet.</p></div></details>
+      </section>
+    </main>
+  </div>
+
+  <div id="toastNotif" class="toast-notif" aria-live="polite"></div>
+</body>
+</html>

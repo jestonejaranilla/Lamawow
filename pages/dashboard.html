@@ -16,6 +16,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 
   <!-- App Styles & Scripts -->
+  <script src="../assets/js/app-core.js"></script>
   <link rel="stylesheet" href="../assets/css/main-style.css">
   <script src="../assets/js/main-script.js" defer></script>
 </head>
@@ -56,10 +57,18 @@
         >
         <div class="dropdown-content" role="menu">
           <div role="menuitem" id="navUserLabel">Profile</div>
+          <a href="../app/application-settings.html" role="menuitem">Application settings</a>
+          <a href="../app/notifications.html" role="menuitem">Notification settings</a>
+          <a href="../app/account.html" role="menuitem">Account settings</a>
+          <a href="../app/appearance.html" role="menuitem">Appearance</a>
+          <a href="../app/about.html" role="menuitem">About</a>
           <a href="login.html" role="menuitem" onclick="sessionStorage.clear()">Logout</a>
         </div>
       </div>
     </div>
+    <button type="button" class="nav-back is-hidden" id="navBack" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <span class="nav-title" id="navTitle"></span>
+    <a class="nav-more" href="../app/menu.html" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></a>
   </nav>
 
   <!-- ========================================================
@@ -69,7 +78,8 @@
     <div class="panels-container">
 
       <!-- PANEL 0: DASHBOARD -->
-      <section class="panel" id="panel-dashboard" aria-label="Dashboard">
+      <section class="panel" id="panel-dashboard" data-title="Dashboard" aria-label="Dashboard">
+        <div class="dash-brand"><img src="../assets/images/favicon.png" alt="" width="40" height="40"><span>ATLAS PSU</span></div>
         <div class="dept-banner" id="deptBanner" style="display:none;">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01"/></svg>
           <div class="dept-banner-text">
@@ -164,7 +174,7 @@
       </section>
 
       <!-- PANEL 1: WORKLOAD OPTIMIZATION -->
-      <section class="panel" aria-label="Workload Optimization">
+      <section class="panel" data-title="Optimization" aria-label="Workload Optimization">
         <div class="page-header">
           <div>
             <h2><svg class="title-ic" viewBox="0 0 24 24" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Workload Optimization</h2>
@@ -233,7 +243,7 @@
       </section>
 
       <!-- PANEL 2: REPORTS -->
-      <section class="panel" id="reportsPanel" aria-label="Faculty Analytics and Reports">
+      <section class="panel" id="reportsPanel" data-title="Reports" aria-label="Faculty Analytics and Reports">
         <div class="page-header">
           <div>
             <h2><svg class="title-ic" viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Reports</h2>
@@ -353,7 +363,7 @@
       </section>
 
       <!-- PANEL 3: FACULTY & SUBJECTS -->
-      <section class="panel" aria-label="Faculty and Curriculum Management">
+      <section class="panel" data-title="Faculty and Subjects" aria-label="Faculty and Curriculum Management">
         <div class="page-header">
           <h2><svg class="title-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Faculty &amp; Subjects</h2>
           <span class="status-chip">Auto-saved</span>
@@ -413,7 +423,7 @@
       </section>
 
       <!-- PANEL 4: SETTINGS -->
-      <section class="panel" aria-label="Settings">
+      <section class="panel" data-title="Settings" aria-label="Settings">
         <div class="page-header">
           <h2><svg class="title-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</h2>
         </div>

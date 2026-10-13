@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/png" href="../assets/images/favicon.png">
+  <link rel="manifest" href="../manifest.json">
+  <link rel="apple-touch-icon" href="../assets/images/favicon.png">
+  <meta name="theme-color" content="#9a3608">
+  <title>Appearance | ATLAS PSU</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="../assets/js/app-core.js"></script>
+  <link rel="stylesheet" href="../assets/css/main-style.css">
+  <link rel="stylesheet" href="../assets/css/app-style.css">
+  <script src="../assets/js/app-script.js" defer></script>
+</head>
+<body class="page-app" data-page="appearance">
+
+  <header class="app-top">
+    <a class="app-back" id="appBack" href="menu.html" aria-label="Back">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <h1 class="app-title">Appearance</h1>
+  </header>
+
+  <div class="app-shell">
+    <nav class="app-nav" id="appNav" aria-label="Menu"></nav>
+    <main class="app-content">
+      <section class="app-card">
+        <h2>Theme</h2>
+        <div class="theme-grid" id="themeGrid" role="radiogroup" aria-label="Theme">
+          <button type="button" class="theme-card" role="radio" data-theme-value="light">
+            <span class="theme-swatch"><i class="sw-light-a"></i><i class="sw-light-b"></i></span>
+            <strong>Light</strong>
+          </button>
+          <button type="button" class="theme-card" role="radio" data-theme-value="dark">
+            <span class="theme-swatch"><i class="sw-dark-a"></i><i class="sw-dark-b"></i></span>
+            <strong>Night</strong>
+          </button>
+          <button type="button" class="theme-card" role="radio" data-theme-value="auto">
+            <span class="theme-swatch theme-split"><i class="sw-light-a"></i><i class="sw-dark-a"></i></span>
+            <strong>Automatic</strong><small>Follow device</small>
+          </button>
+          <button type="button" class="theme-card" role="radio" data-theme-value="schedule">
+            <span class="theme-swatch theme-split"><i class="sw-light-b"></i><i class="sw-dark-b"></i></span>
+            <strong>By time</strong><small>Night at set hours</small>
+          </button>
+        </div>
+      </section>
+
+      <section class="app-card" id="scheduleCard">
+        <h2>Night hours</h2>
+        <div class="app-row app-time-row">
+          <div class="app-field"><label for="nightStart">Starts</label><input type="time" class="app-input" id="nightStart" data-time="nightStart"></div>
+          <div class="app-field"><label for="nightEnd">Ends</label><input type="time" class="app-input" id="nightEnd" data-time="nightEnd"></div>
+        </div>
+        <p class="app-hint" id="themeNow"></p>
+      </section>
+
+      <section class="app-card">
+        <h2>Text size</h2>
+        <div class="app-seg app-seg-wide" data-seg="textSize">
+          <button type="button" data-value="small">Small</button>
+          <button type="button" data-value="default">Default</button>
+          <button type="button" data-value="large">Large</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toastNotif" class="toast-notif" aria-live="polite"></div>
+</body>
+</html>

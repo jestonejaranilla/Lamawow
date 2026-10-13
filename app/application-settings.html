@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/png" href="../assets/images/favicon.png">
+  <link rel="manifest" href="../manifest.json">
+  <link rel="apple-touch-icon" href="../assets/images/favicon.png">
+  <meta name="theme-color" content="#9a3608">
+  <title>Application Settings | ATLAS PSU</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="../assets/js/app-core.js"></script>
+  <link rel="stylesheet" href="../assets/css/main-style.css">
+  <link rel="stylesheet" href="../assets/css/app-style.css">
+  <script src="../assets/js/app-script.js" defer></script>
+</head>
+<body class="page-app" data-page="settings">
+
+  <header class="app-top">
+    <a class="app-back" id="appBack" href="menu.html" aria-label="Back">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <h1 class="app-title">Application Settings</h1>
+  </header>
+
+  <div class="app-shell">
+    <nav class="app-nav" id="appNav" aria-label="Menu"></nav>
+    <main class="app-content">
+      <section class="app-card">
+        <h2>Display</h2>
+        <div class="app-row">
+          <div class="app-row-text"><strong>Text size</strong></div>
+          <div class="app-seg" data-seg="textSize">
+            <button type="button" data-value="small">Small</button>
+            <button type="button" data-value="default">Default</button>
+            <button type="button" data-value="large">Large</button>
+          </div>
+        </div>
+        <label class="app-row">
+          <div class="app-row-text"><strong>Reduce motion</strong><span>Fewer animations</span></div>
+          <input type="checkbox" class="app-switch" data-switch="reduceMotion">
+        </label>
+        <div class="app-row">
+          <div class="app-row-text"><strong>Open first</strong><span>Page shown after sign in</span></div>
+          <select class="app-input" id="startPage" aria-label="Start page"></select>
+        </div>
+      </section>
+
+      <section class="app-card">
+        <h2>Saved on this device</h2>
+        <div class="app-stats" id="dataStats"></div>
+        <div class="app-actions">
+          <button type="button" class="app-btn" id="btnExport">Download data</button>
+          <button type="button" class="app-btn app-btn-danger" id="btnClearSchedule">Clear saved schedule</button>
+        </div>
+      </section>
+
+      <section class="app-card">
+        <h2>Install app</h2>
+        <p class="app-hint" id="installHint">Add ATLAS PSU to your home screen.</p>
+        <div class="app-actions">
+          <button type="button" class="app-btn app-btn-primary" id="btnInstall" hidden>Install</button>
+        </div>
+      </section>
+
+      <section class="app-card">
+        <h2>Reset</h2>
+        <div class="app-actions">
+          <button type="button" class="app-btn app-btn-danger" id="btnResetSettings">Reset app settings</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toastNotif" class="toast-notif" aria-live="polite"></div>
+</body>
+</html>

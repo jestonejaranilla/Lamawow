@@ -161,7 +161,7 @@
     }
     document.querySelectorAll('[data-logout]').forEach(link =>
       link.addEventListener('click', () => sessionStorage.clear()));
-    switchPanel(0);
+    switchPanel(window.atlasApp ? window.atlasApp.startPanel(document.querySelectorAll('.panel').length) : 0);
   }
 
   function initTabs() {
@@ -442,9 +442,10 @@
   function notify(title, body, tag) {
     showAlert(title, body);
     toast(title);
-    if (settings.sound) beep();
-    if (settings.vibrate && navigator.vibrate) navigator.vibrate([200, 100, 200]);
-    if (settings.browser && 'Notification' in window && Notification.permission === 'granted') {
+    const quiet = window.atlasApp && window.atlasApp.isQuiet();
+    if (settings.sound && !quiet) beep();
+    if (settings.vibrate && !quiet && navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    if (settings.browser && !quiet && 'Notification' in window && Notification.permission === 'granted') {
       try { new Notification(title, { body, tag, icon: '../assets/images/favicon.png' }); } catch { /* blocked */ }
     }
   }

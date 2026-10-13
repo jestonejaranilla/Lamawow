@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/png" href="../assets/images/favicon.png">
+  <link rel="manifest" href="../manifest.json">
+  <link rel="apple-touch-icon" href="../assets/images/favicon.png">
+  <meta name="theme-color" content="#9a3608">
+  <title>Account Settings | ATLAS PSU</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="../assets/js/app-core.js"></script>
+  <link rel="stylesheet" href="../assets/css/main-style.css">
+  <link rel="stylesheet" href="../assets/css/app-style.css">
+  <script src="../assets/js/app-script.js" defer></script>
+</head>
+<body class="page-app" data-page="account">
+
+  <header class="app-top">
+    <a class="app-back" id="appBack" href="menu.html" aria-label="Back">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <h1 class="app-title">Account Settings</h1>
+  </header>
+
+  <div class="app-shell">
+    <nav class="app-nav" id="appNav" aria-label="Menu"></nav>
+    <main class="app-content">
+      <section class="app-card app-profile">
+        <div class="app-avatar" id="acctAvatar">A</div>
+        <div>
+          <div class="app-profile-name" id="acctName"></div>
+          <div class="app-profile-meta" id="acctMeta"></div>
+        </div>
+      </section>
+
+      <section class="app-card">
+        <h2>Profile</h2>
+        <div class="app-field">
+          <label for="acctInputName">Name</label>
+          <input type="text" class="app-input" id="acctInputName" autocomplete="name" autocapitalize="words">
+        </div>
+        <div class="app-field">
+          <label for="acctInputEmail">Corporate email</label>
+          <input type="text" class="app-input" id="acctInputEmail" inputmode="email" autocomplete="username" autocapitalize="none" placeholder="name@psu.palawan.edu.ph">
+        </div>
+        <div class="app-row"><div class="app-row-text"><strong>Department</strong></div><span class="app-value" id="acctDept"></span></div>
+        <div class="app-row"><div class="app-row-text"><strong>Role</strong></div><span class="app-value" id="acctRole"></span></div>
+        <div class="app-error" id="acctError" hidden></div>
+        <div class="app-actions">
+          <button type="button" class="app-btn app-btn-primary" id="btnSaveProfile">Save changes</button>
+        </div>
+      </section>
+
+      <section class="app-card">
+        <h2>Security</h2>
+        <div class="app-row app-row-disabled">
+          <div class="app-row-text"><strong>Password</strong><span>Available once sign in uses a database</span></div>
+        </div>
+      </section>
+
+      <section class="app-card">
+        <h2>Data</h2>
+        <div class="app-actions">
+          <button type="button" class="app-btn" id="btnExport">Download my data</button>
+          <button type="button" class="app-btn app-btn-danger" id="btnClearAll">Clear all data on this device</button>
+        </div>
+      </section>
+
+      <section class="app-card">
+        <div class="app-actions">
+          <button type="button" class="app-btn app-btn-danger" id="btnSignOut">Log out</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toastNotif" class="toast-notif" aria-live="polite"></div>
+</body>
+</html>

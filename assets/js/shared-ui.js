@@ -1,11 +1,13 @@
 /* ============================================================
    ATLAS PSU - shared UI behaviour (chairperson + faculty pages)
-   - bottom tab bar (mobile navigation)
+   - top bar title and back button, bottom tab bar (mobile navigation)
    - draggable scroll handle (touch devices)
    - zoomable schedule viewer
    ============================================================ */
 (function () {
   'use strict';
+
+  const syncers = [];   // re-run after the start page is applied
 
   /* ---------- Bottom tab bar (mobile) ---------- */
   function initBottomNav() {
@@ -18,6 +20,7 @@
       items.forEach(item => item.classList.toggle('active', Number(item.dataset.go) === index));
     }
 
+    syncers.push(syncActive);
     items.forEach(item => item.addEventListener('click', () => {
       window.switchPanel(Number(item.dataset.go));
       setTimeout(syncActive, 60);
@@ -25,6 +28,38 @@
     document.querySelectorAll('.nav-item[data-panel]').forEach(item =>
       item.addEventListener('click', () => setTimeout(syncActive, 60)));
     syncActive();
+  }
+
+  /* ---------- Top bar: title and back button (mobile) ---------- */
+  function initTopBar() {
+    const back = document.getElementById('navBack');
+    const title = document.getElementById('navTitle');
+    if (!back || !title) return;
+
+    function sync() {
+      const panels = Array.from(document.querySelectorAll('.panel'));
+      const index = panels.findIndex(p => p.classList.contains('active'));
+      const active = panels[index];
+      title.textContent = active ? (active.dataset.title || active.getAttribute('aria-label') || '') : '';
+      back.classList.toggle('is-hidden', index <= 0);
+    }
+
+    syncers.push(sync);
+    back.addEventListener('click', () => window.switchPanel(0));
+    document.querySelectorAll('.nav-item[data-panel], .bn-item').forEach(item =>
+      item.addEventListener('click', () => setTimeout(sync, 60)));
+    sync();
+  }
+
+  /* keep the top bar and bottom tab bar in step with the active panel */
+  function watchPanels() {
+    const main = document.querySelector('main');
+    if (!main) return;
+    let frame = 0;
+    new MutationObserver(() => {
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; syncers.forEach(sync => sync()); });
+    }).observe(main, { attributes: true, subtree: true, attributeFilter: ['class'] });
+    syncers.forEach(sync => sync());
   }
 
   /* ---------- Draggable scroll handle ---------- */
@@ -49,7 +84,7 @@
       if (max <= 4) { handle.classList.remove('can'); return; }
       handle.classList.add('can');
       const track = handle.clientHeight;
-      const size = Math.max(56, track * panel.clientHeight / panel.scrollHeight);
+      const size = Math.max(40, track * panel.clientHeight / panel.scrollHeight);
       thumb.style.height = size + 'px';
       thumb.style.top = (panel.scrollTop / max) * (track - size) + 'px';
     }
@@ -210,6 +245,8 @@
   }
 
   initBottomNav();
+  initTopBar();
+  watchPanels();
   initScrollHandle();
   initViewer();
 })();

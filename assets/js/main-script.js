@@ -18,7 +18,7 @@
 /* ============================================================
    1. CONSTANTS & STATE
    ============================================================ */
-const API_BASE = 'https://atlas-psu.onrender.com';
+const API_BASE = 'http://localhost:5000';
 
 const DAY_MAP = {
   Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday',
@@ -119,16 +119,16 @@ const DEFAULT_CLASS_SIZES = {
 };
 
 const INITIAL_FACULTY = [
-  { name: 'Miguel Santos',  specialization: ['Networks & Security'],    max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Andrea Reyes',  specialization: ['Systems'],                max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Paolo Mendoza',  specialization: ['Programming'],            max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Camille Bautista',  specialization: ['Mathematics'],            max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Joshua Navarro',  specialization: ['Networks & Security'],    max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Bianca Flores',  specialization: ['Web & App Dev'],          max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Carlo Villanueva',  specialization: ['Systems'],                max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Alyssa Garcia',  specialization: ['Data Management'],        max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Nathaniel Cruz',  specialization: ['Applied Computing'],      max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Patricia Aquino',  specialization: ['Data Management'],        max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] }
+  { name: 'Prof A',  specialization: ['Networks & Security'],    max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
+  { name: 'Prof B',  specialization: ['Systems'],                max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
+  { name: 'Prof C',  specialization: ['Programming'],            max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
+  { name: 'Prof D',  specialization: ['Mathematics'],            max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
+  { name: 'Prof E',  specialization: ['Networks & Security'],    max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
+  { name: 'Prof F',  specialization: ['Web & App Dev'],          max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
+  { name: 'Prof G',  specialization: ['Systems'],                max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
+  { name: 'Prof H',  specialization: ['Data Management'],        max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
+  { name: 'Prof I',  specialization: ['Applied Computing'],      max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
+  { name: 'Prof J',  specialization: ['Data Management'],        max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] }
 ];
 
 const DEFAULT_SUBJECTS = [
@@ -203,10 +203,17 @@ let reportsBarChart = null;
 let miniDashChart   = null;
 
 /* Chart palette: ATLAS rust orange with its complement (teal) and warm neutrals */
+const NIGHT = document.documentElement.getAttribute('data-theme') === 'dark';
 const THEME = {
-  ink: '#1a130e', muted: '#6e6358', grid: '#ece6df',
+  ink: NIGHT ? '#f3ece4' : '#1a130e',
+  tooltipText: NIGHT ? '#1a130e' : '#fffefb',
+  muted: NIGHT ? '#a99d90' : '#6e6358',
+  grid: NIGHT ? '#352c25' : '#ece6df',
+  surface: NIGHT ? '#1f1914' : '#ffffff',
   ok: '#2a7f86', warn: '#d9922b', bad: '#b4372b',
-  series: ['#9a3608', '#2a7f86', '#e8693a', '#5b6b7a', '#d9a066', '#7fb0b3', '#6e6358', '#c0440a', '#a7c4c6', '#e9c9a8']
+  series: NIGHT
+    ? ['#e8693a', '#4fb3bb', '#f0a47a', '#8aa0b3', '#e0b27a', '#9fcfd2', '#a99d90', '#c0440a', '#7fb0b3', '#e9c9a8']
+    : ['#9a3608', '#2a7f86', '#e8693a', '#5b6b7a', '#d9a066', '#7fb0b3', '#6e6358', '#c0440a', '#a7c4c6', '#e9c9a8']
 };
 
 function styleChartDefaults() {
@@ -220,7 +227,7 @@ function styleChartDefaults() {
   d.plugins.legend.labels.boxHeight = 8;
   d.plugins.legend.labels.padding = 16;
   Object.assign(d.plugins.tooltip, {
-    backgroundColor: THEME.ink, titleColor: '#fffefb', bodyColor: '#fffefb',
+    backgroundColor: THEME.ink, titleColor: THEME.tooltipText, bodyColor: THEME.tooltipText,
     padding: 10, cornerRadius: 8, boxPadding: 4, displayColors: false
   });
 }
@@ -296,7 +303,7 @@ function initCharts() {
         datasets: [{
           data: [],
           backgroundColor: THEME.series,
-          borderColor: '#ffffff',
+          borderColor: THEME.surface,
           borderWidth: 3,
           hoverOffset: 6
         }]
@@ -374,7 +381,7 @@ function initNavigation() {
   });
 
   // Switch to panel 0 on load
-  switchPanel(0);
+  switchPanel(window.atlasApp ? window.atlasApp.startPanel(document.querySelectorAll('.panel').length) : 0);
 
   // Resize chart on window resize
   window.addEventListener('resize', debounce(() => {
@@ -1100,6 +1107,7 @@ function initRunGA() {
               ? ` (CP-SAT: ${status.metrics.solve_time_sec}s, GA: ${status.metrics.ga_time_sec || 0}s)`
               : '';
             showToast('Optimization Complete!' + metricsSuffix, 'success');
+            announceOptimization(displayResult.length, status.analytics);
           }
         } catch (err) {
           console.error('Polling error:', err);
@@ -1895,15 +1903,19 @@ function generatePrintReport() {
       return (DAY_ORDER[d.trim()] * 100) + parseInt(t || '0');
     };
     return ps(a.slot) - ps(b.slot);
-  }).map((item, i) => `
+  }).map((item, i) => {
+    const slot = item.slot_display || item.slot || '';
+    const [slotDay, ...slotRest] = slot.split(':');
+    return `
     <tr>
       <td class="num">${i + 1}</td>
-      <td>${escapeHTML(item.slot_display || item.slot)}</td>
+      <td class="when"><strong>${escapeHTML(slotDay.trim())}</strong><div>${escapeHTML(slotRest.join(':').trim())}</div></td>
       <td>${escapeHTML(item.subject)}<div class="sub-type">${escapeHTML(item.type)}</div></td>
-      <td>${escapeHTML(item.faculty)}</td>
-      <td>${escapeHTML(item.room || 'N/A')}</td>
+      <td>${escapeHTML(item.faculty || 'Unassigned')}</td>
+      <td class="nowrap">${escapeHTML(item.room || 'N/A')}</td>
       <td>${(item.class_type || 'LECTURE') === 'LAB' ? 'Laboratory' : 'Lecture'}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 
   // Extract analytics stats directly safely
   const fScore  = document.getElementById('fairnessScore').textContent;
@@ -1918,12 +1930,19 @@ function generatePrintReport() {
   <meta charset="UTF-8">
   <title>Teaching Load Assignment Report - ${escapeHTML(deptFull)} Department</title>
   <style>
-    @page { size: A4 portrait; margin: 25mm 20mm 25mm 25mm; }
-    @page { @bottom-left { content: "ATLAS PSU"; font: 8.5pt 'Times New Roman', serif; color: #555; }
-            @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8.5pt 'Times New Roman', serif; color: #555; } }
+    /* Pages are laid out as fixed A4 sheets below, so the margins hold
+       whatever "Margins" option the print dialog is set to. */
+    @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; line-height: 1.45; color: #111; background: #fff; }
+    html, body { background: #fff; }
+    body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; line-height: 1.45; color: #111; }
     strong { font-weight: 700; }
+
+    .sheet { position: relative; width: 210mm; height: 296mm; padding: 22mm 20mm 24mm 25mm; page-break-after: always; overflow: hidden; background: #fff; }
+    .sheet:last-of-type { page-break-after: auto; }
+    .sheet-body { height: 250mm; overflow: hidden; }
+    .sheet-foot { position: absolute; left: 25mm; right: 20mm; bottom: 11mm; display: flex; justify-content: space-between; padding-top: 2mm; border-top: 0.5pt solid #bbb; font-size: 8.5pt; color: #555; }
+    @media screen { html { background: #d9d9d9; } .sheet { margin: 8mm auto; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3); } }
 
     .letterhead { text-align: center; padding-bottom: 5mm; border-bottom: 1.5pt solid #111; }
     .letterhead .rp   { font-size: 9pt; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -1931,40 +1950,38 @@ function generatePrintReport() {
     .letterhead .unit { margin-top: 1mm; font-size: 11pt; }
     .letterhead .addr { margin-top: 0.5mm; font-size: 9.5pt; color: #444; }
 
-    .cover { page-break-after: always; min-height: 245mm; }
-    .doc-title { margin: 30mm 0 14mm; text-align: center; }
+    .cover { display: flex; flex-direction: column; height: 100%; }
+    .doc-title { margin: 32mm 0 14mm; text-align: center; }
     .doc-title h1 { font-size: 20pt; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.25; }
     .doc-title p  { margin-top: 4mm; font-size: 12pt; }
-    .meta-table { width: 100%; max-width: 135mm; margin: 0 auto; border-collapse: collapse; }
+    .meta-table { width: 125mm; margin: 0 auto; border-collapse: collapse; }
     .meta-table td { padding: 2.5mm 3mm; border-bottom: 0.5pt solid #bbb; font-size: 10.5pt; }
-    .meta-table td.k { width: 38%; font-weight: 700; }
+    .meta-table td.k { width: 40%; font-weight: 700; }
     .meta-table tr:first-child td { border-top: 1pt solid #111; }
     .meta-table tr:last-child td { border-bottom: 1pt solid #111; }
+    .cover-note { margin-top: auto; text-align: center; font-size: 9pt; font-style: italic; color: #444; }
 
     .section-title { margin-bottom: 5mm; padding-bottom: 1.5mm; border-bottom: 1pt solid #111; font-size: 12pt; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
-    .subhead { margin: 7mm 0 3mm; font-size: 11pt; font-weight: 700; }
-    .section { page-break-after: always; }
-    .section:last-of-type { page-break-after: auto; }
+    .subhead { margin: 6mm 0 3mm; font-size: 11pt; font-weight: 700; }
 
-    .metrics { width: 100%; margin-bottom: 4mm; border-collapse: collapse; border-top: 1.2pt solid #111; border-bottom: 1.2pt solid #111; }
+    .metrics { width: 100%; margin-bottom: 2mm; border-collapse: collapse; border-top: 1.2pt solid #111; border-bottom: 1.2pt solid #111; }
     .metrics td { width: 25%; padding: 3.5mm 2mm; text-align: center; border-left: 0.5pt solid #bbb; }
     .metrics td:first-child { border-left: 0; }
     .metrics .v { font-size: 16pt; font-weight: 700; line-height: 1.1; }
     .metrics .l { margin-top: 1mm; font-size: 8pt; letter-spacing: 0.05em; text-transform: uppercase; color: #444; }
 
-    .report-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
-    .report-table thead { display: table-header-group; }
-    .report-table th { padding: 2mm; text-align: left; font-size: 8.5pt; letter-spacing: 0.04em; text-transform: uppercase; border-top: 1.2pt solid #111; border-bottom: 1pt solid #111; }
-    .report-table td { padding: 2mm; vertical-align: top; border-bottom: 0.5pt solid #ccc; }
+    .report-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9.5pt; }
+    .report-table th { padding: 2mm; text-align: left; white-space: nowrap; font-size: 8.5pt; letter-spacing: 0.04em; text-transform: uppercase; border-top: 1.2pt solid #111; border-bottom: 1pt solid #111; }
+    .report-table td { padding: 2mm; vertical-align: top; overflow-wrap: anywhere; border-bottom: 0.5pt solid #ccc; }
     .report-table tbody tr:last-child td { border-bottom: 1pt solid #111; }
-    .report-table tr { page-break-inside: avoid; }
-    .report-table .num { width: 9mm; color: #555; }
+    .report-table .num { width: 8mm; color: #555; }
+    .report-table .nowrap { white-space: nowrap; overflow-wrap: normal; }
     .txt-center { text-align: center !important; }
+    .when div { font-size: 9pt; color: #333; }
     .sub-type { font-size: 8.5pt; font-style: italic; color: #555; }
     .status-overload { font-weight: 700; }
-    .note { margin-top: 4mm; font-size: 9pt; font-style: italic; color: #444; }
 
-    .sign-zone { display: flex; justify-content: space-between; margin-top: 22mm; page-break-inside: avoid; }
+    .sign-zone { display: flex; justify-content: space-between; margin-top: 18mm; }
     .sign-block { width: 68mm; text-align: center; }
     .sign-label { margin-bottom: 14mm; font-size: 9.5pt; text-align: left; color: #444; }
     .sign-line { padding-top: 1.5mm; border-top: 0.75pt solid #111; }
@@ -1973,33 +1990,33 @@ function generatePrintReport() {
 </head>
 <body>
 
-  <section class="cover">
-    <div class="letterhead">
-      <div class="rp">Republic of the Philippines</div>
-      <div class="univ">Palawan State University</div>
-      <div class="unit">College of Sciences &middot; ${escapeHTML(deptFull)} Department</div>
-      <div class="addr">Puerto Princesa City, Palawan</div>
+  <!-- Source content. The script below flows it onto A4 sheets. -->
+  <div id="src" style="display:none">
+
+    <div id="srcCover" class="cover">
+      <div class="letterhead">
+        <div class="rp">Republic of the Philippines</div>
+        <div class="univ">Palawan State University</div>
+        <div class="unit">College of Sciences &middot; ${escapeHTML(deptFull)} Department</div>
+        <div class="addr">Puerto Princesa City, Palawan</div>
+      </div>
+      <div class="doc-title">
+        <h1>Teaching Load<br>Assignment Report</h1>
+        <p>${escapeHTML(semesterLabel)}</p>
+      </div>
+      <table class="meta-table">
+        <tr><td class="k">Department</td><td>${escapeHTML(deptFull)}</td></tr>
+        <tr><td class="k">Academic period</td><td>${escapeHTML(semesterLabel)}</td></tr>
+        <tr><td class="k">Faculty members</td><td>${Object.keys(byFaculty).length}</td></tr>
+        <tr><td class="k">Prepared by</td><td>${escapeHTML(user)}</td></tr>
+        <tr><td class="k">Date generated</td><td>${dateStr}, ${timeStr}</td></tr>
+      </table>
+      <div class="cover-note">Generated by ATLAS PSU: A Teaching Load Assignment and Management System</div>
     </div>
 
-    <div class="doc-title">
-      <h1>Teaching Load<br>Assignment Report</h1>
-      <p>${escapeHTML(semesterLabel)}</p>
-    </div>
-
-    <table class="meta-table">
-      <tr><td class="k">Department</td><td>${escapeHTML(deptFull)}</td></tr>
-      <tr><td class="k">Academic period</td><td>${escapeHTML(semesterLabel)}</td></tr>
-      <tr><td class="k">Faculty members</td><td>${Object.keys(byFaculty).length}</td></tr>
-      <tr><td class="k">Prepared by</td><td>${escapeHTML(user)}</td></tr>
-      <tr><td class="k">Date generated</td><td>${dateStr}, ${timeStr}</td></tr>
-    </table>
-  </section>
-
-  <section class="section">
-    <h2 class="section-title">I. Workload Distribution Summary</h2>
-
-    <div class="subhead">Workload Balance Indicators</div>
-    <table class="metrics">
+    <h2 id="srcTitle1" class="section-title">I. Workload Distribution Summary</h2>
+    <div id="srcSub1" class="subhead">Workload Balance Indicators</div>
+    <table id="srcMetrics" class="metrics">
       <tr>
         <td><div class="v">${fScore}</div><div class="l">Balance score</div></td>
         <td><div class="v">${fJain}</div><div class="l">Jain's index</div></td>
@@ -2007,44 +2024,39 @@ function generatePrintReport() {
         <td><div class="v">${fStdDev}</div><div class="l">Load std. deviation</div></td>
       </tr>
     </table>
+    <div id="srcSub2" class="subhead">Faculty Workload Status</div>
 
-    <div class="subhead">Faculty Workload Status</div>
-    <table class="report-table">
+    <table id="srcFaculty" class="report-table">
+      <colgroup><col style="width: 8mm"><col style="width: 34mm"><col style="width: 14mm"><col style="width: 22mm"><col></colgroup>
       <thead>
         <tr>
           <th class="num">No.</th>
-          <th>Faculty member</th>
-          <th class="txt-center" style="width: 20mm;">Units</th>
-          <th style="width: 22mm;">Status</th>
+          <th>Faculty</th>
+          <th class="txt-center">Units</th>
+          <th>Status</th>
           <th>Assigned subjects</th>
         </tr>
       </thead>
-      <tbody>
-        ${facultyRows}
-      </tbody>
+      <tbody>${facultyRows}</tbody>
     </table>
-  </section>
 
-  <section class="section">
-    <h2 class="section-title">II. Master Schedule of Assignments</h2>
-
-    <table class="report-table">
+    <h2 id="srcTitle2" class="section-title">II. Master Schedule of Assignments</h2>
+    <table id="srcSchedule" class="report-table">
+      <colgroup><col style="width: 8mm"><col style="width: 31mm"><col><col style="width: 28mm"><col style="width: 22mm"><col style="width: 21mm"></colgroup>
       <thead>
         <tr>
           <th class="num">No.</th>
-          <th style="width: 34mm;">Day and time</th>
+          <th>Day and time</th>
           <th>Subject</th>
-          <th style="width: 28mm;">Faculty</th>
-          <th style="width: 18mm;">Room</th>
-          <th style="width: 20mm;">Class</th>
+          <th>Faculty</th>
+          <th>Room</th>
+          <th>Class</th>
         </tr>
       </thead>
-      <tbody>
-        ${scheduleRows}
-      </tbody>
+      <tbody>${scheduleRows}</tbody>
     </table>
 
-    <div class="sign-zone">
+    <div id="srcSign" class="sign-zone">
       <div class="sign-block">
         <div class="sign-label">Prepared by:</div>
         <div class="sign-line"><strong>${escapeHTML(user)}</strong></div>
@@ -2056,10 +2068,90 @@ function generatePrintReport() {
         <div class="sign-title">College Dean</div>
       </div>
     </div>
-  </section>
+  </div>
 
   <script>
-    window.onload = function() {
+    window.onload = function () {
+      var src = document.getElementById('src');
+      var sheets = [];
+      var body = null;
+
+      function newSheet() {
+        var sheet = document.createElement('section');
+        sheet.className = 'sheet';
+        sheet.innerHTML = '<div class="sheet-body"></div><div class="sheet-foot"><span>ATLAS PSU</span><span class="pg"></span></div>';
+        document.body.insertBefore(sheet, src);
+        sheets.push(sheet);
+        body = sheet.querySelector('.sheet-body');
+      }
+      function fits() { return body.scrollHeight <= body.clientHeight + 1; }
+      function grab(id) { return src.querySelector('#' + id); }
+
+      /* a block that moves to a new sheet when it does not fit */
+      function addBlock(node) {
+        body.appendChild(node);
+        if (!fits() && body.children.length > 1) {
+          body.removeChild(node);
+          newSheet();
+          body.appendChild(node);
+        }
+      }
+
+      /* a table whose rows continue onto new sheets with the header repeated */
+      function addTable(source) {
+        var rows = Array.prototype.slice.call(source.tBodies[0].rows);
+        var table, tbody;
+        function start() {
+          table = source.cloneNode(false);
+          table.removeAttribute('id');
+          var cg = source.querySelector('colgroup');
+          if (cg) table.appendChild(cg.cloneNode(true));
+          table.appendChild(source.tHead.cloneNode(true));
+          tbody = document.createElement('tbody');
+          table.appendChild(tbody);
+          body.appendChild(table);
+        }
+        start();
+        rows.forEach(function (row) {
+          var copy = row.cloneNode(true);
+          tbody.appendChild(copy);
+          if (fits()) return;
+          if (tbody.rows.length > 1) {
+            tbody.removeChild(copy);
+            newSheet();
+            start();
+            tbody.appendChild(copy);
+          } else {
+            body.removeChild(table);
+            newSheet();
+            start();
+            tbody.appendChild(copy);
+          }
+        });
+      }
+
+      /* cover */
+      newSheet();
+      body.appendChild(grab('srcCover'));
+
+      /* I. summary */
+      newSheet();
+      body.appendChild(grab('srcTitle1'));
+      body.appendChild(grab('srcSub1'));
+      body.appendChild(grab('srcMetrics'));
+      body.appendChild(grab('srcSub2'));
+      addTable(grab('srcFaculty'));
+
+      /* II. schedule and signatures */
+      newSheet();
+      body.appendChild(grab('srcTitle2'));
+      addTable(grab('srcSchedule'));
+      addBlock(grab('srcSign'));
+
+      sheets.forEach(function (sheet, i) {
+        sheet.querySelector('.pg').textContent = 'Page ' + (i + 1) + ' of ' + sheets.length;
+      });
+      src.parentNode.removeChild(src);
       window.print();
     };
   <\/script>
@@ -2957,6 +3049,16 @@ function renderCapacityAnalytics(analytics) {
 /* ============================================================
    GLOBAL EXPORTS & TOAST UTILITY
    ============================================================ */
+/* Sound, vibration and system alert when a run finishes (see Notification settings) */
+function announceOptimization(count, analytics) {
+  const app = window.atlasApp;
+  if (!app || !app.get('notifyOptimization')) return;
+  const violations = analytics && analytics.capacity_metrics ? analytics.capacity_metrics.hard_violation_count : 0;
+  let body = `${count} assignments generated.`;
+  if (violations && app.get('notifyViolations')) body += ` ${violations} capacity violation${violations === 1 ? '' : 's'} found.`;
+  app.alert('Optimization complete', body, 'atlas-optimization');
+}
+
 function showToast(msg, type = 'info') {
   const t = document.getElementById('toastNotif');
   if (!t) return;
