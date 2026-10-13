@@ -18,7 +18,7 @@
 /* ============================================================
    1. CONSTANTS & STATE
    ============================================================ */
-const API_BASE = 'http://localhost:5000';
+const API_BASE = 'https://atlas-psu.onrender.com';
 
 const DAY_MAP = {
   Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday',
