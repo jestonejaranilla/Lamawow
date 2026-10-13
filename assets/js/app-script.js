@@ -1,0 +1,347 @@
+/* ============================================================
+   ATLAS PSU - application pages (app/*.html)
+   Menu, application settings, notifications, account,
+   appearance and about. Works for chairpersons and faculty.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  const app = window.atlasApp;
+  const page = document.body.dataset.page;
+  const LOGIN = '../pages/login.html';
+
+  if (!sessionStorage.getItem('atlasUser')) {
+    window.location.replace(LOGIN);
+    return;
+  }
+
+  const session = app.session();
+  const isFaculty = session.role === 'faculty';
+  const DASHBOARD = isFaculty ? '../faculty/dashboard.html' : '../pages/dashboard.html';
+  const DEPARTMENTS = {
+    IT: 'Information Technology', CS: 'Computer Science', MB: 'Marine Biology',
+    ES: 'Environmental Science', MedB: 'Medical Biology'
+  };
+  const PSU_EMAIL = /^[a-zA-Z0-9._%+-]+@psu\.palawan\.edu\.ph$/i;
+  const isDesktop = () => window.matchMedia('(min-width: 901px)').matches;
+  const $ = id => document.getElementById(id);
+
+  if (page === 'menu' && isDesktop()) {
+    window.location.replace('application-settings.html');
+    return;
+  }
+
+  /* ---------- Helpers ---------- */
+  function toast(message) {
+    const el = $('toastNotif');
+    el.textContent = message;
+    el.className = 'toast-notif show';
+    setTimeout(() => { el.className = 'toast-notif'; }, 3000);
+  }
+
+  function writeLocal(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable */ }
+  }
+
+  function download(name, data) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
+  function exportAll() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      try { data[key] = JSON.parse(localStorage.getItem(key)); } catch { data[key] = localStorage.getItem(key); }
+    }
+    download('atlas-psu-data.json', data);
+    toast('Data downloaded');
+  }
+
+  function logout() {
+    sessionStorage.clear();
+    window.location.href = LOGIN;
+  }
+
+  /* ---------- Navigation shell ---------- */
+  const ICONS = {
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    notifications: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+    account: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    appearance: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+    about: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'
+  };
+  const SECTIONS = [
+    ['application-settings.html', 'settings', 'Application settings'],
+    ['notifications.html', 'notifications', 'Notification settings'],
+    ['account.html', 'account', 'Account settings'],
+    ['appearance.html', 'appearance', 'Appearance'],
+    ['about.html', 'about', 'About']
+  ];
+  const svg = (name, cls) => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+  const THEME_LABELS = { light: 'Light', dark: 'Night', auto: 'Automatic', schedule: 'By time' };
+
+  function renderNav() {
+    $('appNav').innerHTML = SECTIONS.map(([href, key, label]) => `
+      <a class="app-nav-link" href="${href}"${page === key ? ' aria-current="page"' : ''}>
+        ${svg(key, 'app-nav-ic')}<span>${label}</span>
+        ${key === 'appearance' ? `<em class="app-nav-value" id="navTheme">${THEME_LABELS[app.get('theme')]}</em>` : ''}
+        <svg class="app-chev" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+      </a>`).join('') + '<button type="button" class="app-btn app-btn-danger app-logout" id="appLogout">Log out</button>';
+    $('appLogout').addEventListener('click', logout);
+  }
+
+  function renderBack() {
+    const back = $('appBack');
+    const text = document.createElement('span');
+    text.className = 'app-back-text';
+    text.textContent = 'Dashboard';
+    back.appendChild(text);
+    const update = () => { back.href = (isDesktop() || page === 'menu') ? DASHBOARD : 'menu.html'; };
+    update();
+    window.addEventListener('resize', update);
+  }
+
+  /* ---------- Generic bindings ---------- */
+  function bindSwitches() {
+    document.querySelectorAll('[data-switch]').forEach(input => {
+      input.checked = Boolean(app.get(input.dataset.switch));
+      input.addEventListener('change', () => { app.set(input.dataset.switch, input.checked); syncQuiet(); });
+    });
+  }
+
+  function bindSegments() {
+    document.querySelectorAll('[data-seg]').forEach(group => {
+      const key = group.dataset.seg;
+      const paint = () => group.querySelectorAll('button').forEach(b =>
+        b.setAttribute('aria-pressed', String(b.dataset.value === app.get(key))));
+      group.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+        app.set(key, b.dataset.value);
+        document.querySelectorAll(`[data-seg="${key}"]`).forEach(g => g.querySelectorAll('button').forEach(x =>
+          x.setAttribute('aria-pressed', String(x.dataset.value === app.get(key)))));
+      }));
+      paint();
+    });
+  }
+
+  function bindTimes() {
+    document.querySelectorAll('[data-time]').forEach(input => {
+      input.value = app.get(input.dataset.time);
+      input.addEventListener('change', () => {
+        if (input.value) app.set(input.dataset.time, input.value);
+        if (page === 'appearance') renderThemeNow();
+      });
+    });
+  }
+
+  function syncQuiet() {
+    const times = $('quietTimes');
+    if (times) times.hidden = !app.get('quiet');
+  }
+
+  /* ---------- Application settings ---------- */
+  function initSettings() {
+    const select = $('startPage');
+    const options = isFaculty
+      ? ['Schedule', 'Settings']
+      : ['Dashboard', 'Workload Optimization', 'Reports', 'Faculty and Subjects', 'Settings'];
+    select.innerHTML = options.map((label, i) => `<option value="${i}">${label}</option>`).join('');
+    select.value = String(app.get('startPage'));
+    if (!select.value) select.value = '0';
+    select.addEventListener('change', () => { app.set('startPage', select.value); toast('Saved'); });
+
+    function renderStats() {
+      const schedule = app.readJSON('lastGAResult', []);
+      const faculty = app.readJSON('facultyData', []);
+      const subjects = app.readJSON('subjectsData', []);
+      $('dataStats').innerHTML = [
+        [Array.isArray(schedule) ? schedule.length : 0, 'Classes'],
+        [Array.isArray(faculty) ? faculty.length : 0, 'Faculty'],
+        [Array.isArray(subjects) ? subjects.length : 0, 'Subjects']
+      ].map(([n, label]) => `<div class="app-stat"><strong>${n}</strong><span>${label}</span></div>`).join('');
+    }
+    renderStats();
+
+    $('btnExport').addEventListener('click', exportAll);
+    $('btnClearSchedule').addEventListener('click', () => {
+      if (!window.confirm('Clear the saved schedule on this device? Faculty will no longer see it.')) return;
+      localStorage.removeItem('lastGAResult');
+      localStorage.removeItem('atlasAnalyticsCache');
+      renderStats();
+      toast('Saved schedule cleared');
+    });
+    $('btnResetSettings').addEventListener('click', () => {
+      if (!window.confirm('Reset all application settings to their defaults?')) return;
+      app.reset();
+      window.location.reload();
+    });
+
+    const button = $('btnInstall');
+    const hint = $('installHint');
+    let deferred = null;
+    if (window.matchMedia('(display-mode: standalone)').matches) hint.textContent = 'Installed on this device.';
+    else hint.textContent = 'Use your browser menu and choose Add to Home screen.';
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      deferred = event;
+      hint.textContent = 'Install ATLAS PSU on this device.';
+      button.hidden = false;
+    });
+    button.addEventListener('click', async () => {
+      if (!deferred) return;
+      deferred.prompt();
+      await deferred.userChoice;
+      deferred = null;
+      button.hidden = true;
+    });
+    window.addEventListener('appinstalled', () => { hint.textContent = 'Installed on this device.'; button.hidden = true; });
+  }
+
+  /* ---------- Notifications ---------- */
+  function permissionText() {
+    if (!('Notification' in window)) return 'Not supported by this browser';
+    if (Notification.permission === 'denied') return 'Blocked in browser settings';
+    if (Notification.permission === 'granted') return 'Allowed';
+    return 'Asks permission when turned on';
+  }
+
+  function initNotifications() {
+    document.querySelectorAll('[data-role-only]').forEach(card => {
+      card.hidden = card.dataset.roleOnly !== session.role;
+    });
+
+    const system = $('swSystem');
+    const refreshSystem = () => {
+      system.checked = Boolean(app.get('system')) && 'Notification' in window && Notification.permission === 'granted';
+      $('permHint').textContent = permissionText();
+    };
+    refreshSystem();
+    system.addEventListener('change', async () => {
+      if (!system.checked) { app.set('system', false); refreshSystem(); return; }
+      if (!('Notification' in window)) { refreshSystem(); return; }
+      const result = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      app.set('system', result === 'granted');
+      refreshSystem();
+    });
+
+    $('btnTestAlert').addEventListener('click', () => {
+      if (app.isQuiet()) { toast('Quiet hours are on, so sound is muted'); return; }
+      toast('Test alert');
+      app.alert('Test alert', 'This is how alerts will look.', 'atlas-test');
+    });
+    syncQuiet();
+
+    if (isFaculty) {
+      const key = 'facultySettings:' + session.faculty;
+      const defaults = { enabled: true, lead: 10, atStart: true, sound: true, vibrate: true, browser: false };
+      const read = () => Object.assign({}, defaults, app.readJSON(key, {}));
+      const current = read();
+      document.querySelectorAll('[data-faculty-switch]').forEach(input => {
+        input.checked = Boolean(current[input.dataset.facultySwitch]);
+        input.addEventListener('change', () => {
+          const next = read();
+          next[input.dataset.facultySwitch] = input.checked;
+          writeLocal(key, next);
+        });
+      });
+      const lead = $('facLead');
+      lead.value = String(current.lead);
+      lead.addEventListener('change', () => { const next = read(); next.lead = Number(lead.value); writeLocal(key, next); });
+    }
+  }
+
+  /* ---------- Account ---------- */
+  function initAccount() {
+    const profile = app.readJSON('atlasProfile', {});
+    const isEmail = value => value.includes('@');
+    const name = isFaculty ? session.faculty : (profile.name || (isEmail(session.user) ? '' : session.user));
+    const email = isFaculty ? session.email : (profile.email || (isEmail(session.user) ? session.user : ''));
+
+    const nameInput = $('acctInputName');
+    const emailInput = $('acctInputEmail');
+    nameInput.value = name;
+    emailInput.value = email;
+    if (isFaculty) nameInput.disabled = true;
+
+    function paint() {
+      const shown = nameInput.value.trim() || emailInput.value.trim() || 'User';
+      $('acctName').textContent = shown;
+      $('acctAvatar').textContent = shown.charAt(0).toUpperCase();
+      $('acctMeta').textContent = (isFaculty ? 'Faculty' : 'Chairperson') + (DEPARTMENTS[session.dept] ? ' · ' + session.dept : '');
+    }
+    paint();
+    $('acctDept').textContent = DEPARTMENTS[session.dept] ? DEPARTMENTS[session.dept] + ' Department' : 'Not set';
+    $('acctRole').textContent = isFaculty ? 'Faculty' : 'Department chairperson';
+
+    $('btnSaveProfile').addEventListener('click', () => {
+      const error = $('acctError');
+      const newName = nameInput.value.trim();
+      const newEmail = emailInput.value.trim();
+      if (!newName && !newEmail) { error.textContent = 'Enter your name or email.'; error.hidden = false; return; }
+      if (newEmail && !PSU_EMAIL.test(newEmail)) {
+        error.textContent = 'Use your PSU corporate email (name@psu.palawan.edu.ph).';
+        error.hidden = false;
+        return;
+      }
+      error.hidden = true;
+      if (isFaculty) {
+        const profiles = app.readJSON('facultyProfiles', {});
+        profiles[session.faculty] = { email: newEmail, dept: session.dept };
+        writeLocal('facultyProfiles', profiles);
+        sessionStorage.setItem('atlasEmail', newEmail);
+      } else {
+        writeLocal('atlasProfile', { name: newName, email: newEmail });
+        sessionStorage.setItem('atlasUser', newName || newEmail);
+        sessionStorage.setItem('atlasEmail', newEmail);
+      }
+      paint();
+      toast('Profile saved');
+    });
+
+    $('btnExport').addEventListener('click', exportAll);
+    $('btnClearAll').addEventListener('click', () => {
+      if (!window.confirm('Clear all saved data on this device and log out? This cannot be undone.')) return;
+      try { localStorage.clear(); } catch { /* storage unavailable */ }
+      logout();
+    });
+    $('btnSignOut').addEventListener('click', logout);
+  }
+
+  /* ---------- Appearance ---------- */
+  function renderThemeNow() {
+    const mode = app.get('theme');
+    const label = app.isDark() ? 'Night' : 'Light';
+    $('themeNow').textContent = mode === 'schedule'
+      ? `Now: ${label}. Night runs from ${app.get('nightStart')} to ${app.get('nightEnd')} on this device's clock.`
+      : `Now: ${label}`;
+  }
+
+  function initAppearance() {
+    const cards = document.querySelectorAll('.theme-card');
+    const paint = () => {
+      cards.forEach(card => card.setAttribute('aria-checked', String(card.dataset.themeValue === app.get('theme'))));
+      $('scheduleCard').hidden = app.get('theme') !== 'schedule';
+      renderThemeNow();
+    };
+    cards.forEach(card => card.addEventListener('click', () => { app.set('theme', card.dataset.themeValue); paint(); }));
+    paint();
+  }
+
+  /* ---------- Start ---------- */
+  renderNav();
+  renderBack();
+  bindSwitches();
+  bindSegments();
+  bindTimes();
+  if (page === 'settings') initSettings();
+  if (page === 'notifications') initNotifications();
+  if (page === 'account') initAccount();
+  if (page === 'appearance') initAppearance();
+})();
