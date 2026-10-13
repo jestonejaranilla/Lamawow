@@ -75,40 +75,10 @@ SUBJECT_TYPES = [
 ]
 
 # ── Specialization Map ────────────────────────────────────────────────────────
-SPECIALIZATION_MAP = {
-    "Introduction to Computing":                          ["Core Theory", "Elective"],
-    "Computer Programming 1":                             ["Programming"],
-    "Discrete Mathematics":                               ["Mathematics"],
-    "Introduction to Human Computer Interaction":         ["Applied Computing"],
-    "Computer Programming 2":                             ["Programming"],
-    "Graphics and Visual Computing":                      ["Applied Computing"],
-    "Data Structures and Algorithms":                     ["Programming", "Mathematics"],
-    "IT Elective 1":                                      ["Elective"],
-    "IT Elective 2":                                      ["Elective"],
-    "Mathematics for Data Science":                       ["Mathematics"],
-    "Information Management 1":                           ["Data Management"],
-    "Quantitative Methods w/ Modelling and Simulation":   ["Mathematics"],
-    "Network Technologies 1":                             ["Networks & Security"],
-    "Integrative Programming Technologies 1":             ["Programming", "Systems"],
-    "Systems Integration and Architecture 1":             ["Systems"],
-    "Advanced Database Systems":                          ["Data Management"],
-    "Network Technologies 2":                             ["Networks & Security"],
-    "Information Assurance and Security 1":               ["Networks & Security"],
-    "Web Systems and Technologies 1":                     ["Web & App Dev"],
-    "Multimedia Systems":                                 ["Applied Computing"],
-    "IT Elective 3":                                      ["Elective"],
-    "Application Development and Emerging Technologies 1":["Web & App Dev"],
-    "Geographic Information System":                      ["Applied Computing"],
-    "Embedded System":                                    ["Applied Computing", "Systems"],
-    "Information Assurance and Security 2":               ["Networks & Security"],
-    "Capstone Project and Research 1":                    ["Research & Capstone", "Elective"],
-    "Systems Administration and Maintenance":             ["Systems"],
-    "Capstone Project and Research 2":                    ["Research & Capstone", "Elective"],
-    "IT Elective 4":                                      ["Elective"],
-    "Educational Tour in IT Industry":                    ["Industry Practice", "Elective"],
-    "Thesis Writing and Colloquium":                      ["Research & Capstone", "Elective"],
-    "Practicum (486 Hours)":                              ["Industry Practice", "Elective"],
-}
+# Built from data/curricula/*.json (single source of truth for course titles
+# and specialization tags). Keyed by prospectus title.
+from config.curriculum import specialization_map as _specialization_map
+SPECIALIZATION_MAP = _specialization_map()
 
 # ── Default Class Sizes ───────────────────────────────────────────────────────
 DEFAULT_CLASS_SIZES = {
@@ -152,3 +122,5 @@ GA_WEIGHTS = {
 # ── Solver Config ─────────────────────────────────────────────────────────────
 CP_SAT_TIME_LIMIT_SECONDS = 60.0
 UNITS_PER_ASSIGNMENT = 2
+# Load units counted for one NON_CLASSROOM group (IT 20, IT 22); configurable.
+NON_CLASSROOM_UNITS = 2

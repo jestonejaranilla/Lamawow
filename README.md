@@ -166,7 +166,14 @@ index.html                    Landing page (chairperson and faculty entry points
 
 config/
   settings.py                 Time grid (30 slots), room definitions, subject types,
-                              specialization map, class sizes, GA weights, CP-SAT time limit
+                              class sizes, GA weights, CP-SAT time limit. The
+                              specialization map is built from the curriculum files.
+  curriculum.py               Generic loader for data/curricula/<DEPT>.json
+
+data/curricula/
+  IT.json                     BSIT prospectus (CC/IT courses only): titles, year, semester,
+                              lec/lab units, scheduled flag, specialization tags. Read by the
+                              backend and by the dashboard. Other departments = more files.
 
 solver/
   cp_sat_solver.py            Phase 1: hard constraint solver (OR-Tools + greedy fallback)
@@ -202,7 +209,11 @@ app/                          Application pages shared by both roles
   appearance.html             Light, night, automatic themes
   about.html                  About the system
 
+tests/
+  test_groups.py              Group expansion, coverage and engine tests (python -m pytest tests -q)
+
 assets/
+  js/curriculum.js            Curriculum helpers shared by the dashboard (no DOM)
   css/main-style.css          Design system (rust orange, slate, off-white) and shared components
   css/faculty-style.css       Faculty page components
   css/app-style.css           Application pages

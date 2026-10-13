@@ -62,8 +62,24 @@ def faculty_available_at(faculty: dict, slot_str: str) -> bool:
 
 # ── Load ──────────────────────────────────────────────────────────────────────
 
-def faculty_load_ok(current_units: int, faculty: dict) -> bool:
-    return current_units + _settings.UNITS_PER_ASSIGNMENT <= faculty.get("absolute_max_units", 30)
+def faculty_load_ok(current_units: int, faculty: dict, units: int = None) -> bool:
+    add = _settings.UNITS_PER_ASSIGNMENT if units is None else units
+    return current_units + add <= faculty.get("absolute_max_units", 30)
+
+
+NON_CLASSROOM = "NON_CLASSROOM"
+
+
+def is_non_classroom(assignment: dict) -> bool:
+    """True for groups that need a professor but no slot or room (IT 20, IT 22)."""
+    return assignment.get("class_type") == NON_CLASSROOM
+
+
+def assignment_units(assignment: dict) -> int:
+    """Load units one assignment row counts for its professor."""
+    if is_non_classroom(assignment):
+        return int(getattr(_settings, "NON_CLASSROOM_UNITS", _settings.UNITS_PER_ASSIGNMENT))
+    return int(_settings.UNITS_PER_ASSIGNMENT)
 
 
 # ── Room Compatibility ────────────────────────────────────────────────────────
@@ -196,9 +212,29 @@ def validate_schedule(assignments: list, faculty_list: list, static_lookup: dict
     fac_load: dict = {f["name"]: 0 for f in faculty_list}
 
     for a in assignments:
+        # Rows without a professor are reported through coverage_errors
+        # (R3), not as validation violations.
+        if not a.get("faculty"):
+            continue
+
+        label = f"{a['subject']}({a['section']})"
+        fac = fac_map.get(a["faculty"])
+        if not fac:
+            violations.append(f"UNKNOWN_FACULTY: {a['faculty']}")
+            continue
+
+        # Qualification
+        if not faculty_qualifies(fac, a["subject"], static_lookup):
+            violations.append(f"UNQUALIFIED: {a['faculty']} → {a['subject']}")
+
+        fac_load[a["faculty"]] = fac_load.get(a["faculty"], 0) + assignment_units(a)
+
+        # NON_CLASSROOM groups hold no slot or room - only load and qualification
+        if is_non_classroom(a):
+            continue
+
         key = f"{a['faculty']}|{a['slot']}"
         room_key = f"{a['room']}|{a['slot']}"
-        label = f"{a['subject']}({a['section']})"
 
         # No faculty double-booking
         if key in fac_slot:
@@ -212,18 +248,9 @@ def validate_schedule(assignments: list, faculty_list: list, static_lookup: dict
         else:
             room_slot[room_key] = label
 
-        fac = fac_map.get(a["faculty"])
-        if not fac:
-            violations.append(f"UNKNOWN_FACULTY: {a['faculty']}")
-            continue
-
         # Availability
         if not faculty_available_at(fac, a["slot"]):
             violations.append(f"UNAVAILABLE: {a['faculty']} not available {a['slot']}")
-
-        # Qualification
-        if not faculty_qualifies(fac, a["subject"], static_lookup):
-            violations.append(f"UNQUALIFIED: {a['faculty']} → {a['subject']}")
 
         # Room compatibility
         if not room_compatible(a["room"], a["class_type"], lab_rooms):
@@ -240,8 +267,6 @@ def validate_schedule(assignments: list, faculty_list: list, static_lookup: dict
                     f"CAPACITY_EXCEEDED: {a['room']} (max {cap.get('max')}) cannot fit "
                     f"{student_count} students for {label}"
                 )
-
-        fac_load[a["faculty"]] = fac_load.get(a["faculty"], 0) + _settings.UNITS_PER_ASSIGNMENT
 
     # Load caps
     for f in faculty_list:

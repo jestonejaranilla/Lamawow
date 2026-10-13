@@ -6,7 +6,7 @@ Pure computation - no Flask dependencies.
 
 import config.settings as _cfg_ana
 from solver.constraints import (
-    is_exact_spec_match,
+    is_exact_spec_match, is_non_classroom, assignment_units,
     get_room_capacity, room_exceeds_hard_max, room_capacity_penalty,
 )
 from solver.objective_functions import compute_satisfaction_metrics
@@ -31,7 +31,7 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
     fac_subjects: dict = {f["name"]: [] for f in faculty_list}
     for a in assignments:
         if a.get("faculty"):
-            fac_loads[a["faculty"]] = fac_loads.get(a["faculty"], 0) + _cfg_ana.UNITS_PER_ASSIGNMENT
+            fac_loads[a["faculty"]] = fac_loads.get(a["faculty"], 0) + assignment_units(a)
             fac_subjects.setdefault(a["faculty"], []).append(a)
 
     # ── Faculty utilization ───────────────────────────────────────────────────
@@ -114,7 +114,7 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
     total_slots = len(TIME_SLOTS)
     room_usage: dict = {}
     for a in assignments:
-        if a.get("room") and a["room"] != "Unassigned":
+        if a.get("room") and a["room"] not in ("Unassigned", "N/A") and not is_non_classroom(a):
             room_usage[a["room"]] = room_usage.get(a["room"], 0) + 1
 
     room_utilization = []
@@ -178,7 +178,7 @@ def _compute_capacity_metrics(assignments: list, class_sizes: dict = None) -> di
 
     for a in assignments:
         room = a.get("room", "")
-        if not room or room == "Unassigned":
+        if not room or room in ("Unassigned", "N/A") or is_non_classroom(a):
             continue
 
         section_key = a.get("section", "")

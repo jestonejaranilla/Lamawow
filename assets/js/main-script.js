@@ -18,7 +18,9 @@
 /* ============================================================
    1. CONSTANTS & STATE
    ============================================================ */
-   const API_BASE = 'https://atlas-drsg.onrender.com';
+const API_BASE = ['localhost', '127.0.0.1'].includes(location.hostname)
+  ? 'http://localhost:5000'
+  : 'https://atlas-drsg.onrender.com';
 
 const DAY_MAP = {
   Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday',
@@ -54,7 +56,7 @@ function getFacultyMaxUnitsMap() {
   return map;
 }
 
-const DATA_VERSION = 'v5'; // bump to wipe stale localStorage on deploy
+const DATA_VERSION = 'v6'; // bump to wipe stale localStorage on deploy
 
 const SPECIALIZATIONS = [
   'Core Theory',
@@ -131,40 +133,22 @@ const INITIAL_FACULTY = [
   { name: 'Prof J',  specialization: ['Data Management'],        max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] }
 ];
 
-const DEFAULT_SUBJECTS = [
-  { name: 'Introduction to Computing',                           type: 'Core Theory',       year: '1st Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Computer Programming 1',                             type: 'Programming',        year: '1st Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Discrete Mathematics',                               type: 'Mathematics',        year: '1st Year', semester: '2nd Semester', lec_units: 3, lab_units: 0 },
-  { name: 'Introduction to Human Computer Interaction',         type: 'Applied Computing',  year: '1st Year', semester: '2nd Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Computer Programming 2',                             type: 'Programming',        year: '1st Year', semester: '2nd Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Graphics and Visual Computing',                      type: 'Applied Computing',  year: '2nd Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Data Structures and Algorithms',                     type: 'Programming',        year: '2nd Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'IT Elective 1',                                      type: 'Elective',           year: '2nd Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'IT Elective 2',                                      type: 'Elective',           year: '2nd Year', semester: '1st Semester', lec_units: 2, lab_units: 0 },
-  { name: 'Mathematics for Data Science',                       type: 'Mathematics',        year: '2nd Year', semester: '2nd Semester', lec_units: 3, lab_units: 0 },
-  { name: 'Information Management 1',                           type: 'Data Management',    year: '2nd Year', semester: '2nd Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Quantitative Methods w/ Modelling and Simulation',   type: 'Mathematics',        year: '2nd Year', semester: '2nd Semester', lec_units: 3, lab_units: 0 },
-  { name: 'Network Technologies 1',                             type: 'Networks & Security',year: '2nd Year', semester: '2nd Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Integrative Programming Technologies 1',             type: 'Programming',        year: '2nd Year', semester: '2nd Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Systems Integration and Architecture 1',             type: 'Systems',            year: '2nd Year', semester: '2nd Semester', lec_units: 3, lab_units: 0 },
-  { name: 'Advanced Database Systems',                          type: 'Data Management',    year: '3rd Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Network Technologies 2',                             type: 'Networks & Security',year: '3rd Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Information Assurance and Security 1',               type: 'Networks & Security',year: '3rd Year', semester: '1st Semester', lec_units: 2, lab_units: 0 },
-  { name: 'Web Systems and Technologies 1',                     type: 'Web & App Dev',      year: '3rd Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Multimedia Systems',                                 type: 'Applied Computing',  year: '3rd Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'IT Elective 3',                                      type: 'Elective',           year: '3rd Year', semester: '1st Semester', lec_units: 2, lab_units: 0 },
-  { name: 'Application Development and Emerging Technologies 1',type: 'Web & App Dev',      year: '3rd Year', semester: '2nd Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Geographic Information System',                      type: 'Applied Computing',  year: '3rd Year', semester: '2nd Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Embedded System',                                    type: 'Applied Computing',  year: '3rd Year', semester: '2nd Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Information Assurance and Security 2',               type: 'Networks & Security',year: '3rd Year', semester: '2nd Semester', lec_units: 2, lab_units: 0 },
-  { name: 'Capstone Project and Research 1',                    type: 'Research & Capstone',year: '3rd Year', semester: '2nd Semester', lec_units: 2, lab_units: 0 },
-  { name: 'Systems Administration and Maintenance',             type: 'Systems',            year: '4th Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Capstone Project and Research 2',                    type: 'Research & Capstone',year: '4th Year', semester: '1st Semester', lec_units: 2, lab_units: 0 },
-  { name: 'IT Elective 4',                                      type: 'Elective',           year: '4th Year', semester: '1st Semester', lec_units: 2, lab_units: 1 },
-  { name: 'Educational Tour in IT Industry',                    type: 'Industry Practice',  year: '4th Year', semester: '1st Semester', lec_units: 3, lab_units: 0 },
-  { name: 'Thesis Writing and Colloquium',                      type: 'Research & Capstone',year: '4th Year', semester: '2nd Semester', lec_units: 2, lab_units: 0 },
-  { name: 'Practicum (486 Hours)',                              type: 'Industry Practice',  year: '4th Year', semester: '2nd Semester', lec_units: 6, lab_units: 0 },
-];
+// Default subject rows come from the curriculum file (data/curricula/IT.json),
+// loaded at startup - see loadCurriculumData().
+let ATLAS_CURRICULUM = null;
+const CURRICULUM_DEPT = 'IT';
+
+async function loadCurriculumData() {
+  const urls = [`../data/curricula/${CURRICULUM_DEPT}.json`, `${API_BASE}/curriculum/${CURRICULUM_DEPT}`];
+  try {
+    ATLAS_CURRICULUM = await AtlasCurriculum.loadCurriculum(CURRICULUM_DEPT, urls);
+    try { localStorage.setItem('atlasCurriculumCache', JSON.stringify(ATLAS_CURRICULUM)); } catch { /* ignore */ }
+  } catch (e) {
+    try { ATLAS_CURRICULUM = JSON.parse(localStorage.getItem('atlasCurriculumCache') || 'null'); } catch { ATLAS_CURRICULUM = null; }
+    if (!ATLAS_CURRICULUM) console.error('Curriculum could not be loaded:', e);
+  }
+  return ATLAS_CURRICULUM;
+}
 
 // Table sort state
 let lastSort = { key: 'slot', ascending: true };
@@ -883,15 +867,15 @@ function renderTable(data) {
       return { day: dayPart.trim(), unit: parseInt((timePart || '0').trim()) };
     };
     const sA = parseSlot(a.slot), sB = parseSlot(b.slot);
-    return (DAY_ORDER[sA.day] - DAY_ORDER[sB.day]) || (sA.unit - sB.unit);
+    return ((DAY_ORDER[sA.day] ?? 99) - (DAY_ORDER[sB.day] ?? 99)) || (sA.unit - sB.unit);
   });
 
   // Apply current sort
   applySort(sorted, lastSort.key, lastSort.ascending);
 
   sorted.forEach(item => {
-    const day = item.slot.split(':')[0].trim();
-    const displaySlot = item.slot_display || item.slot;
+    const day = (item.slot || '').split(':')[0].trim();
+    const displaySlot = item.slot_display || item.slot || 'N/A';
     const tr = document.createElement('tr');
     tr.dataset.day = day;
     const sectionHTML = item.section
@@ -919,8 +903,8 @@ function applySort(data, key, ascending) {
     const dir = ascending ? 1 : -1;
     if (key === 'slot') {
       const ps = s => {
-        const [d, t] = s.split(':');
-        return (DAY_ORDER[d.trim()] * 100) + parseInt(t || '0');
+        const [d, t] = (s || '').split(':');
+        return ((DAY_ORDER[d.trim()] ?? 99) * 100) + (parseInt(t || '0') || 0);
       };
       return (ps(a.slot) - ps(b.slot)) * dir;
     }
@@ -966,38 +950,36 @@ async function triggerGARunAPI() {
   const mutation    = document.getElementById('mutationRate').value;
   const crossover   = document.getElementById('crossoverRate').value;
 
-  const rawSubjects = getSubjectsFromTable();
+  if (!ATLAS_CURRICULUM) await loadCurriculumData();
+  if (!ATLAS_CURRICULUM) {
+    throw new Error('Curriculum file could not be loaded. Check your connection and reload.');
+  }
 
-  // Filter by active academic semester - strict: only matching semester subjects
   const mode = getActiveSemester();
-  let filteredSubjects = rawSubjects;
-  if (mode && mode.semester) {
-    filteredSubjects = rawSubjects.filter(s => s.semester === mode.semester);
-  }
+  const classSizes = getClassSizes();
+  const tableRows = getSubjectsFromTable();
 
-  if (!filteredSubjects.length) {
-    throw new Error(
-      mode
-        ? `No subjects found for ${mode.semester}. Add subjects tagged for this semester or change the active period.`
-        : 'No subjects configured. Add subjects in the Faculty & Subjects panel.'
-    );
-  }
+  // Every in-scope course x every block of its year (rule R1). The table only
+  // supplies edited units/types, matched by prospectus code.
+  const built = AtlasCurriculum.buildPayloadSubjects(
+    ATLAS_CURRICULUM, mode ? mode.semester : null, classSizes, tableRows
+  );
+  const expandedSubjects = built.subjects;
 
-  const expandedSubjects = [];
-  filteredSubjects.forEach(s => {
-    if (s.lec_units > 0) {
-      const lecCount = Math.ceil(s.lec_units / 2);
-      for (let i = 0; i < lecCount; i++) {
-        expandedSubjects.push({ name: s.name, type: s.type, class_type: 'LECTURE', hours: 2, semester: s.semester, year: s.year });
-      }
-    }
-    if (s.lab_units > 0) {
-      expandedSubjects.push({ name: s.name, type: s.type, class_type: 'LAB', hours: 3, semester: s.semester, year: s.year });
-    }
-  });
+  if (built.errors.length) {
+    console.warn('[ATLAS] Courses without blocks:', built.errors);
+  }
+  const customRows = tableRows.filter(r => r.name && !r.code).length;
+  if (customRows) {
+    console.warn(`[ATLAS] ${customRows} subject row(s) have no prospectus code and are not scheduled.`);
+  }
 
   if (!expandedSubjects.length) {
-    throw new Error('No subjects with assigned units found for the selected semester.');
+    throw new Error(
+      mode
+        ? `No courses found for ${mode.semester}. Check the class sizes and the active period.`
+        : 'No courses to schedule. Check the curriculum and class sizes.'
+    );
   }
 
   // Load soft constraints and include in payload for backend scoring
@@ -1026,7 +1008,7 @@ async function triggerGARunAPI() {
     body: JSON.stringify(payload)
   });
   const data = await response.json();
-  if (!data.status) throw new Error('GA start failed');
+  if (!data.status) throw new Error(data.error || 'GA start failed');
 }
 
 function initRunGA() {
@@ -1107,6 +1089,12 @@ function initRunGA() {
               ? ` (CP-SAT: ${status.metrics.solve_time_sec}s, GA: ${status.metrics.ga_time_sec || 0}s)`
               : '';
             showToast('Optimization Complete!' + metricsSuffix, 'success');
+            // Coverage (R3): report every group the engine could not staff (shown last so it is not overwritten)
+            if (status.coverage_errors && status.coverage_errors.length > 0) {
+              console.warn('[ATLAS] Coverage errors:', status.coverage_errors);
+              const cov = status.coverage || {};
+              showToast(`${status.coverage_errors.length} class group(s) not covered (${cov.assigned}/${cov.total}). See console for details.`, 'warning');
+            }
             announceOptimization(displayResult.length, status.analytics);
           }
         } catch (err) {
@@ -1551,6 +1539,10 @@ function addSubjectRow(data = {}) {
   if (!tbody) return;
 
   const tr = document.createElement('tr');
+  // Prospectus identity (not editable in the table, kept on the row)
+  tr.dataset.code      = data.code || '';
+  tr.dataset.category  = data.category || '';
+  tr.dataset.scheduled = data.scheduled === false ? 'false' : 'true';
 
   const year     = data.year || '1st Year';
   const semester = data.semester || '1st Semester';
@@ -1621,6 +1613,9 @@ function addSubjectRow(data = {}) {
 
 function getSubjectsFromTable() {
   return Array.from(document.querySelectorAll('#subjectsTable tbody tr')).map(row => ({
+    code:     row.dataset.code || '',
+    category: row.dataset.category || '',
+    scheduled: row.dataset.scheduled !== 'false',
     year:     row.querySelector('.subject-year')?.value || '',
     semester: row.querySelector('.subject-semester')?.value || '',
     name:     row.querySelector('.subject-name')?.value || '',
@@ -1899,8 +1894,8 @@ function generatePrintReport() {
 
   const scheduleRows = [...reportData].sort((a, b) => {
     const ps = s => {
-      const [d, t] = s.split(':');
-      return (DAY_ORDER[d.trim()] * 100) + parseInt(t || '0');
+      const [d, t] = (s || '').split(':');
+      return ((DAY_ORDER[d.trim()] ?? 99) * 100) + (parseInt(t || '0') || 0);
     };
     return ps(a.slot) - ps(b.slot);
   }).map((item, i) => {
@@ -2211,7 +2206,7 @@ function debounce(fn, delay) {
 /* ============================================================
    14. INITIALIZATION
    ============================================================ */
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   // Clear stale localStorage if data version changed
   if (localStorage.getItem('atlasDataVersion') !== DATA_VERSION) {
     localStorage.removeItem('facultyData');
@@ -2246,12 +2241,17 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   updateAllSelectAllBtnStates();
 
-  // Load subjects
-  const savedSubjects = loadSubjectsFromStorage();
+  // Load subjects (defaults come from the curriculum file)
+  await loadCurriculumData();
+  let savedSubjects = loadSubjectsFromStorage();
+  // Rows saved before prospectus codes existed are replaced by the curriculum defaults
+  if (savedSubjects && savedSubjects.length && !savedSubjects.some(s => s.code)) savedSubjects = null;
   if (savedSubjects && savedSubjects.length > 0) {
     savedSubjects.forEach(s => addSubjectRow(s));
+  } else if (ATLAS_CURRICULUM) {
+    AtlasCurriculum.defaultSubjects(ATLAS_CURRICULUM).forEach(s => addSubjectRow(s));
   } else {
-    DEFAULT_SUBJECTS.forEach(s => addSubjectRow(s));
+    showToast('Curriculum could not be loaded.', 'error');
   }
   saveSubjects();
   renderSubjectsGrouped();
@@ -2907,83 +2907,12 @@ function mergeCapacityStatuses(analytics) {
   });
 }
 
-/* ============================================================
-   FRONTEND CAPACITY COMPUTATION
-   Used when backend analytics have no student_count data (total_evaluated === 0).
-   Derives capacity status from getClassSizes() + runtimeRoomCapacity.
-   ============================================================ */
-function computeCapacityMetricsFrontend(data) {
-  if (!data || !data.length) return null;
-  const classSizes = getClassSizes();
-  let within = 0, over = 0, hard = 0, evaluated = 0;
-  const hardViolations = [];
-  const details = [];
-
-  data.forEach(item => {
-    if (!item.room || item.room === 'Unassigned') return;
-    const section = item.section || '';
-    const sizeEntry = classSizes[section];
-    let studentCount = item.student_count > 0
-      ? item.student_count
-      : (sizeEntry ? (sizeEntry.size || 0) : 0);
-    if (studentCount <= 0 && item.year) {
-      const yearSizes = Object.values(classSizes)
-        .filter(v => v && v.year === item.year && (v.size || 0) > 0)
-        .map(v => v.size);
-      if (yearSizes.length) studentCount = Math.max(...yearSizes);
-    }
-    if (studentCount <= 0) return;
-
-    const cap = runtimeRoomCapacity[item.room] || {};
-    const recommended = (cap.recommended && cap.recommended !== '') ? Number(cap.recommended) : 9999;
-    const maxCap      = (cap.max        && cap.max        !== '') ? Number(cap.max)        : 9999;
-
-    evaluated++;
-    let status = 'ok';
-    if (studentCount > maxCap) {
-      status = 'hard_violation';
-      hard++;
-      hardViolations.push({ room: item.room, section, subject: item.subject || '',
-        student_count: studentCount, max_cap: maxCap, excess: studentCount - maxCap });
-    } else if (studentCount > recommended) {
-      status = 'over_recommended';
-      over++;
-    } else {
-      within++;
-    }
-
-    // Stamp back so badges render in table/assignment views
-    item._cap_status = status;
-    if (!item.student_count) item.student_count = studentCount;
-
-    details.push({ room: item.room, section, subject: item.subject || '',
-      student_count: studentCount, recommended_cap: recommended,
-      max_cap: maxCap, status, capacity_penalty: 0 });
-  });
-
-  if (evaluated === 0) return null;
-
-  return {
-    within_recommended_count: within,
-    over_recommended_count:   over,
-    hard_violation_count:     hard,
-    total_evaluated:          evaluated,
-    within_recommended_pct:   Math.round(within / evaluated * 1000) / 10,
-    total_capacity_penalty:   0,
-    hard_violations:          hardViolations,
-    capacity_details:         details,
-  };
-}
-
 /**
- * Get best available capacity metrics:
- * Use backend data if it has evaluated assignments, else compute from frontend.
+ * Capacity metrics come only from the backend (it knows each group's real
+ * student count). Nothing is estimated here.
  */
 function resolveCapacityMetrics(backendAnalytics) {
-  const beCm = backendAnalytics && backendAnalytics.capacity_metrics;
-  if (beCm && beCm.total_evaluated > 0) return beCm;
-  const displayResult = filterResultBySemester(lastGAResult);
-  return computeCapacityMetricsFrontend(displayResult) || beCm || {};
+  return (backendAnalytics && backendAnalytics.capacity_metrics) || {};
 }
 
 function renderCapacityAnalytics(analytics) {

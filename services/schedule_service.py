@@ -5,12 +5,21 @@ Thread-safe progress store for polling endpoint.
 """
 
 import copy
+import math
+import re
 import threading
+from typing import Optional
 
 from config.settings import SPECIALIZATION_MAP
+from config.curriculum import load_curriculum, in_scope_courses
 from solver.cp_sat_solver import solve as cp_solve
 from solver.ga_optimizer import optimize as ga_optimize
 from services.analytics_service import compute_analytics
+from solver.constraints import (
+    faculty_qualifies, is_non_classroom, assignment_units, NON_CLASSROOM,
+)
+
+DEFAULT_DEPT = "IT"
 
 # ── Progress store (thread-safe) ──────────────────────────────────────────────
 
@@ -24,6 +33,8 @@ _progress = {
     "analytics": {},
     "metrics":   {},
     "warnings":  [],
+    "coverage":        {"assigned": 0, "total": 0},
+    "coverage_errors": [],
 }
 
 
@@ -65,47 +76,242 @@ def get_static_lookup() -> dict:
         return copy.deepcopy(_static_lookup)
 
 
-# ── Section expansion ─────────────────────────────────────────────────────────
+# ── Groups: one (block, course) pair, one professor ───────────────────────────
+
+_YEAR_LABELS = {1: "1st Year", 2: "2nd Year", 3: "3rd Year", 4: "4th Year"}
+_SEM_LABELS = {1: "1st Semester", 2: "2nd Semester"}
+
+
+def year_label(n: int) -> str:
+    return _YEAR_LABELS.get(n, f"{n}th Year")
+
+
+def semester_label(n: int) -> str:
+    return _SEM_LABELS.get(n, "Summer" if n == 3 else str(n))
+
+
+def parse_semester(value) -> Optional[int]:
+    """'1st Semester' / '2nd Semester' / 1 / '1' -> 1 or 2. Anything else -> None."""
+    if value in (None, ""):
+        return None
+    m = re.match(r"\s*(\d)", str(value))
+    return int(m.group(1)) if m else None
+
+
+def _size_of(entry) -> int:
+    if isinstance(entry, dict):
+        try:
+            return int(entry.get("size", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+    if isinstance(entry, (int, float)):
+        return int(entry)
+    return 0
+
+
+def blocks_for_year(class_sizes: dict, dept: str, year_no: int) -> list:
+    """[(block_key, size)] for a year, read from class sizes (e.g. IT3B1 .. IT3B3)."""
+    pat = re.compile(rf"^{re.escape(dept)}(\d+)B(\d+)$")
+    found = []
+    for key, entry in (class_sizes or {}).items():
+        m = pat.match(str(key))
+        if not m or int(m.group(1)) != year_no:
+            continue
+        found.append((int(m.group(2)), key, _size_of(entry)))
+    return [(key, size) for _, key, size in sorted(found)]
+
+
+def group_id_for(block_key: str, course_code: str) -> str:
+    return f"{block_key}|{course_code}"
+
+
+def build_groups(active_semester, class_sizes: dict, dept: str = DEFAULT_DEPT):
+    """
+    R1: every block of every year gets every in-scope course of its year and
+    the active semester. Returns (groups, errors). `active_semester` None
+    means both semesters (legacy behaviour).
+    """
+    curriculum = load_curriculum(dept)
+    sem = parse_semester(active_semester)
+    groups, errors = [], []
+    for course in in_scope_courses(curriculum, semester=sem):
+        blocks = blocks_for_year(class_sizes, dept, course["year"])
+        if not blocks:
+            errors.append({
+                "block": "", "course": course["code"], "title": course["title"],
+                "group_id": "",
+                "reason": f"no blocks defined for {year_label(course['year'])} in class sizes",
+            })
+            continue
+        for block_key, size in blocks:
+            groups.append({
+                "group_id":      group_id_for(block_key, course["code"]),
+                "section":       block_key,
+                "course_code":   course["code"],
+                "title":         course["title"],
+                "year":          year_label(course["year"]),
+                "semester":      semester_label(course["semester"]),
+                "type":          (course.get("specialization") or ["Elective"])[0],
+                "category":      course.get("category", ""),
+                "lec":           int(course["lec"]),
+                "lab":           int(course["lab"]),
+                "scheduled":     bool(course.get("scheduled", True)),
+                "student_count": size,
+            })
+    return groups, errors
+
+
+def _meeting(group: dict, class_type: str, n: int) -> dict:
+    return {
+        "name":          group["title"],
+        "type":          group["type"],
+        "class_type":    class_type,
+        "hours":         2,                      # labs stay 2-hour slots
+        "semester":      group["semester"],
+        "year":          group["year"],
+        "section":       group["section"],
+        "student_count": group["student_count"],
+        "group_id":      group["group_id"],
+        "course_code":   group["course_code"],
+        "meeting_id":    f"{group['group_id']}#{n}",
+    }
+
+
+def group_meetings(group: dict) -> list:
+    """
+    ceil(lec/2) two-hour LECTURE meetings plus one LAB meeting when lab > 0.
+    Unscheduled courses (IT 20, IT 22) give one NON_CLASSROOM row.
+    """
+    if not group["scheduled"]:
+        return [_meeting(group, NON_CLASSROOM, 0)]
+    kinds = ["LECTURE"] * math.ceil(group["lec"] / 2)
+    if group["lab"] > 0:
+        kinds.append("LAB")
+    return [_meeting(group, k, i) for i, k in enumerate(kinds)]
+
+
+def prepare_scheduling_input(subjects_raw: list, active_semester, class_sizes: dict,
+                             dept: str = DEFAULT_DEPT) -> dict:
+    """
+    Validate the request against the curriculum and build the meeting list.
+
+    Requests that carry `group_id` rows (the dashboard) are validated: groups
+    that are not in the curriculum scope are ignored, required groups missing
+    from the request are added from the curriculum. Requests without group ids
+    (older clients) are built from the curriculum entirely.
+
+    Returns {sections, groups, errors, warnings}.
+    """
+    groups, errors = build_groups(active_semester, class_sizes, dept)
+    warnings = []
+
+    by_gid = {}
+    for row in subjects_raw or []:
+        gid = row.get("group_id")
+        if gid:
+            by_gid.setdefault(gid, []).append(row)
+
+    required_ids = {g["group_id"] for g in groups}
+    if by_gid:
+        unknown = sorted(set(by_gid) - required_ids)
+        if unknown:
+            warnings.append(
+                f"{len(unknown)} group(s) in the request are out of scope or not in the "
+                f"curriculum and were ignored: {', '.join(unknown[:5])}"
+                + (" ..." if len(unknown) > 5 else "")
+            )
+    else:
+        warnings.append("Request carried no group ids; groups were built from the curriculum.")
+
+    sections, filled = [], []
+    for g in groups:
+        rows = by_gid.get(g["group_id"])
+        meetings = None
+        if rows:
+            if not g["scheduled"]:
+                meetings = [_meeting(g, NON_CLASSROOM, 0)]
+            else:
+                kinds = [r.get("class_type") for r in rows
+                         if r.get("class_type") in ("LECTURE", "LAB")]
+                if kinds:
+                    meetings = [_meeting(g, k, i) for i, k in enumerate(kinds)]
+        if meetings is None:
+            meetings = group_meetings(g)
+            if by_gid:
+                filled.append(g["group_id"])
+        sections.extend(meetings)
+
+    if filled:
+        warnings.append(
+            f"{len(filled)} required group(s) were missing from the request and were "
+            f"added from the curriculum: {', '.join(filled[:5])}" + (" ..." if len(filled) > 5 else "")
+        )
+
+    return {"sections": sections, "groups": groups, "errors": errors, "warnings": warnings}
+
 
 def expand_subjects_to_sections(subjects_raw: list, active_semester: str,
                                   class_sizes: dict) -> list:
     """
-    Expand subject definitions to (subject × section) pairs.
-    Each pair becomes one scheduling unit.
-    Embeds student_count from class_sizes for capacity-aware scheduling.
+    Expand the request into scheduling meetings (one per lecture/lab meeting,
+    one row per NON_CLASSROOM group). Every row carries section, student_count
+    and group_id.
     """
-    filtered = subjects_raw
-    if active_semester:
-        filtered = [s for s in subjects_raw
-                    if not s.get("semester") or s.get("semester") == active_semester]
+    return prepare_scheduling_input(subjects_raw, active_semester, class_sizes)["sections"]
 
-    sections = []
-    for s in filtered:
-        if not s.get("name"):
+
+# ── Coverage (R3) ─────────────────────────────────────────────────────────────
+
+def _diagnose_group(group: dict, faculty_list: list, static_lookup: dict,
+                    loads: dict) -> str:
+    qualified = [f for f in faculty_list
+                 if faculty_qualifies(f, group["title"], static_lookup)]
+    if not qualified:
+        return "no qualified faculty"
+    if group["scheduled"]:
+        from config.settings import DAYS
+        if not any(d in DAYS for f in qualified for d in f.get("availability", [])):
+            return "no available day"
+    probe = {"class_type": "LECTURE" if group["scheduled"] else NON_CLASSROOM}
+    need = assignment_units(probe)
+    if all(loads.get(f["name"], 0) + need > f.get("absolute_max_units", 30) for f in qualified):
+        return "load cap reached"
+    return "no conflict-free slot and room found"
+
+
+def compute_coverage(groups: list, sections: list, assignments: list,
+                     faculty_list: list, static_lookup: dict, prep_errors: list = None):
+    """
+    A group is covered when every one of its meetings has a professor.
+    Returns ({"assigned": n, "total": n}, coverage_errors).
+    """
+    expected = {}
+    for sec in sections:
+        expected[sec.get("group_id", "")] = expected.get(sec.get("group_id", ""), 0) + 1
+
+    covered_rows, loads = {}, {}
+    for a in assignments:
+        if a.get("faculty"):
+            covered_rows[a.get("group_id", "")] = covered_rows.get(a.get("group_id", ""), 0) + 1
+            loads[a["faculty"]] = loads.get(a["faculty"], 0) + assignment_units(a)
+
+    assigned, errors = 0, list(prep_errors or [])
+    for g in groups:
+        gid = g["group_id"]
+        want = expected.get(gid, 0)
+        have = covered_rows.get(gid, 0)
+        if want and have >= want:
+            assigned += 1
             continue
-        year = s.get("year", "")
-        section_key = s.get("section", "")
-
-        # Resolve student count from class_sizes
-        size_entry = class_sizes.get(section_key) if section_key else None
-        if isinstance(size_entry, dict):
-            student_count = size_entry.get("size", 0)
-        elif isinstance(size_entry, (int, float)):
-            student_count = int(size_entry)
-        else:
-            student_count = 0
-
-        sections.append({
-            "name":          s.get("name", ""),
-            "type":          s.get("type", "Core Theory"),
-            "class_type":    s.get("class_type", "LECTURE"),
-            "hours":         int(s.get("hours", 2)),
-            "semester":      s.get("semester", active_semester or ""),
-            "year":          year,
-            "section":       section_key,
-            "student_count": student_count,
+        errors.append({
+            "block":    g["section"],
+            "course":   g["course_code"],
+            "title":    g["title"],
+            "group_id": gid,
+            "reason":   _diagnose_group(g, faculty_list, static_lookup, loads),
+            "missing_meetings": max(0, want - have),
         })
-    return sections
+    return {"assigned": assigned, "total": len(groups)}, errors
 
 
 # ── Soft constraint store ─────────────────────────────────────────────────────
@@ -141,13 +347,18 @@ def run_scheduling_job(
     static_lookup: dict,
     ga_params: dict,
     class_sizes: dict,
+    groups: Optional[list] = None,
+    prep_errors: Optional[list] = None,
+    prep_warnings: Optional[list] = None,
 ) -> None:
     """
     Background thread: CP-SAT → GA → Analytics.
     Updates _progress throughout.
     """
     try:
-        _set_progress(running=True, phase="cp_sat", current=0, result=[], warnings=[])
+        _set_progress(running=True, phase="cp_sat", current=0, result=[], warnings=[],
+                      coverage={"assigned": 0, "total": len(groups or [])},
+                      coverage_errors=list(prep_errors or []))
         sc = get_soft_constraints()
 
         # ── Phase 1: CP-SAT ───────────────────────────────────────────────────
@@ -191,8 +402,18 @@ def run_scheduling_job(
             class_sizes=class_sizes,
         )
 
+        # ── Coverage (R3) ─────────────────────────────────────────────────────
+        coverage, coverage_errors = compute_coverage(
+            groups or [], sections, best_assignments, faculty_list, static_lookup, prep_errors,
+        )
+
         # Warnings
-        warnings = []
+        warnings = list(prep_warnings or [])
+        if coverage_errors:
+            warnings.append(
+                f"{len(coverage_errors)} group(s) could not be fully covered "
+                f"({coverage['assigned']}/{coverage['total']} assigned). See coverage_errors."
+            )
         unassigned = sum(1 for a in best_assignments if not a.get("faculty"))
         if unassigned:
             warnings.append(f"{unassigned} section(s) could not be assigned to any faculty.")
@@ -221,6 +442,8 @@ def run_scheduling_job(
             analytics=analytics,
             metrics=combined_metrics,
             warnings=warnings,
+            coverage=coverage,
+            coverage_errors=coverage_errors,
         )
 
     except Exception as e:
@@ -257,7 +480,8 @@ def start_scheduling(
     if soft_constraints_incoming:
         load_soft_constraints(soft_constraints_incoming)
 
-    sections = expand_subjects_to_sections(subjects_raw, active_semester, class_sizes)
+    prep = prepare_scheduling_input(subjects_raw, active_semester, class_sizes)
+    sections = prep["sections"]
     if not sections:
         return {"error": "No sections generated. Check semester and subject data."}
 
@@ -265,9 +489,10 @@ def start_scheduling(
 
     thread = threading.Thread(
         target=run_scheduling_job,
-        args=(faculty_raw, sections, static_lookup, ga_params, class_sizes),
+        args=(faculty_raw, sections, static_lookup, ga_params, class_sizes,
+              prep["groups"], prep["errors"], prep["warnings"]),
         daemon=True,
     )
     thread.start()
 
-    return {"status": "started", "sections": len(sections)}
+    return {"status": "started", "sections": len(sections), "groups": len(prep["groups"])}

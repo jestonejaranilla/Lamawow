@@ -21,7 +21,7 @@ from typing import Callable, Optional
 from solver.constraints import (
     faculty_available_at,
     room_exceeds_hard_max, get_building,
-    validate_schedule,
+    validate_schedule, is_non_classroom,
 )
 from solver.objective_functions import schedule_fitness
 from config.settings import LABORATORY_ROOMS
@@ -33,6 +33,8 @@ def _build_fac_slot_map(assignments: list) -> dict:
     """Returns {faculty_name: set of occupied slots}."""
     fsm: dict = {}
     for a in assignments:
+        if is_non_classroom(a):
+            continue
         fsm.setdefault(a["faculty"], set()).add(a["slot"])
     return fsm
 
@@ -53,7 +55,7 @@ def _build_affinity_maps(assignments: list) -> tuple[dict, dict]:
     for a in assignments:
         slot = a.get("slot", "")
         room = a.get("room", "")
-        if not slot or not room or room == "Unassigned":
+        if not slot or not room or room == "Unassigned" or is_non_classroom(a):
             continue
         day = slot.split(":")[0].strip()
         bld = get_building(room)
@@ -106,6 +108,8 @@ def _mutate_slot_swap(assignments: list, faculty_list: list, soft_constraints: d
     # Group by faculty
     fac_indices: dict = {}
     for i, a in enumerate(result):
+        if is_non_classroom(a) or not a["faculty"]:
+            continue
         fac_indices.setdefault(a["faculty"], []).append(i)
 
     for fac_name, idxs in fac_indices.items():
@@ -141,7 +145,10 @@ def _mutate_slot_shift(assignments: list, faculty_list: list, soft_constraints: 
     result = copy.deepcopy(assignments)
 
     fsm = _build_fac_slot_map(result)
-    idx = random.randrange(len(result))
+    movable = [i for i, x in enumerate(result) if not is_non_classroom(x)]
+    if not movable:
+        return result
+    idx = random.choice(movable)
     a = result[idx]
     fac = fac_map.get(a["faculty"])
     if not fac:
@@ -196,8 +203,12 @@ def _mutate_room(assignments: list, soft_constraints: dict,
     # Build affinity maps from current schedule
     fac_day_building, sec_day_building = _build_affinity_maps(result)
 
-    room_slot_used = {f"{a['room']}|{a['slot']}" for a in result if a["room"] != "Unassigned"}
-    idx = random.randrange(len(result))
+    room_slot_used = {f"{a['room']}|{a['slot']}" for a in result
+                      if a["room"] != "Unassigned" and not is_non_classroom(a)}
+    movable = [i for i, x in enumerate(result) if not is_non_classroom(x)]
+    if not movable:
+        return result
+    idx = random.choice(movable)
     a = result[idx]
 
     sc = soft_constraints.get(a["faculty"], {})

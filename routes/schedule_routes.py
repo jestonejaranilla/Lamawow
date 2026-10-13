@@ -80,6 +80,10 @@ def run_ga():
         _cfg.UNITS_PER_ASSIGNMENT = int(units_per_assignment)
         import solver.constraints as _sc
         _sc.UNITS_PER_ASSIGNMENT = int(units_per_assignment)
+    non_classroom_units = data.get("non_classroom_units")
+    if non_classroom_units:
+        import config.settings as _cfg3
+        _cfg3.NON_CLASSROOM_UNITS = int(non_classroom_units)
     if cp_sat_time_limit:
         import config.settings as _cfg2
         _cfg2.CP_SAT_TIME_LIMIT_SECONDS = float(cp_sat_time_limit)
@@ -100,7 +104,8 @@ def run_ga():
 
     if "error" in result:
         return _err(result["error"])
-    return jsonify({"status": "started", "sections": result.get("sections", 0)})
+    return jsonify({"status": "started", "sections": result.get("sections", 0),
+                    "groups": result.get("groups", 0)})
 
 
 # ── /progress ─────────────────────────────────────────────────────────────────
@@ -117,7 +122,19 @@ def progress():
         "analytics": p.get("analytics", {}),
         "metrics":   p.get("metrics", {}),
         "warnings":  p.get("warnings", []),
+        "coverage":        p.get("coverage", {"assigned": 0, "total": 0}),
+        "coverage_errors": p.get("coverage_errors", []),
     })
+
+
+# ── /curriculum - same file the frontend reads (data/curricula/<dept>.json) ──
+
+@schedule_bp.route("/curriculum/<dept>", methods=["GET"])
+def get_curriculum(dept):
+    from config.curriculum import load_curriculum, available_departments
+    if dept not in available_departments():
+        return _err(f"Unknown department: {dept}", 404)
+    return jsonify(load_curriculum(dept))
 
 
 # ── /soft-constraints ─────────────────────────────────────────────────────────

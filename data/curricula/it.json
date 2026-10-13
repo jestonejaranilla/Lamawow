@@ -1,0 +1,451 @@
+{
+  "dept": "IT",
+  "program": "BSIT",
+  "blocks": {
+    "1": [
+      "B1",
+      "B2"
+    ],
+    "2": [
+      "B1",
+      "B2"
+    ],
+    "3": [
+      "B1",
+      "B2",
+      "B3"
+    ],
+    "4": [
+      "B1",
+      "B2",
+      "B3"
+    ]
+  },
+  "courses": [
+    {
+      "code": "CC 1",
+      "title": "Introduction to Computing",
+      "year": 1,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Core Theory",
+        "Elective"
+      ]
+    },
+    {
+      "code": "CC 2",
+      "title": "Computer Programming 1",
+      "year": 1,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Programming"
+      ]
+    },
+    {
+      "code": "IT 1",
+      "title": "Discrete Mathematics",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "IT 2",
+      "title": "Introduction to Human Computer Interaction",
+      "year": 1,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "CC 3",
+      "title": "Computer Programming 2",
+      "year": 1,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Programming"
+      ]
+    },
+    {
+      "code": "IT 3",
+      "title": "Graphics and Visual Computing",
+      "year": 2,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "CC 4",
+      "title": "Data Structures and Algorithms",
+      "year": 2,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Programming",
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "IT E1",
+      "title": "IT Elective 1",
+      "year": 2,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "ITE",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "IT E2",
+      "title": "IT Elective 2",
+      "year": 2,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "ITE",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "CC 5",
+      "title": "Information Management 1",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Data Management"
+      ]
+    },
+    {
+      "code": "IT 4",
+      "title": "Quantitative Methods w/ Modelling and Simulation",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "IT 5",
+      "title": "Network Technologies 1",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Networks & Security"
+      ]
+    },
+    {
+      "code": "IT 6",
+      "title": "Integrative Programming and Technologies 1",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Programming",
+        "Systems"
+      ]
+    },
+    {
+      "code": "IT 7",
+      "title": "Systems Integration and Architecture 1",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Systems"
+      ]
+    },
+    {
+      "code": "IT 8",
+      "title": "Advanced Database Systems",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Data Management"
+      ]
+    },
+    {
+      "code": "IT 9",
+      "title": "Network Technologies 2",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Networks & Security"
+      ]
+    },
+    {
+      "code": "IT 10",
+      "title": "Information Assurance and Security 1",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Networks & Security"
+      ]
+    },
+    {
+      "code": "IT 11",
+      "title": "Web Systems and Technologies 1",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Web & App Dev"
+      ]
+    },
+    {
+      "code": "IT 12",
+      "title": "Multimedia Systems",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "IT E3",
+      "title": "IT Elective 3",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "ITE",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "IT 13",
+      "title": "Social and Professional Issues",
+      "year": 3,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Core Theory"
+      ]
+    },
+    {
+      "code": "CC 6",
+      "title": "Application Development and Emerging Technologies 1",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Web & App Dev"
+      ]
+    },
+    {
+      "code": "IT 14",
+      "title": "Geographic Information System",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "IT 15",
+      "title": "Embedded System",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing",
+        "Systems"
+      ]
+    },
+    {
+      "code": "IT 16",
+      "title": "Information Assurance and Security 2",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Networks & Security"
+      ]
+    },
+    {
+      "code": "IT 17",
+      "title": "Capstone Project and Research 1 (Proposal Writing)",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 0,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone",
+        "Elective"
+      ]
+    },
+    {
+      "code": "IT 18",
+      "title": "Systems Administration and Maintenance",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Systems"
+      ]
+    },
+    {
+      "code": "IT 19",
+      "title": "Capstone Project and Research 2 (Data Gathering and Writing)",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 0,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone",
+        "Elective"
+      ]
+    },
+    {
+      "code": "IT E4",
+      "title": "IT Elective 4",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "ITE",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "IT 20",
+      "title": "Educational Tour in IT Industry",
+      "year": 4,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "IT",
+      "scheduled": false,
+      "specialization": [
+        "Industry Practice",
+        "Elective"
+      ]
+    },
+    {
+      "code": "IT 21",
+      "title": "Thesis Writing and Colloquium",
+      "year": 4,
+      "semester": 2,
+      "lec": 2,
+      "lab": 0,
+      "category": "IT",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone",
+        "Elective"
+      ]
+    },
+    {
+      "code": "IT 22",
+      "title": "Practicum (486 hours)",
+      "year": 4,
+      "semester": 2,
+      "lec": 6,
+      "lab": 0,
+      "category": "IT",
+      "scheduled": false,
+      "specialization": [
+        "Industry Practice",
+        "Elective"
+      ]
+    }
+  ]
+}

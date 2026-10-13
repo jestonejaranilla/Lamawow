@@ -6,7 +6,7 @@ Weights are configurable via config/settings.py GA_WEIGHTS.
 
 from config.settings import GA_WEIGHTS
 import config.settings as _cfg_obj
-from solver.constraints import room_capacity_score
+from solver.constraints import room_capacity_score, is_non_classroom, assignment_units
 
 
 def score_preference(assignment: dict, soft_constraints: dict,
@@ -16,6 +16,8 @@ def score_preference(assignment: dict, soft_constraints: dict,
     Positive = preference satisfied. Negative = preference violated.
     Includes room capacity scoring.
     """
+    if is_non_classroom(assignment):
+        return 0.0  # no slot or room to score
     sc = soft_constraints.get(assignment.get("faculty", ""), {})
     score = 0.0
     slot = assignment.get("slot", "")
@@ -115,7 +117,7 @@ def schedule_fitness(assignments: list, faculty_list: list, soft_constraints: di
     loads = {f["name"]: 0 for f in faculty_list}
     for a in assignments:
         if a.get("faculty") in loads:
-            loads[a["faculty"]] += _cfg_obj.UNITS_PER_ASSIGNMENT
+            loads[a["faculty"]] += assignment_units(a)
 
     values = list(loads.values())
     variance = 0.0
@@ -144,7 +146,7 @@ def schedule_fitness(assignments: list, faculty_list: list, soft_constraints: di
     for a in assignments:
         slot = a.get("slot", "")
         room = a.get("room", "")
-        if not slot or not room or room == "Unassigned":
+        if not slot or not room or room == "Unassigned" or is_non_classroom(a):
             continue
         day = slot.split(":")[0].strip()
         bld = get_building(room)
