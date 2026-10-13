@@ -4253,3 +4253,20 @@ html[data-motion="reduce"] *, html[data-motion="reduce"] *::before, html[data-mo
   .nav-title { display: block; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; font-size: 1.0625rem; font-weight: 700; color: var(--text-primary); }
   .dash-brand { display: flex; }
 }
+
+/* ============================================================
+   MOBILE GESTURES: swipe between sections, pull down to refresh
+   ============================================================ */
+.ptr { display: none; }
+@media (max-width: 900px) {
+  .panel { animation: none; touch-action: pan-y; overscroll-behavior: contain; }
+  .ptr {
+    display: flex; align-items: center; justify-content: center; position: fixed; z-index: 900;
+    top: var(--nav-h); left: 50%; width: 36px; height: 36px; border-radius: 50%; opacity: 0; pointer-events: none;
+    background: var(--bg-surface); color: var(--clr-primary-600); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    transform: translate3d(-50%, 0, 0) scale(0.6);
+  }
+  .ptr svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .ptr.spin svg { animation: ptr-spin 0.7s linear infinite; transform: none !important; }
+}
+@keyframes ptr-spin { to { transform: rotate(360deg); } }

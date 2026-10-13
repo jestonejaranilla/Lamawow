@@ -244,9 +244,200 @@
     body.addEventListener('touchend', e => { if (e.touches.length < 2) startDist = 0; });
   }
 
+
+  /* ---------- Mobile gestures: swipe between sections + pull down to refresh ----------
+     Swipe left or right: the neighbouring section follows your finger, like Instagram or Facebook.
+     Pull down at the top of a section: release to refresh (the page reloads on the same section). */
+  function initMobileGestures() {
+    const wrapper = document.querySelector('.panels-wrapper');
+    const container = wrapper && wrapper.querySelector('.panels-container');
+    if (!container || !('ontouchstart' in window)) return;
+
+    const mobile = window.matchMedia('(max-width:900px)');
+    const BLOCK = 'input, select, textarea, [contenteditable], [role="dialog"], .modal-overlay, .tt-viewer, [data-no-swipe]';
+    const PULL_AT = 50;      // pixels shown before release triggers a refresh
+    const PULL_MAX = 80;
+    const SAVE_KEY = 'atlasRefreshPanel';
+    const reduce = () => document.documentElement.getAttribute('data-motion') === 'reduce';
+    const ease = 'cubic-bezier(0.22, 0.8, 0.3, 1)';
+    const panels = () => Array.from(container.querySelectorAll('.panel'));
+    const activeIndex = () => panels().findIndex(p => p.classList.contains('active'));
+
+    /* pull indicator */
+    const ptr = document.createElement('div');
+    ptr.className = 'ptr';
+    ptr.setAttribute('aria-hidden', 'true');
+    ptr.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>';
+    document.body.appendChild(ptr);
+
+    function setPull(offset, instant) {
+      container.style.transition = instant || reduce() ? 'none' : 'transform 0.25s ' + ease;
+      container.style.transform = offset ? 'translate3d(0,' + offset + 'px,0)' : '';
+      const progress = Math.min(1, offset / PULL_AT);
+      ptr.style.transition = instant || reduce() ? 'none' : 'opacity 0.2s, transform 0.25s ' + ease;
+      ptr.style.opacity = progress;
+      ptr.style.transform = 'translate3d(-50%,' + Math.max(0, offset / 2 - 18) + 'px,0) scale(' + (0.6 + 0.4 * progress) + ')';
+      ptr.firstChild.style.transform = 'rotate(' + Math.round(progress * 270) + 'deg)';
+    }
+
+    function refresh() {
+      g = null;
+      busy = true;
+      ptr.classList.add('spin');
+      setPull(PULL_AT, false);
+      try { sessionStorage.setItem(SAVE_KEY, String(activeIndex())); } catch { /* storage unavailable */ }
+      setTimeout(() => location.reload(), reduce() ? 0 : 600);
+    }
+
+    /* come back to the same section after a refresh */
+    try {
+      const saved = sessionStorage.getItem(SAVE_KEY);
+      if (saved !== null) {
+        sessionStorage.removeItem(SAVE_KEY);
+        const index = Number(saved);
+        const go = () => { if (activeIndex() !== index && window.switchPanel) window.switchPanel(index); };
+        document.addEventListener('DOMContentLoaded', () => setTimeout(go, 0));
+        window.addEventListener('load', go);
+      }
+    } catch { /* storage unavailable */ }
+
+    /* swipe helpers */
+    let g = null;
+    let busy = false;
+    let sideEl = null;      // the neighbouring panel being dragged in
+    let sideDir = 0;
+    let sideSaved = '';
+
+    function releaseSide() {
+      if (sideEl) { sideEl.style.cssText = sideSaved; sideEl = null; sideDir = 0; }
+    }
+
+    function showSide(dir) {
+      if (sideDir === dir) return;
+      releaseSide();
+      const list = panels();
+      const next = list[activeIndex() + dir];
+      if (!next) return;
+      sideEl = next;
+      sideDir = dir;
+      sideSaved = next.style.cssText;
+      next.style.cssText += ';display:block;position:absolute;top:0;left:0;animation:none;will-change:transform;';
+    }
+
+    function drag(dx) {
+      const active = g.panel;
+      const width = container.clientWidth || window.innerWidth;
+      const dir = dx < 0 ? 1 : -1;
+      showSide(dir);
+      const shown = sideEl ? dx : dx * 0.3;     // no neighbour: rubber band
+      active.style.transition = 'none';
+      active.style.willChange = 'transform';
+      active.style.transform = 'translate3d(' + shown + 'px,0,0)';
+      if (sideEl) {
+        sideEl.style.transition = 'none';
+        sideEl.style.transform = 'translate3d(' + (dir * width + dx) + 'px,0,0)';
+      }
+    }
+
+    function settle(commit, dir) {
+      const active = g.panel;
+      const width = container.clientWidth || window.innerWidth;
+      const side = sideEl;
+      const index = activeIndex();
+      const t = reduce() ? 'none' : 'transform 0.28s ' + ease;
+      busy = true;
+      active.style.transition = t;
+      active.style.transform = 'translate3d(' + (commit ? -dir * width : 0) + 'px,0,0)';
+      if (side) {
+        side.style.transition = t;
+        side.style.transform = 'translate3d(' + (commit ? 0 : dir * width) + 'px,0,0)';
+      }
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        active.style.transition = '';
+        active.style.transform = '';
+        active.style.willChange = '';
+        releaseSide();
+        if (commit && side && window.switchPanel) window.switchPanel(index + dir);
+        busy = false;
+      };
+      setTimeout(finish, reduce() ? 0 : 300);
+    }
+
+    function inHorizontalScroller(el, stop) {
+      for (; el && el !== stop; el = el.parentElement) {
+        if (el.scrollWidth > el.clientWidth + 2) {
+          const overflow = getComputedStyle(el).overflowX;
+          if (overflow === 'auto' || overflow === 'scroll') return true;
+        }
+      }
+      return false;
+    }
+
+    wrapper.addEventListener('touchstart', e => {
+      if (busy || !mobile.matches || e.touches.length !== 1) { g = null; return; }
+      const panel = container.querySelector('.panel.active');
+      const target = e.target;
+      if (!panel || !panel.contains(target) || target.closest(BLOCK)) { g = null; return; }
+      const touch = e.touches[0];
+      g = {
+        x: touch.clientX, y: touch.clientY, time: Date.now(), panel,
+        mode: null, dx: 0, offset: 0,
+        atTop: panel.scrollTop <= 0,
+        scroller: inHorizontalScroller(target, panel)
+      };
+    }, { passive: true });
+
+    wrapper.addEventListener('touchmove', e => {
+      if (!g || busy) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - g.x;
+      const dy = touch.clientY - g.y;
+
+      if (!g.mode) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (Math.abs(dx) > Math.abs(dy) * 1.2) g.mode = g.scroller ? 'ignore' : 'swipe';
+        else g.mode = dy > 0 && g.atTop ? 'pull' : 'ignore';
+      }
+
+      if (g.mode === 'swipe') {
+        g.dx = dx;
+        if (e.cancelable) e.preventDefault();
+        drag(dx);
+      } else if (g.mode === 'pull') {
+        if (g.panel.scrollTop > 0) { g.mode = 'ignore'; setPull(0, false); return; }
+        g.offset = Math.max(0, Math.min(PULL_MAX, dy * 0.5));
+        if (e.cancelable) e.preventDefault();
+        setPull(g.offset, true);
+      }
+    }, { passive: false });
+
+    function end() {
+      if (!g) return;
+      const state = g;
+      if (state.mode === 'swipe') {
+        const elapsed = Math.max(1, Date.now() - state.time);
+        const width = container.clientWidth || window.innerWidth;
+        const dir = state.dx < 0 ? 1 : -1;
+        const fast = Math.abs(state.dx) > 40 && Math.abs(state.dx) / elapsed > 0.35;
+        const far = Math.abs(state.dx) > width * 0.28;
+        settle(Boolean(sideEl) && (fast || far), dir);
+      } else if (state.mode === 'pull') {
+        if (state.offset >= PULL_AT) refresh();
+        else setPull(0, false);
+      }
+      g = null;
+    }
+    wrapper.addEventListener('touchend', end);
+    wrapper.addEventListener('touchcancel', end);
+  }
+
   initBottomNav();
   initTopBar();
   watchPanels();
   initScrollHandle();
   initViewer();
+  initMobileGestures();
 })();
