@@ -10,7 +10,6 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   const YEAR_LABELS = { 1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year' };
   const SEM_LABELS  = { 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' };
-  const IN_SCOPE_PREFIXES = ['CC', 'IT'];
   const NON_CLASSROOM = 'NON_CLASSROOM';
 
   const yearLabel = n => YEAR_LABELS[n] || `${n}th Year`;
@@ -21,11 +20,8 @@
     return m ? Number(m[1]) : null;
   }
 
-  /** Scope rule: prospectus code starts with CC or IT (IT E1..E4 included). */
-  function isInScope(course) {
-    const code = String(course.code || '').trim().toUpperCase();
-    return IN_SCOPE_PREFIXES.some(p => code.startsWith(p));
-  }
+  /* SCOPE: a course is in scope when it is in the department's file.
+     There is no code-prefix rule anywhere. */
 
   /** [{key, size}] for a year, from class sizes such as IT3B1..IT3B3. */
   function blocksForYear(classSizes, dept, yearNo) {
@@ -40,9 +36,9 @@
     return found.sort((a, b) => a.n - b.n).map(({ key, size }) => ({ key, size }));
   }
 
-  /** Subject-table defaults: one row per in-scope course. */
+  /** Subject-table defaults: one row per course of the department's file. */
   function defaultSubjects(curriculum) {
-    return curriculum.courses.filter(isInScope).map(c => ({
+    return curriculum.courses.map(c => ({
       code: c.code,
       name: c.title,
       type: (c.specialization && c.specialization[0]) || 'Elective',
@@ -56,7 +52,7 @@
   }
 
   /**
-   * R1: every block of every year gets every in-scope course of its year and
+   * R1: every block of every year gets every course of its year and
    * the active semester. `tableRows` (optional) carry user-edited units/type,
    * matched by course code.
    */
@@ -68,7 +64,7 @@
 
     const groups = [];
     const errors = [];
-    curriculum.courses.filter(isInScope).forEach(c => {
+    curriculum.courses.forEach(c => {
       if (sem !== null && c.semester !== sem) return;
       const blocks = blocksForYear(classSizes, dept, c.year);
       if (!blocks.length) {
@@ -101,12 +97,12 @@
     };
   }
 
-  /** ceil(lec/2) two-hour LECTURE meetings + one LAB meeting if lab > 0. */
+  /** ceil(lec/2) two-hour LECTURE meetings + one LAB meeting per lab unit (same rule as the backend). */
   function groupMeetings(g) {
     if (!g.scheduled) return [meeting(g, NON_CLASSROOM)];
     const out = [];
     for (let i = 0; i < Math.ceil(g.lec / 2); i++) out.push(meeting(g, 'LECTURE'));
-    if (g.lab > 0) out.push(meeting(g, 'LAB'));
+    for (let i = 0; i < g.lab; i++) out.push(meeting(g, 'LAB'));
     return out;
   }
 
@@ -132,9 +128,67 @@
     throw lastErr || new Error('Curriculum could not be loaded');
   }
 
+  /** Tags a course asks for. Only "Elective" (or none) means any professor may teach it. */
+  function courseTags(curriculum, title) {
+    const c = (curriculum.courses || []).find(x => x.title === title);
+    return c ? (c.specialization || []) : [];
+  }
+
+  /** Same rule as the backend: overlap with a listed tag, or an open (Elective-only) course. */
+  function qualifies(facultyTags, tags) {
+    if (!tags.length || tags.every(t => t === 'Elective')) return true;
+    return tags.some(t => (facultyTags || []).includes(t));
+  }
+
+  /**
+   * Default faculty for a department without saved data: 8 editable placeholders
+   * (Prof A to H), 1 or 2 tags each from the department's own vocabulary, every tag
+   * covered, Mon to Thu, max_units 24, absolute_max_units 30. Deterministic.
+   * Primary tags follow the teaching demand of the file, so no tag is starved.
+   */
+  function placeholderFaculty(curriculum, size) {
+    size = size || 8;
+    const tags = (curriculum.specializations || []).slice();
+    const demand = {};
+    tags.forEach(t => { demand[t] = 0; });
+    (curriculum.courses || []).forEach(c => {
+      if (c.scheduled === false) return;
+      const own = (c.specialization || []).filter(t => t !== 'Elective' && t in demand);
+      if (!own.length) return;
+      const units = 2 * (Math.ceil((c.lec || 0) / 2) + (c.lab || 0));
+      own.forEach(t => { demand[t] += units / own.length; });
+    });
+    const holders = {};
+    tags.forEach(t => { holders[t] = 0; });
+    const specs = [];
+    for (let i = 0; i < size; i++) {
+      let best = tags[0];
+      tags.forEach(t => {
+        if (demand[t] / (holders[t] + 1) > demand[best] / (holders[best] + 1)) best = t;
+      });
+      holders[best] += 1;
+      specs.push([best]);
+    }
+    // tags nobody holds yet go to the professor whose primary tag is least in demand per holder
+    const order = specs.map((s, i) => i)
+      .sort((a, b) => (demand[specs[a][0]] / holders[specs[a][0]]) - (demand[specs[b][0]] / holders[specs[b][0]]) || a - b);
+    tags.filter(t => holders[t] === 0).forEach(t => {
+      const target = order.find(i => specs[i].length < 2) ?? order[0];
+      specs[target].push(t);
+      holders[t] += 1;
+    });
+    return specs.map((spec, i) => ({
+      name: 'Prof ' + String.fromCharCode(65 + i),
+      specialization: spec,
+      max_units: 24,
+      absolute_max_units: 30,
+      availability: ['Mon', 'Tue', 'Wed', 'Thu'],
+    }));
+  }
+
   return {
-    NON_CLASSROOM, yearLabel, semesterLabel, parseSemester, isInScope,
+    NON_CLASSROOM, yearLabel, semesterLabel, parseSemester,
     blocksForYear, defaultSubjects, buildGroups, groupMeetings,
-    buildPayloadSubjects, loadCurriculum,
+    buildPayloadSubjects, loadCurriculum, courseTags, qualifies, placeholderFaculty,
   };
 });

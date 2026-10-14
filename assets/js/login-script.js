@@ -199,7 +199,7 @@
   /* ---------- Session ---------- */
   function startSession(email, name, dept) {
     saveProfile(email, name, dept);
-    sessionStorage.clear();
+    if (window.atlasLogout) window.atlasLogout(); else sessionStorage.clear();
     sessionStorage.setItem('atlasRole', state.role);
     sessionStorage.setItem('atlasDept', dept);
     sessionStorage.setItem('atlasUser', name);

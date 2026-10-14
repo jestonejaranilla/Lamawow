@@ -4,22 +4,18 @@ Hard constraint definitions and validation utilities.
 All schedule generation must satisfy every constraint in this module.
 """
 
-from config.settings import SPECIALIZATION_MAP, ROOM_CAPACITY
 import config.settings as _settings
+from config.rooms import current_rooms, use_rooms
 
-# Runtime room capacity - overrides ROOM_CAPACITY when set via set_runtime_room_capacity()
-_runtime_room_capacity: dict = {}
-
-def set_runtime_room_capacity(capacity: dict) -> None:
-    """Replace runtime room capacity with values received from the frontend."""
-    global _runtime_room_capacity
-    _runtime_room_capacity = {k: v for k, v in capacity.items() if isinstance(v, dict)}
+# Rooms are never global: every function below reads the RoomSet that is active
+# for the current run (config.rooms.use_rooms), i.e. the rooms of ONE department.
 
 
 # ── Qualification ─────────────────────────────────────────────────────────────
 
 def get_required_specs(subject_name: str, static_lookup: dict) -> list:
-    return static_lookup.get(subject_name, SPECIALIZATION_MAP.get(subject_name, []))
+    """Tags of a course. `static_lookup` is built per run from ONE department's file."""
+    return static_lookup.get(subject_name, [])
 
 
 OPEN_TAG = "Elective"
@@ -28,8 +24,8 @@ OPEN_TAG = "Elective"
 def is_open_assignment(subject_name: str, static_lookup: dict) -> bool:
     """
     A course is an OPEN assignment - any faculty member may teach it - when its
-    only specialization tag is "Elective" (the IT Electives: IT E1 to IT E4) or
-    when it has no tags at all. A course that lists "Elective" next to another
+    only specialization tag is "Elective" (the electives, for example IT E1 to
+    IT E4, CS Elective 4, Elective 1) or when it has no tags at all. A course that lists "Elective" next to another
     tag (for example ["Core Theory", "Elective"]) is NOT open: the faculty must
     hold one of the listed tags.
     """
@@ -40,8 +36,9 @@ def is_open_assignment(subject_name: str, static_lookup: dict) -> bool:
 def faculty_qualifies(faculty: dict, subject_name: str, static_lookup: dict) -> bool:
     """
     Hard qualification rule.
-      - IT Electives (tag list == ["Elective"]) and untagged courses: any faculty.
-      - Everything else: the faculty member holds at least one listed tag.
+      - Electives (tag list == ["Elective"]) and untagged courses: any faculty.
+      - Everything else: the faculty member holds at least one listed tag
+        (any overlap with the course tags).
     """
     if is_open_assignment(subject_name, static_lookup):
         return True
@@ -93,32 +90,31 @@ def assignment_units(assignment: dict) -> int:
 
 # ── Room Compatibility ────────────────────────────────────────────────────────
 
-def room_compatible(room_name: str, class_type: str, lab_rooms: list) -> bool:
-    """LAB meetings use laboratory rooms only; LECTURE meetings use lecture rooms only."""
+def room_compatible(room_name: str, class_type: str, lab_rooms: list = None) -> bool:
+    """
+    LAB meetings use laboratory rooms only. LECTURE meetings use the lecture rooms,
+    plus the laboratory rooms when the department allows it (lab_rooms_also_lecture).
+    """
+    rs = current_rooms()
+    labs = rs.lab_rooms if lab_rooms is None else lab_rooms
     if class_type == "LAB":
-        return room_name in lab_rooms
+        return room_name in labs
     if class_type == "LECTURE":
-        return room_name not in lab_rooms
+        return room_name in rs.pool("LECTURE") if lab_rooms is None else (
+            room_name not in labs or rs.lab_also_lecture)
     return True
 
 
 # ── Room Capacity ─────────────────────────────────────────────────────────────
 
 def get_room_capacity(room_name: str) -> dict:
-    """Return capacity config for a room. Runtime values take precedence over defaults."""
-    if _runtime_room_capacity:
-        cap = _runtime_room_capacity.get(room_name)
-        if cap:
-            return cap
-    return ROOM_CAPACITY.get(room_name, {"recommended": 9999, "max": 9999})
+    """Capacity config of a room in the active department's RoomSet."""
+    return current_rooms().cap(room_name)
 
 
 def room_max(room_name: str) -> int:
     """Hard capacity (`max`) of a room; 9999 when unknown or not numeric."""
-    try:
-        return int(get_room_capacity(room_name).get("max", 9999))
-    except (TypeError, ValueError):
-        return 9999
+    return current_rooms().max_of(room_name)
 
 
 def max_room_capacity(rooms: list) -> int:
@@ -223,6 +219,9 @@ def get_building(room_name: str) -> str:
     """
     r = room_name.strip()
     if r.startswith("GA Bldg"):  return "GA Bldg"
+    if r.startswith("GE Bldg"):  return "GE Bldg"
+    if r.startswith("CSLR"):     return "CSLR"
+    if r.startswith("Physics"):  return "Physics Room"
     if r.startswith("IT Room"):  return "IT Room"
     if r.startswith("CL"):       return "CL"
     if r.startswith("MTC"):      return "MTC"
@@ -250,6 +249,19 @@ def expected_row_counts(sections: list, lab_rooms: list) -> dict:
 
 
 def validate_schedule(assignments: list, faculty_list: list, static_lookup: dict,
+                       rooms=None, class_sizes: dict = None,
+                       sections: list = None) -> list:
+    """
+    `rooms` is the department's RoomSet (default: the active one).
+    See _validate_schedule for the rules.
+    """
+    rs = rooms if rooms is not None else current_rooms()
+    with use_rooms(rs):
+        return _validate_schedule(assignments, faculty_list, static_lookup,
+                                  list(rs.lab_rooms), class_sizes, sections)
+
+
+def _validate_schedule(assignments: list, faculty_list: list, static_lookup: dict,
                        lab_rooms: list, class_sizes: dict = None,
                        sections: list = None) -> list:
     """
@@ -257,7 +269,8 @@ def validate_schedule(assignments: list, faculty_list: list, static_lookup: dict
 
     Always checked (rows that have a professor):
       faculty overlap, room conflict, block overlap (R4), availability,
-      qualification, room type, room capacity by `max` (R5), one professor per
+      qualification, room belongs to the department, room type, room capacity
+      by `max` (R5), one professor per
       group (R2), lab-group sizes (R5), load cap (R7).
     Checked only when `sections` (the meetings given to the solver) is passed:
       full coverage (R1/R3) - every group has all its rows and a professor.
@@ -326,7 +339,9 @@ def validate_schedule(assignments: list, faculty_list: list, static_lookup: dict
             else:
                 room_slot[room_key] = label
 
-            if not room_compatible(room, a["class_type"], lab_rooms):
+            if room not in current_rooms().all_rooms:
+                violations.append(f"ROOM_NOT_IN_DEPARTMENT: {room} for {label}")
+            elif not room_compatible(room, a["class_type"]):
                 violations.append(f"ROOM_INCOMPATIBLE: {room} for {a['class_type']} class {label}")
 
             # Room capacity (hard max). The row's own student_count is used: it is
@@ -345,7 +360,8 @@ def validate_schedule(assignments: list, faculty_list: list, static_lookup: dict
             violations.append(f"UNAVAILABLE: {a['faculty']} not available {slot}")
 
         if a["class_type"] == "LAB":
-            lab_rows.setdefault(gkey, []).append(a)
+            # one entry per LAB meeting: a split meeting has k rows (one per lab group)
+            lab_rows.setdefault(a.get("meeting_id") or gkey, []).append(a)
 
     # One professor per group (R2)
     for gkey, profs in group_profs.items():

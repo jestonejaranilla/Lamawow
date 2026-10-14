@@ -114,6 +114,61 @@
     dept: sessionStorage.getItem('atlasDept') || ''
   });
 
+  /* ---------- Department scope (role-based by department) ----------
+     The department picked at login lives in sessionStorage 'atlasDept'.
+     Every per-department browser key is stored as <base>::<dept>, so the five
+     departments never read or overwrite each other's data. */
+  const DEPT_CODES = ['IT', 'CS', 'MB', 'ES', 'MedB'];
+  const DEPT_BASE_KEYS = [
+    'facultyData', 'subjectsData', 'classSizesData', 'academicMode', 'systemSettings',
+    'lastGAResult', 'atlasAnalyticsCache', 'softConstraintsData', 'roomsData',
+    'atlasCurriculumCache', 'atlasDataVersion'
+  ];
+
+  function currentDept() {
+    const d = sessionStorage.getItem('atlasDept');
+    return DEPT_CODES.includes(d) ? d : 'IT';
+  }
+
+  function dk(base, dept) { return base + '::' + (dept || currentDept()); }
+
+  /* One-time migration: legacy un-suffixed keys become the IT keys (originals stay).
+     After this, no code reads an un-suffixed key. */
+  function migrateLegacyKeys() {
+    try {
+      if (localStorage.getItem('atlasDeptMigrated') === '1') return;
+      DEPT_BASE_KEYS.forEach(base => {
+        const legacy = localStorage.getItem(base);
+        if (legacy !== null && localStorage.getItem(dk(base, 'IT')) === null) {
+          localStorage.setItem(dk(base, 'IT'), legacy);
+        }
+      });
+      localStorage.setItem('atlasDeptMigrated', '1');
+    } catch { /* storage unavailable */ }
+  }
+  migrateLegacyKeys();
+
+  /* Logout: pages listen for 'atlas:logout' and empty everything they hold in memory. */
+  function logout() {
+    try { window.dispatchEvent(new CustomEvent('atlas:logout')); } catch { /* ignore */ }
+    sessionStorage.clear();
+  }
+
+  /* Back/forward cache: a page restored for another department is emptied and reloaded. */
+  const renderedDept = sessionStorage.getItem('atlasDept') || '';
+  window.addEventListener('pageshow', () => {
+    const now = sessionStorage.getItem('atlasDept') || '';
+    if (now === renderedDept) return;
+    try { window.dispatchEvent(new CustomEvent('atlas:logout')); } catch { /* ignore */ }
+    window.location.reload();
+  });
+
+  window.atlasDept = {
+    CODES: DEPT_CODES, BASE_KEYS: DEPT_BASE_KEYS, rendered: renderedDept,
+    current: currentDept, dk, logout
+  };
+  window.atlasLogout = logout;
+
   window.atlasApp = {
     DEFAULTS,
     get: key => settings[key],

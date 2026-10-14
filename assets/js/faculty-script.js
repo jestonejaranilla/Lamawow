@@ -14,11 +14,12 @@
   const SLOT_ROWS = [[7, 9], [9, 11], [13, 15], [15, 17], [17, 19]];
   const MINUTES_PER_DAY = 1440;
   const MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY;
-  const DEPARTMENTS = {
-    IT: 'Information Technology', CS: 'Computer Science', MB: 'Marine Biology',
-    ES: 'Environmental Science', MedB: 'Medical Biology'
-  };
-  const DATA_KEYS = ['lastGAResult', 'facultyData', 'academicMode', 'subjectsData', 'systemSettings'];
+  /* Department chosen at login. Every key below is <base>::<dept>: this page reads only the
+     data its own department saved, never another department's. */
+  const DEPT = (window.atlasDept && window.atlasDept.current()) || 'IT';
+  const dk = base => base + '::' + DEPT;
+  const DATA_KEYS = ['lastGAResult', 'facultyData', 'academicMode', 'subjectsData', 'systemSettings'].map(dk);
+  let deptName = DEPT;      // replaced by the `name` of the department's file once it is loaded
   const DEFAULT_SETTINGS = { enabled: true, lead: 10, atStart: true, sound: true, vibrate: true, browser: false };
   const LOGIN_URL = '../pages/login.html';
 
@@ -103,12 +104,12 @@
   }
 
   function loadSchedule() {
-    let items = readJSON(localStorage, 'lastGAResult', []);
+    let items = readJSON(localStorage, dk('lastGAResult'), []);
     if (!Array.isArray(items)) items = [];
-    const mode = readJSON(localStorage, 'academicMode', null);
+    const mode = readJSON(localStorage, dk('academicMode'), null);
     if (mode && mode.semester) {
       const valid = new Set(
-        readJSON(localStorage, 'subjectsData', [])
+        readJSON(localStorage, dk('subjectsData'), [])
           .filter(s => s.semester === mode.semester)
           .map(s => s.name)
       );
@@ -118,13 +119,13 @@
   }
 
   function loadFacultyNames() {
-    const names = readJSON(localStorage, 'facultyData', []).map(f => f && f.name).filter(Boolean);
+    const names = readJSON(localStorage, dk('facultyData'), []).map(f => f && f.name).filter(Boolean);
     if (!names.includes(session.name)) names.push(session.name);
     return Array.from(new Set(names)).sort();
   }
 
   function unitsPerAssignment() {
-    const settings = readJSON(localStorage, 'systemSettings', {});
+    const settings = readJSON(localStorage, dk('systemSettings'), {});
     return parseInt(settings.units_per_assignment, 10) || 2;
   }
 
@@ -138,7 +139,7 @@
   }
 
   /* ---------- Reminder settings (per faculty member, per device) ---------- */
-  const settingsKey = () => 'facultySettings:' + session.name;
+  const settingsKey = () => 'facultySettings::' + DEPT + ':' + session.name;
   let settings = Object.assign({}, DEFAULT_SETTINGS, readJSON(localStorage, settingsKey(), {}));
   const saveSettings = () => writeJSON(localStorage, settingsKey(), settings);
 
@@ -160,7 +161,7 @@
       document.addEventListener('click', () => menu.classList.remove('open'));
     }
     document.querySelectorAll('[data-logout]').forEach(link =>
-      link.addEventListener('click', () => sessionStorage.clear()));
+      link.addEventListener('click', () => window.atlasLogout ? window.atlasLogout() : sessionStorage.clear()));
     switchPanel(window.atlasApp ? window.atlasApp.startPanel(document.querySelectorAll('.panel').length) : 0);
   }
 
@@ -178,13 +179,12 @@
 
   /* ---------- Rendering: identity, header, stats ---------- */
   function renderIdentity() {
-    const deptName = DEPARTMENTS[session.dept] ? DEPARTMENTS[session.dept] + ' Department' : '';
-    $('fsBannerName').textContent = deptName || 'Department not set';
+    $('fsBannerName').textContent = session.dept ? deptName + ' Department' : 'Department not set';
     $('fsGreeting').textContent = 'Welcome, ' + session.name;
-    const short = session.dept ? ' \u00b7 ' + session.dept : '';
+    const short = session.dept ? ' \u00b7 ' + deptName : '';
     $('navUserLabel').textContent = session.name + short;
 
-    const mode = readJSON(localStorage, 'academicMode', null);
+    const mode = readJSON(localStorage, dk('academicMode'), null);
     const badge = $('fsSemBadge');
     if (mode && mode.semester) {
       badge.textContent = 'Showing: ' + (mode.year ? mode.year + ' \u00b7 ' : '') + mode.semester;
@@ -497,7 +497,7 @@
       .map(n => `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`).join('');
     $('fsProfileFaculty').value = session.name;
     $('fsProfileEmail').value = session.email;
-    $('fsProfileDept').textContent = DEPARTMENTS[session.dept] ? DEPARTMENTS[session.dept] + ' Department' : 'Not set';
+    $('fsProfileDept').textContent = session.dept ? deptName + ' Department' : 'Not set';
   }
 
   function renderDataInfo() {
@@ -581,9 +581,31 @@
   window.addEventListener('storage', e => { if (e.key === null || DATA_KEYS.includes(e.key)) refreshAll(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { const n = new Date(); renderStatus(n); checkReminders(n); } });
 
+  /* Logout or another department: empty what is held in memory and what is on screen. */
+  window.addEventListener('atlas:logout', () => {
+    state.schedule = []; state.mine = []; state.names = [];
+    deptName = '';
+    ['fsBannerName', 'fsGreeting', 'navUserLabel', 'fsProfileDept', 'fsDataInfo'].forEach(id => { if ($(id)) $(id).textContent = ''; });
+    try { renderAll(new Date()); } catch { /* view already gone */ }
+  });
+
+  /* Department name from the department's file (the dashboard caches it per department). */
+  async function loadDeptName() {
+    const cached = readJSON(localStorage, dk('atlasCurriculumCache'), null);
+    if (cached && cached.dept === DEPT && cached.name) deptName = cached.name;
+    try {
+      const res = await fetch('../data/curricula/' + DEPT + '.json', { cache: 'no-cache' });
+      const data = await res.json();
+      if (data && data.dept === DEPT && data.name) deptName = data.name;
+    } catch { /* keep the cached name or the code */ }
+    renderIdentity();
+    renderProfile();
+  }
+
   const startDay = todayIndex(new Date());
   state.day = startDay <= 5 ? startDay : null;
   refreshAll();
+  loadDeptName();
 
   let lastMinute = -1;
   setInterval(() => {

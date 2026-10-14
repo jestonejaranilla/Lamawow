@@ -1,0 +1,656 @@
+{
+  "dept": "ES",
+  "program": "BSES",
+  "name": "Environmental Science",
+  "prospectus": "BS Environmental Science, CMO 35 s.2005 and Draft CMO s.2017, effective 1st sem SY 2025-2026",
+  "blocks": {
+    "1": [
+      "B1",
+      "B2"
+    ],
+    "2": [
+      "B1"
+    ],
+    "3": [
+      "B1"
+    ],
+    "4": [
+      "B1",
+      "B2"
+    ]
+  },
+  "class_sizes": {
+    "ES1B1": {
+      "year": "1st Year",
+      "block": "B1",
+      "size": 37
+    },
+    "ES1B2": {
+      "year": "1st Year",
+      "block": "B2",
+      "size": 47
+    },
+    "ES2B1": {
+      "year": "2nd Year",
+      "block": "B1",
+      "size": 37
+    },
+    "ES3B1": {
+      "year": "3rd Year",
+      "block": "B1",
+      "size": 36
+    },
+    "ES4B1": {
+      "year": "4th Year",
+      "block": "B1",
+      "size": 36
+    },
+    "ES4B2": {
+      "year": "4th Year",
+      "block": "B2",
+      "size": 41
+    }
+  },
+  "class_sizes_placeholder": true,
+  "specializations": [
+    "Mathematics",
+    "Chemistry",
+    "Physics",
+    "Biology",
+    "Earth Science",
+    "Environmental Science",
+    "Research & Capstone",
+    "Industry Practice",
+    "Elective"
+  ],
+  "rooms": {
+    "lecture": {
+      "CSLR 1": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 2": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 3": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 4": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 5": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 6": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 7": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 8": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 9": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 10": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 1": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 2": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 3": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 4": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 5": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 6": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 7": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 8": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 9": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 10": {
+        "recommended": 40,
+        "max": 55
+      }
+    },
+    "lab": {
+      "Physics Room 1": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 2": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 3": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 4": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 5": {
+        "recommended": 40,
+        "max": 50
+      }
+    },
+    "lab_rooms_also_lecture": true,
+    "capacity_placeholder": true
+  },
+  "notes": "",
+  "courses": [
+    {
+      "code": "GE-MMW",
+      "title": "Mathematics in the Modern World",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "Bio 121",
+      "title": "Environmental Biology",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology",
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "ES Chem 1",
+      "title": "Principles of Chemistry",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "ES",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "GE-Elect PES",
+      "title": "People and the Earth's Ecosystems",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science"
+      ],
+      "confirm": "owner to confirm this GE course is taught by College of Sciences faculty"
+    },
+    {
+      "code": "Bio 122",
+      "title": "Environmental Microbiology",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Chem 2",
+      "title": "Organic Chemistry",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Chem",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "Math 1",
+      "title": "Trigonometry",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "Math",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "Bio 106",
+      "title": "General Ecology",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology",
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "EnS 100",
+      "title": "Fundamentals of Geographic Information Systems",
+      "year": 2,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science",
+        "Earth Science"
+      ]
+    },
+    {
+      "code": "ES 1",
+      "title": "Earth Science I (Geology & Geography)",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 1,
+      "category": "ES",
+      "scheduled": true,
+      "specialization": [
+        "Earth Science"
+      ]
+    },
+    {
+      "code": "ES Phys 1",
+      "title": "Environmental Physics",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "ES",
+      "scheduled": true,
+      "specialization": [
+        "Physics"
+      ]
+    },
+    {
+      "code": "Math 2",
+      "title": "Calculus for Life Sciences",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "Math",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "Chem 3",
+      "title": "Analytical Chemistry I",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Chem",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "EnS 101",
+      "title": "Environmental Remote Sensing",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science",
+        "Earth Science"
+      ]
+    },
+    {
+      "code": "EnS 102",
+      "title": "Community-based Approach to Natural Resources Assessment",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "ES 2",
+      "title": "Earth Science II (Meteorology and Oceanography)",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 1,
+      "category": "ES",
+      "scheduled": true,
+      "specialization": [
+        "Earth Science"
+      ]
+    },
+    {
+      "code": "Math 3",
+      "title": "Environmental Statistics",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "Math",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "GE-STS",
+      "title": "Science, Technology and Society",
+      "year": 3,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science",
+        "Biology"
+      ]
+    },
+    {
+      "code": "EnS 103",
+      "title": "Wildlife and Landscape Ecology",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science",
+        "Biology"
+      ]
+    },
+    {
+      "code": "EnS 104",
+      "title": "Biodiversity Conservation and Management",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science",
+        "Biology"
+      ]
+    },
+    {
+      "code": "EnS 105",
+      "title": "Protected Areas and Watershed Management",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "EnS 106",
+      "title": "Environmental Instrumental Analysis (Analytical Chemistry II)",
+      "year": 3,
+      "semester": 1,
+      "lec": 3,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "Math 4",
+      "title": "Applied Mathematics",
+      "year": 3,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "Math",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "EnS 107",
+      "title": "Introduction to Systems Analysis and Modelling",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science",
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "EnS 108",
+      "title": "Economic Valuation of Environment and Natural Resources",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "EnS 109",
+      "title": "Fundamentals of Human Settlements",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "EnS 110",
+      "title": "Disaster Risk Reduction and Management",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "EnS 111",
+      "title": "Laboratory Techniques in Organic Chemistry",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 2,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "Thesis 1",
+      "title": "Proposal Writing",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 0,
+      "category": "Thesis",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    },
+    {
+      "code": "EnS 112",
+      "title": "Environmental Monitoring",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "EnS 113",
+      "title": "The Environmental Impact Assessment (EIA) System",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "EnS 114",
+      "title": "Environmental Chemistry and Toxicology",
+      "year": 4,
+      "semester": 1,
+      "lec": 3,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry",
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "EnS 115",
+      "title": "Chemical Safety and Waste Management",
+      "year": 4,
+      "semester": 1,
+      "lec": 3,
+      "lab": 1,
+      "category": "EnS",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry",
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "Thesis 2",
+      "title": "Data Gathering and Writing",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 0,
+      "category": "Thesis",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    },
+    {
+      "code": "Practicum",
+      "title": "Practicum/On-the-Job Training (OJT) (240 hours)",
+      "year": 4,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "Practicum",
+      "scheduled": false,
+      "specialization": [
+        "Industry Practice"
+      ]
+    },
+    {
+      "code": "Thesis 3",
+      "title": "Thesis Writing and Colloquium",
+      "year": 4,
+      "semester": 2,
+      "lec": 2,
+      "lab": 0,
+      "category": "Thesis",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    }
+  ]
+}

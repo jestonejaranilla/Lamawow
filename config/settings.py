@@ -74,25 +74,13 @@ SUBJECT_TYPES = [
     "Web & App Dev", "Research & Capstone", "Industry Practice", "Elective",
 ]
 
-# ── Specialization Map ────────────────────────────────────────────────────────
-# Built from data/curricula/*.json (single source of truth for course titles
-# and specialization tags). Keyed by prospectus title.
-from config.curriculum import specialization_map as _specialization_map
-SPECIALIZATION_MAP = _specialization_map()
+# Specialization tags and class sizes live in data/curricula/<DEPT>.json (one file
+# per department). There is no global specialization map: course titles repeat
+# across departments with different tags.
 
-# ── Default Class Sizes ───────────────────────────────────────────────────────
-DEFAULT_CLASS_SIZES = {
-    "IT1B1": {"year": "1st Year", "block": "B1", "size": 54},
-    "IT1B2": {"year": "1st Year", "block": "B2", "size": 54},
-    "IT2B1": {"year": "2nd Year", "block": "B1", "size": 45},
-    "IT2B2": {"year": "2nd Year", "block": "B2", "size": 39},
-    "IT3B1": {"year": "3rd Year", "block": "B1", "size": 34},
-    "IT3B2": {"year": "3rd Year", "block": "B2", "size": 32},
-    "IT3B3": {"year": "3rd Year", "block": "B3", "size": 32},
-    "IT4B1": {"year": "4th Year", "block": "B1", "size": 33},
-    "IT4B2": {"year": "4th Year", "block": "B2", "size": 32},
-    "IT4B3": {"year": "4th Year", "block": "B3", "size": 32},
-}
+# ── Meetings per course ───────────────────────────────────────────────────────
+# ceil(lec / 2) two-hour LECTURE meetings, plus this many LAB meetings per lab unit.
+LAB_MEETINGS_PER_LAB_UNIT = 1
 
 # ── GA Optimizer Weights (configurable) ──────────────────────────────────────
 GA_WEIGHTS = {
@@ -135,5 +123,5 @@ CP_WEIGHTS = {
     "load_balance":      3,          # per load unit away from the mean load
 }
 UNITS_PER_ASSIGNMENT = 2
-# Load units counted for one NON_CLASSROOM group (IT 20, IT 22); configurable.
+# Load units counted for one NON_CLASSROOM group (unscheduled courses such as IT 20, IT 22, Practicum).
 NON_CLASSROOM_UNITS = 2

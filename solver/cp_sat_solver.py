@@ -45,6 +45,7 @@ from typing import Callable, Optional
 
 import config.settings as _cfg
 from config.settings import TIME_SLOTS
+from config.rooms import current_rooms, use_rooms
 from solver.constraints import (
     faculty_qualifies, faculty_available_at, is_exact_spec_match,
     is_open_assignment, assignment_units, NON_CLASSROOM,
@@ -95,51 +96,53 @@ ALL_SLOT_STRINGS = [_slot_str(t[0], t[1], t[2]) for t in TIME_SLOTS]
 # ── Rooms: pools and exact matching ───────────────────────────────────────────
 
 def _pool_rooms(kind: str) -> list:
-    """LECTURE meetings use lecture rooms, LAB meetings use laboratory rooms."""
-    return list(_cfg.LABORATORY_ROOMS if kind == "LAB" else _cfg.LECTURE_ROOMS)
+    """Rooms of the ACTIVE department for a kind of meeting (see config.rooms)."""
+    return current_rooms().pool(kind)
 
 
-def _rooms_feasible(kind: str, demands: list) -> bool:
+def _room_cost(room: str, kind: str, size: int) -> tuple:
+    """Preference order for a room: lecture rooms before lab rooms, then the best fit."""
+    rs = current_rooms()
+    rec = get_room_capacity(room).get("recommended", 9999)
+    try:
+        rec = int(rec)
+    except (TypeError, ValueError):
+        rec = 9999
+    lab_for_lecture = 1 if (kind != "LAB" and room in rs.lab_rooms) else 0
+    over = max(0, size - rec)
+    gap = (rec - size) if size <= rec else -rec
+    return (lab_for_lecture, over, gap, room)
+
+
+def _match(demands: list):
     """
-    True when every demand can get its own room in the pool. Eligibility is a
-    threshold on `max`, so the sorted comparison is an exact test.
+    Exact bipartite matching of the meetings held in ONE slot to rooms.
+    demands: [(key, kind, size)]. Returns {key: room}, or None when some
+    meeting cannot get its own eligible room (a room fits a meeting when it is
+    in the pool of the meeting's kind and its `max` >= students).
     """
-    caps = sorted((room_max(r) for r in _pool_rooms(kind)), reverse=True)
-    need = sorted(demands, reverse=True)
-    return len(need) <= len(caps) and all(n <= c for n, c in zip(need, caps))
+    rs = current_rooms()
+    adj = {}
+    for key, kind, size in demands:
+        elig = [r for r in rs.pool(kind) if rs.max_of(r) >= size]
+        elig.sort(key=lambda r: _room_cost(r, kind, size))
+        adj[key] = elig
+    owner: dict = {}
 
+    def augment(k, seen):
+        for r in adj[k]:
+            if r in seen:
+                continue
+            seen.add(r)
+            if r not in owner or augment(owner[r], seen):
+                owner[r] = k
+                return True
+        return False
 
-def _match_rooms(kind: str, meetings_here: list, room_usage: dict) -> dict:
-    """
-    Pick a concrete room for each meeting held in one slot and pool.
-    meetings_here: [(meeting_idx, students)]. Returns {meeting_idx: room}.
-    Largest demands go first and any eligible free room works, so the matching
-    cannot fail when the Hall constraints in the model (or _rooms_feasible)
-    hold. Among eligible rooms the tightest fit wins, then the least used.
-    """
-    rooms = _pool_rooms(kind)
-    free = set(rooms)
-    out = {}
-    for idx, size in sorted(meetings_here, key=lambda p: (-p[1], p[0])):
-        eligible = [r for r in rooms if r in free and room_max(r) >= size]
-        if not eligible:
-            raise RuntimeError(f"room matching failed for {size} students")
-
-        def key(r, size=size):
-            rec = get_room_capacity(r).get("recommended", 9999)
-            try:
-                rec = int(rec)
-            except (TypeError, ValueError):
-                rec = 9999
-            over = max(0, size - rec)
-            gap = (rec - size) if size <= rec else -rec
-            return (over, gap, room_usage.get(r, 0), r)
-
-        eligible.sort(key=key)
-        out[idx] = eligible[0]
-        free.discard(eligible[0])
-        room_usage[eligible[0]] = room_usage.get(eligible[0], 0) + 1
-    return out
+    for key, _, _ in sorted(demands, key=lambda d: (len(adj[d[0]]), str(d[0]))):
+        if not augment(key, set()):
+            return None
+    return {k: r for r, k in owner.items()}
 
 
 # ── Preparation: meetings, groups, per-group diagnostics ──────────────────────
@@ -305,19 +308,57 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
             if len(vs) > 1:
                 model.AddAtMostOne(vs)
 
-    # R5/R6: rooms. Hall's condition per slot, pool and demand level.
-    for kind in ("LECTURE", "LAB"):
-        caps = [room_max(r) for r in _pool_rooms(kind)]
-        pool_m = [m for m in meetings if m["kind"] == kind and not groups[m["gid"]]["reason"]]
-        for d in sorted({m["size"] for m in pool_m}):
-            ids = [m["idx"] for m in pool_m if m["size"] >= d]
-            room_count = sum(1 for c in caps if c >= d)
-            if len(ids) <= room_count:
+    # R5/R6: rooms, decided in the model. Rooms with the same kind, hard max and
+    # recommended size form a TYPE. For every slot, f[class, type, slot] counts
+    # how many meetings of a (kind, students) class sit in rooms of a type:
+    #   sum over types f == meetings of the class held in that slot
+    #   sum over classes f <= rooms of the type
+    # This is an exact transportation model (works when lecture and lab rooms
+    # overlap, as in the science departments), so every solution has a real room
+    # for every meeting, always with `max` >= students.
+    rs = current_rooms()
+    types: dict = {}
+    for r in rs.all_rooms:
+        cap = get_room_capacity(r)
+        try:
+            rec = int(cap.get("recommended", 9999))
+        except (TypeError, ValueError):
+            rec = 9999
+        key = (r in rs.lab_rooms, r in rs.lecture_rooms, room_max(r), rec)
+        types.setdefault(key, {"rooms": [], "lab": key[0], "max": key[2], "rec": rec})["rooms"].append(r)
+    live_m = [m for m in meetings if not groups[m["gid"]]["reason"]]
+    class_keys = sorted({(m["kind"], m["size"]) for m in live_m})
+    class_of = {m["idx"]: class_keys.index((m["kind"], m["size"])) for m in live_m}
+    compat = {}
+    for ci, (kind, size) in enumerate(class_keys):
+        pool = set(rs.pool(kind))
+        compat[ci] = [k for k, info in types.items()
+                      if info["rooms"][0] in pool and info["max"] >= size]
+    rv = {}                      # (class, type, slot) -> room-count variable
+    type_terms: dict = {}
+    room_cost = []
+    for ci, (kind, size) in enumerate(class_keys):
+        mids = [m["idx"] for m in live_m if class_of[m["idx"]] == ci]
+        for t in range(n_slots):
+            xv = [v for mi in mids for v in xs_mt.get((mi, t), [])]
+            if not xv:
                 continue
-            for t in range(n_slots):
-                vs = [v for mi in ids for v in xs_mt.get((mi, t), [])]
-                if len(vs) > room_count:
-                    model.Add(sum(vs) <= room_count)
+            fs = []
+            for k in compat[ci]:
+                info = types[k]
+                fv = model.NewIntVar(0, len(info["rooms"]), f"f_{ci}_{len(rv)}")
+                rv[(ci, k, t)] = fv
+                fs.append(fv)
+                type_terms.setdefault((k, t), []).append(fv)
+                pen = 0
+                if kind != "LAB" and info["lab"]:
+                    pen += W.get("lab_for_lecture", 20)
+                pen += W.get("room_over", 1) * max(0, size - info["rec"])
+                if pen:
+                    room_cost.append(pen * fv)
+            model.Add(sum(fs) == sum(xv))
+    for (k, t), fvs in type_terms.items():
+        model.Add(sum(fvs) <= len(types[k]["rooms"]))
 
     # R7: load. The hard cap is the variable's domain.
     loads, over = [], []
@@ -361,6 +402,7 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
     for ov in over:
         obj.append(-W.get("over_load", 10) * ov)
     obj.append(-W.get("balance", 2) * top)
+    obj.extend(-c for c in room_cost)
     model.Maximize(sum(obj))
 
     solver = cp_model.CpSolver()
@@ -400,7 +442,34 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
                         slots[mi] = t
                         break
             plan[g["gid"]] = {"fac": fac, "slots": slots}
+        info["rooms"] = _rooms_from_model(solver, plan, rv, types, compat, class_of)
     return plan, info
+
+
+def _rooms_from_model(solver, plan, rv, types, compat, class_of) -> dict:
+    """Concrete room names from the f counts: {meeting_idx: room}."""
+    per = {}
+    for p in plan.values():
+        for mi, t in p["slots"].items():
+            per.setdefault((class_of[mi], t), []).append(mi)
+    usage: dict = {}
+    used_in_slot: dict = {}
+    out = {}
+    for (ci, t), mis in sorted(per.items(), key=lambda kv: (kv[0][1], kv[0][0])):
+        mis.sort()
+        pos = 0
+        for k in compat[ci]:
+            n = solver.Value(rv[(ci, k, t)]) if (ci, k, t) in rv else 0
+            for _ in range(n):
+                taken = used_in_slot.setdefault(t, set())
+                free = [r for r in types[k]["rooms"] if r not in taken]
+                free.sort(key=lambda r: (usage.get(r, 0), r))
+                room = free[0]
+                taken.add(room)
+                usage[room] = usage.get(room, 0) + 1
+                out[mis[pos]] = room
+                pos += 1
+    return out
 
 
 # ── Greedy fallback (same hard rules, no optimality) ──────────────────────────
@@ -413,7 +482,7 @@ def _solve_greedy(meetings: list, groups: dict, faculty_list: list, static_looku
 
     fac_slots = {i: set() for i in range(len(faculty_list))}
     block_slots: dict = {}
-    slot_demands: dict = {}          # (kind, t) -> [sizes]
+    slot_demands: dict = {}          # t -> [(key, kind, size)]
     loads = {i: 0 for i in range(len(faculty_list))}
     plan = {}
 
@@ -452,10 +521,10 @@ def _solve_greedy(meetings: list, groups: dict, faculty_list: list, static_looku
                         continue
                     if m["block"] and t in block_slots.get(m["block"], set()):
                         continue
-                    demands = list(slot_demands.get((m["kind"], t), [])) + [
-                        meetings[o]["size"] for o, tt in placed.items()
-                        if tt == t and meetings[o]["kind"] == m["kind"]]
-                    if not _rooms_feasible(m["kind"], demands + [m["size"]]):
+                    demands = list(slot_demands.get(t, [])) + [
+                        (o, meetings[o]["kind"], meetings[o]["size"])
+                        for o, tt in placed.items() if tt == t]
+                    if _match(demands + [(mi, m["kind"], m["size"])]) is None:
                         continue
                     cand.append((day_count.get(ALL_SLOT_STRINGS[t].split(":")[0], 0), t))
                 if not cand:
@@ -468,7 +537,7 @@ def _solve_greedy(meetings: list, groups: dict, faculty_list: list, static_looku
                 m = meetings[mi]
                 fac_slots[f].add(t)
                 block_slots.setdefault(m["block"], set()).add(t)
-                slot_demands.setdefault((m["kind"], t), []).append(m["size"])
+                slot_demands.setdefault(t, []).append((mi, m["kind"], m["size"]))
             loads[f] += g["units"]
             plan[g["gid"]] = {"fac": f, "slots": placed}
             break
@@ -506,19 +575,56 @@ def _row(sec: dict, faculty: str, slot: Optional[str], room: str, class_type: st
     }
 
 
-def _build_rows(plan: dict, groups: dict, meetings: list, faculty_list: list) -> list:
-    rows = []
-    room_usage: dict = {}
+def _prefer_lecture_rooms(chosen: dict, plan: dict, meetings: list) -> None:
+    """
+    Soft rule: a lecture sits in a lecture room (CSLR, GE Bldg) whenever one is
+    free in its slot; a lab room (Physics Room) hosts a lecture only when no
+    lecture room fits. Applied to the final room names, so it holds even when
+    the CP-SAT search stopped at its time limit. Only moves a meeting to a free,
+    large-enough room of the same slot, so every hard rule still holds.
+    """
+    rs = current_rooms()
+    if not rs.lab_also_lecture:
+        return
+    slot_of = {mi: t for p in plan.values() for mi, t in p["slots"].items()}
+    used: dict = {}
+    for mi, room in chosen.items():
+        used.setdefault(slot_of[mi], set()).add(room)
+    for mi in sorted(chosen):
+        m = meetings[mi]
+        if m["kind"] != "LECTURE" or chosen[mi] not in rs.lab_rooms:
+            continue
+        t = slot_of[mi]
+        free = [r for r in rs.lecture_rooms if r not in rs.lab_rooms
+                and r not in used[t] and rs.max_of(r) >= m["size"]]
+        if free:
+            free.sort(key=lambda r: _room_cost(r, "LECTURE", m["size"]))
+            used[t].discard(chosen[mi])
+            chosen[mi] = free[0]
+            used[t].add(free[0])
 
-    # Room names: one matching per (pool, slot)
-    chosen_room: dict = {}
-    per_slot: dict = {}
-    for p in plan.values():
-        for mi, t in p["slots"].items():
-            m = meetings[mi]
-            per_slot.setdefault((m["kind"], t), []).append((mi, m["size"]))
-    for (kind, t), here in sorted(per_slot.items(), key=lambda kv: (kv[0][1], kv[0][0])):
-        chosen_room.update(_match_rooms(kind, here, room_usage))
+
+def _build_rows(plan: dict, groups: dict, meetings: list, faculty_list: list,
+                chosen_room: Optional[dict] = None) -> list:
+    rows = []
+
+    # Room names: from the CP-SAT model when it decided them, else one exact
+    # matching per slot (greedy fallback).
+    if chosen_room is None:
+        chosen_room = {}
+        per_slot: dict = {}
+        for p in plan.values():
+            for mi, t in p["slots"].items():
+                m = meetings[mi]
+                per_slot.setdefault(t, []).append((mi, m["kind"], m["size"]))
+        for t, here in sorted(per_slot.items()):
+            got = _match(here)
+            if got is None:
+                raise RuntimeError("room matching failed for a slot the solver accepted")
+            chosen_room.update(got)
+    else:
+        chosen_room = dict(chosen_room)
+    _prefer_lecture_rooms(chosen_room, plan, meetings)
 
     for g in groups.values():
         p = plan.get(g["gid"])
@@ -542,7 +648,18 @@ def _build_rows(plan: dict, groups: dict, meetings: list, faculty_list: list) ->
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def solve(sections: list, faculty_list: list, static_lookup: dict,
-          progress_cb: Optional[Callable] = None, strict: bool = False) -> tuple:
+          progress_cb: Optional[Callable] = None, strict: bool = False,
+          rooms=None) -> tuple:
+    """
+    `rooms` is the department's RoomSet (default: the active one, see config.rooms).
+    """
+    rs = rooms if rooms is not None else current_rooms()
+    with use_rooms(rs):
+        return _solve(sections, faculty_list, static_lookup, progress_cb, strict)
+
+
+def _solve(sections: list, faculty_list: list, static_lookup: dict,
+           progress_cb: Optional[Callable] = None, strict: bool = False) -> tuple:
     """
     Build the schedule for `sections` (meetings as produced by
     schedule_service.prepare_scheduling_input).
@@ -555,7 +672,7 @@ def solve(sections: list, faculty_list: list, static_lookup: dict,
     """
     t0 = time.time()
     classroom = [s for s in sections if s.get("class_type") != NON_CLASSROOM]
-    max_lab = max_room_capacity(_cfg.LABORATORY_ROOMS)
+    max_lab = max_room_capacity(current_rooms().lab_rooms)
     meetings = _build_meetings(classroom, max_lab)
     groups = _group_table(sections, meetings, faculty_list, static_lookup)
 
@@ -573,11 +690,11 @@ def solve(sections: list, faculty_list: list, static_lookup: dict,
     uncovered = {gid: _uncovered_reason(g, faculty_list, loads)
                  for gid, g in groups.items() if gid not in plan}
 
-    rows = _build_rows(plan, groups, meetings, faculty_list)
+    rows = _build_rows(plan, groups, meetings, faculty_list, info.get("rooms"))
     if strict and uncovered:
         rows = []
 
-    violations = validate_schedule(rows, faculty_list, static_lookup, list(_cfg.LABORATORY_ROOMS))
+    violations = validate_schedule(rows, faculty_list, static_lookup, current_rooms())
 
     metrics = {
         "solver_used":      solver_used,

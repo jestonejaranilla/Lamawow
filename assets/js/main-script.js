@@ -22,6 +22,11 @@ const API_BASE = ['localhost', '127.0.0.1'].includes(location.hostname)
   ? 'http://localhost:5000'
   : 'https://atlas-drsg.onrender.com';
 
+/* Department chosen at login (sessionStorage 'atlasDept', default IT). Every per-department
+   browser key is stored as <base>::<dept> through dk(); nothing reads an un-suffixed key. */
+const DEPT = (window.atlasDept && window.atlasDept.current()) || 'IT';
+const dk = base => base + '::' + DEPT;
+
 const DAY_MAP = {
   Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday',
   Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday'
@@ -32,7 +37,7 @@ const DAY_ORDER = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5 };
 // MAX_UNITS is now dynamic - read from Settings (localStorage), default 24
 function getMaxUnits() {
   try {
-    const s = JSON.parse(localStorage.getItem('systemSettings') || '{}');
+    const s = JSON.parse(localStorage.getItem(dk('systemSettings')) || '{}');
     return parseInt(s.max_units) || 24;
   } catch { return 24; }
 }
@@ -42,7 +47,7 @@ Object.defineProperty(window, 'MAX_UNITS', { get: getMaxUnits });
 // UNITS_PER_ASSIGNMENT - dynamic, read from Settings (localStorage), default 2
 function getUnitsPerAssignment() {
   try {
-    const s = JSON.parse(localStorage.getItem('systemSettings') || '{}');
+    const s = JSON.parse(localStorage.getItem(dk('systemSettings')) || '{}');
     return parseInt(s.units_per_assignment) || 2;
   } catch { return 2; }
 }
@@ -58,20 +63,11 @@ function getFacultyMaxUnitsMap() {
 
 const DATA_VERSION = 'v6'; // bump to wipe stale localStorage on deploy
 
-const SPECIALIZATIONS = [
-  'Core Theory',
-  'Programming',
-  'Systems',
-  'Data Management',
-  'Networks & Security',
-  'Applied Computing',
-  'Mathematics',
-  'Web & App Dev',
-  'Research & Capstone',
-  'Industry Practice',
-  'Elective'
-];
+// Specialization tags of the active department: the file's `specializations` (see loadCurriculumData).
+let SPECIALIZATIONS = [];
 
+// Offline fallback only: the IT and CS room list ("default" rooms in their files), mirroring
+// config/settings.py. The department's real rooms come from GET /rooms?dept=<DEPT>.
 const LECTURE_ROOMS = [
   'CL1','CL2','CL3',
   'IT Room 1','IT Room 2','IT Room 3',
@@ -81,7 +77,6 @@ const LECTURE_ROOMS = [
 
 const LABORATORY_ROOMS = ['MTC1','MTC2','IT101','NIT1','NIT3'];
 
-// Room capacity defaults - mirrors backend config/settings.py ROOM_CAPACITY
 const DEFAULT_ROOM_CAPACITY = {
   'CL1':       { recommended: 35, max: 52 },
   'CL2':       { recommended: 35, max: 52 },
@@ -106,20 +101,10 @@ const DEFAULT_ROOM_CAPACITY = {
   'NIT3':      { recommended: 40, max: 45 },
 };
 
-// Class size data - editable via UI in future phases; loaded from defaults on first startup
-const DEFAULT_CLASS_SIZES = {
-  IT1B1: { year: '1st Year', block: 'B1', size: 54 },
-  IT1B2: { year: '1st Year', block: 'B2', size: 54 },
-  IT2B1: { year: '2nd Year', block: 'B1', size: 45 },
-  IT2B2: { year: '2nd Year', block: 'B2', size: 39 },
-  IT3B1: { year: '3rd Year', block: 'B1', size: 34 },
-  IT3B2: { year: '3rd Year', block: 'B2', size: 32 },
-  IT3B3: { year: '3rd Year', block: 'B3', size: 32 },
-  IT4B1: { year: '4th Year', block: 'B1', size: 33 },
-  IT4B2: { year: '4th Year', block: 'B2', size: 32 },
-  IT4B3: { year: '4th Year', block: 'B3', size: 32 },
-};
+// Class sizes and blocks per year come from the department's file (see defaultClassSizes()).
 
+// Default faculty of the IT department. Other departments get placeholder faculty built from
+// their own tags (AtlasCurriculum.placeholderFaculty).
 const INITIAL_FACULTY = [
   { name: 'Prof A',  specialization: ['Networks & Security'],    max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
   { name: 'Prof B',  specialization: ['Systems'],                max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
@@ -133,21 +118,73 @@ const INITIAL_FACULTY = [
   { name: 'Prof J',  specialization: ['Data Management'],        max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] }
 ];
 
-// Default subject rows come from the curriculum file (data/curricula/IT.json),
-// loaded at startup - see loadCurriculumData().
+// Everything the department owns by default (subjects, blocks, class sizes, tags, rooms flags)
+// comes from data/curricula/<DEPT>.json, loaded at startup - see loadCurriculumData().
 let ATLAS_CURRICULUM = null;
-const CURRICULUM_DEPT = 'IT';
 
+function applyCurriculum(cur) {
+  ATLAS_CURRICULUM = cur && cur.dept === DEPT ? cur : null;
+  SPECIALIZATIONS = ATLAS_CURRICULUM ? [...(ATLAS_CURRICULUM.specializations || [])] : [];
+}
+
+// The static file first (same relative path and exact-case name on Render), the backend second.
+// The copy is cached per department (atlasCurriculumCache::<DEPT>).
 async function loadCurriculumData() {
-  const urls = [`../data/curricula/${CURRICULUM_DEPT}.json`, `${API_BASE}/curriculum/${CURRICULUM_DEPT}`];
+  const urls = [`../data/curricula/${DEPT}.json`, `${API_BASE}/curriculum/${DEPT}`];
   try {
-    ATLAS_CURRICULUM = await AtlasCurriculum.loadCurriculum(CURRICULUM_DEPT, urls);
-    try { localStorage.setItem('atlasCurriculumCache', JSON.stringify(ATLAS_CURRICULUM)); } catch { /* ignore */ }
+    applyCurriculum(await AtlasCurriculum.loadCurriculum(DEPT, urls));
+    if (ATLAS_CURRICULUM) {
+      try { localStorage.setItem(dk('atlasCurriculumCache'), JSON.stringify(ATLAS_CURRICULUM)); } catch { /* ignore */ }
+    }
   } catch (e) {
-    try { ATLAS_CURRICULUM = JSON.parse(localStorage.getItem('atlasCurriculumCache') || 'null'); } catch { ATLAS_CURRICULUM = null; }
+    try { applyCurriculum(JSON.parse(localStorage.getItem(dk('atlasCurriculumCache')) || 'null')); } catch { applyCurriculum(null); }
     if (!ATLAS_CURRICULUM) console.error('Curriculum could not be loaded:', e);
   }
   return ATLAS_CURRICULUM;
+}
+
+function deptName() {
+  return (ATLAS_CURRICULUM && ATLAS_CURRICULUM.name) || DEPT;
+}
+
+function defaultClassSizes() {
+  return ATLAS_CURRICULUM ? JSON.parse(JSON.stringify(ATLAS_CURRICULUM.class_sizes || {})) : {};
+}
+
+function defaultFaculty() {
+  if (DEPT === 'IT') return INITIAL_FACULTY;
+  return ATLAS_CURRICULUM ? AtlasCurriculum.placeholderFaculty(ATLAS_CURRICULUM, 8) : [];
+}
+
+// The department's rooms when the backend cannot be reached: its file, then the IT/CS list.
+function roomDefaultsFromFile() {
+  const spec = (ATLAS_CURRICULUM && ATLAS_CURRICULUM.rooms) || {};
+  const part = (v, fallback) => (v && v !== 'default')
+    ? { rooms: Object.keys(v), cap: v }
+    : { rooms: [...fallback], cap: DEFAULT_ROOM_CAPACITY };
+  const lec = part(spec.lecture, LECTURE_ROOMS);
+  const lab = part(spec.lab, LABORATORY_ROOMS);
+  const capacity = {};
+  [...lec.rooms.map(r => [r, lec.cap]), ...lab.rooms.map(r => [r, lab.cap])].forEach(([r, c]) => {
+    if (c[r]) capacity[r] = { ...c[r] };
+  });
+  return { lecture: lec.rooms, lab: lab.rooms, capacity };
+}
+
+// The department's rooms from the backend (GET /rooms?dept=X), file defaults when it is unreachable.
+async function fetchRoomDefaults() {
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), 6000) : null;
+  try {
+    const res = await fetch(`${API_BASE}/rooms?dept=${encodeURIComponent(DEPT)}`, ctl ? { signal: ctl.signal } : {});
+    const d = await res.json();
+    if (!res.ok || d.dept !== DEPT || !Array.isArray(d.lecture_rooms)) throw new Error('bad /rooms response');
+    return { lecture: d.lecture_rooms, lab: d.laboratory_rooms || [], capacity: d.room_capacity || {} };
+  } catch {
+    return roomDefaultsFromFile();
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // Table sort state
@@ -721,25 +758,10 @@ function updateReportsPanel(data) {
 }
 
 
-const TYPE_SPEC_KEYWORDS = {
-  'Core Theory':        ['core','theory','introduction','computing','fundamentals'],
-  'Programming':        ['programming','software','algorithms','data structures','coding','development'],
-  'Systems':            ['systems','architecture','integration','administration','maintenance'],
-  'Data Management':    ['database','information management','data management','information systems'],
-  'Networks & Security':['network','cybersecurity','information assurance','security'],
-  'Applied Computing':  ['multimedia','gis','geographic','embedded','graphics','visual','hci','human-computer','applied'],
-  'Mathematics':        ['mathematics','math','quantitative','modelling','simulation','data science'],
-  'Web & App Dev':      ['web','application','emerging','app','technologies'],
-  'Research & Capstone':['capstone','research','thesis','colloquium'],
-  'Industry Practice':  ['practicum','tour','industry','practice'],
-  'Elective':           []
-};
-
-function specMatchesType(specList, subjectType) {
-  if (!subjectType || subjectType === 'Elective') return true;
-  const keywords = TYPE_SPEC_KEYWORDS[subjectType] || [];
-  if (!keywords.length) return true;
-  return specList.some(sp => keywords.some(kw => sp.toLowerCase().includes(kw)) );
+// Same qualification rule as the backend, using the tags of the department's own file.
+function specMatchesCourse(specList, subjectTitle) {
+  if (!ATLAS_CURRICULUM) return true;
+  return AtlasCurriculum.qualifies(specList, AtlasCurriculum.courseTags(ATLAS_CURRICULUM, subjectTitle));
 }
 
 function computeFairnessReport(data) {
@@ -772,7 +794,7 @@ function computeFairnessReport(data) {
     
     const meta = facMeta[item.faculty];
     if (meta) {
-      const isMatch = specMatchesType(meta.specialization, item.type);
+      const isMatch = specMatchesCourse(meta.specialization, item.subject);
       if (isMatch) {
         matchedSpecs++;
         perFaculty[item.faculty].matched++;
@@ -942,6 +964,7 @@ function enableTableSort() {
    8. RUN GENETIC ALGORITHM ENGINE
    ============================================================ */
 let progressInterval = null;
+let currentRun = null;          // {dept, run_id} of the run this session started
 const progressFill = document.querySelector('#gaProgressBar .fill');
 
 async function triggerGARunAPI() {
@@ -988,6 +1011,7 @@ async function triggerGARunAPI() {
   const sysCfg = getSystemSettings();
 
   const payload = {
+    dept:             DEPT,
     faculty:          getFacultyFromTable(),
     subjects:         expandedSubjects,
     population:       Number(population),
@@ -1009,6 +1033,8 @@ async function triggerGARunAPI() {
   });
   const data = await response.json();
   if (!data.status) throw new Error(data.error || 'GA start failed');
+  if (data.dept !== DEPT) throw new Error('The engine answered for another department.');
+  currentRun = { dept: DEPT, run_id: data.run_id };
 }
 
 function initRunGA() {
@@ -1033,8 +1059,11 @@ function initRunGA() {
       // Poll progress endpoint loop integration routine
       progressInterval = setInterval(async () => {
         try {
-          const res = await fetch(`${API_BASE}/progress`);
+          if (!currentRun) return;
+          const res = await fetch(`${API_BASE}/progress?dept=${encodeURIComponent(DEPT)}&run_id=${encodeURIComponent(currentRun.run_id)}`);
           const status = await res.json();
+          // Ignore any answer that belongs to another department or another run.
+          if (!currentRun || status.dept !== DEPT || status.run_id !== currentRun.run_id) return;
 
           if (status.total > 0) {
             const pct = Math.min(100, Math.round((status.current / status.total) * 100));
@@ -1076,7 +1105,7 @@ function initRunGA() {
                 window.__atlasAnalytics = status.analytics;
                 renderCapacityMetrics(resolveCapacityMetrics(status.analytics));
                 renderCapacityAnalytics(status.analytics);
-                localStorage.setItem('atlasAnalyticsCache', JSON.stringify(status.analytics));
+                localStorage.setItem(dk('atlasAnalyticsCache'), JSON.stringify(status.analytics));
               } catch(e) { console.warn('Analytics render error:', e); }
             }
             // Display backend warnings
@@ -1084,7 +1113,7 @@ function initRunGA() {
               status.warnings.forEach(w => console.warn('[ATLAS]', w));
             }
 
-            try { localStorage.setItem('lastGAResult', JSON.stringify(lastGAResult)); } catch { /* ignore */ }
+            try { localStorage.setItem(dk('lastGAResult'), JSON.stringify(lastGAResult)); } catch { /* ignore */ }
             const metricsSuffix = status.metrics && status.metrics.solve_time_sec
               ? ` (CP-SAT: ${status.metrics.solve_time_sec}s, GA: ${status.metrics.ga_time_sec || 0}s)`
               : '';
@@ -1104,6 +1133,7 @@ function initRunGA() {
 
     } catch (e) {
       clearInterval(progressInterval);
+      currentRun = null;
       loading.classList.add('hidden');
       runBtn.disabled = false;
       alert('Failed to connect to backend engine: ' + e.message);
@@ -1285,7 +1315,7 @@ function getFacultyFromTable() {
 
 function saveFaculty() {
   try {
-    localStorage.setItem('facultyData', JSON.stringify(getFacultyFromTable()));
+    localStorage.setItem(dk('facultyData'), JSON.stringify(getFacultyFromTable()));
     updateAllSelectAllBtnStates();
   } catch (e) {
     console.warn('LocalStorage save failed:', e);
@@ -1294,7 +1324,7 @@ function saveFaculty() {
 
 function loadFacultyFromStorage() {
   try {
-    const data = localStorage.getItem('facultyData');
+    const data = localStorage.getItem(dk('facultyData'));
     return data ? JSON.parse(data) : null;
   } catch {
     return null;
@@ -1476,13 +1506,13 @@ function initEditFacultyModal() {
             type:         subjectData.type || '',
             year:         subjectData.year || '',
             semester:     subjectData.semester || '',
-            class_type:   room && LABORATORY_ROOMS.includes(room) ? 'LAB' : 'LECTURE',
+            class_type:   room && runtimeLabRooms.includes(room) ? 'LAB' : 'LECTURE',
             section:      ''
           });
         });
 
         // Re-render all panels
-        try { localStorage.setItem('lastGAResult', JSON.stringify(lastGAResult)); } catch { /* ignore */ }
+        try { localStorage.setItem(dk('lastGAResult'), JSON.stringify(lastGAResult)); } catch { /* ignore */ }
         const displayResult = filterResultBySemester(lastGAResult);
         renderTable(displayResult);
         updateCharts(displayResult);
@@ -1547,9 +1577,18 @@ function addSubjectRow(data = {}) {
   const year     = data.year || '1st Year';
   const semester = data.semester || '1st Semester';
   const name     = data.name || '';
-  const type     = data.type || 'Core Theory';
+  const type     = data.type || SPECIALIZATIONS[0] || '';
   const lec      = data.lec_units !== undefined ? data.lec_units : 2;
   const lab      = data.lab_units !== undefined ? data.lab_units : 1;
+  const typeOptions = (SPECIALIZATIONS.includes(type) ? SPECIALIZATIONS : [type, ...SPECIALIZATIONS])
+    .filter(Boolean)
+    .map(t => `<option ${t === type ? 'selected' : ''}>${escapeHTML(t)}</option>`).join('');
+  // `confirm` / `verify` flags of the course file: a small marker whose tooltip is the flag text
+  const flagCourse = ATLAS_CURRICULUM && data.code
+    ? (ATLAS_CURRICULUM.courses || []).find(c => c.code === data.code) : null;
+  const flagText = flagCourse ? (flagCourse.confirm || flagCourse.verify || '') : '';
+  const flagHTML = flagText
+    ? `<span class="course-flag" title="${escapeAttr(flagText)}" aria-label="${escapeAttr(flagText)}" tabindex="0">!</span>` : '';
 
   tr.innerHTML = `
     <td>
@@ -1567,21 +1606,9 @@ function addSubjectRow(data = {}) {
         <option ${semester==='Summer'?'selected':''}>Summer</option>
       </select>
     </td>
-    <td><input type="text" class="subject-name" placeholder="Subject Title" value="${escapeAttr(name)}"></td>
+    <td><input type="text" class="subject-name" placeholder="Subject Title" value="${escapeAttr(name)}">${flagHTML}</td>
     <td>
-      <select class="subject-type">
-        <option ${type==='Core Theory'?'selected':''}>Core Theory</option>
-        <option ${type==='Programming'?'selected':''}>Programming</option>
-        <option ${type==='Systems'?'selected':''}>Systems</option>
-        <option ${type==='Data Management'?'selected':''}>Data Management</option>
-        <option ${type==='Networks & Security'?'selected':''}>Networks & Security</option>
-        <option ${type==='Applied Computing'?'selected':''}>Applied Computing</option>
-        <option ${type==='Mathematics'?'selected':''}>Mathematics</option>
-        <option ${type==='Web & App Dev'?'selected':''}>Web & App Dev</option>
-        <option ${type==='Research & Capstone'?'selected':''}>Research & Capstone</option>
-        <option ${type==='Industry Practice'?'selected':''}>Industry Practice</option>
-        <option ${type==='Elective'?'selected':''}>Elective</option>
-      </select>
+      <select class="subject-type">${typeOptions}</select>
     </td>
     <td><input type="number" class="unit-input lec" value="${lec}" min="0" max="10"></td>
     <td><input type="number" class="unit-input lab" value="${lab}" min="0" max="10"></td>
@@ -1628,7 +1655,7 @@ function getSubjectsFromTable() {
 
 function saveSubjects() {
   try {
-    localStorage.setItem('subjectsData', JSON.stringify(getSubjectsFromTable()));
+    localStorage.setItem(dk('subjectsData'), JSON.stringify(getSubjectsFromTable()));
   } catch (e) {
     console.warn('LocalStorage save failed:', e);
   }
@@ -1636,7 +1663,7 @@ function saveSubjects() {
 
 function loadSubjectsFromStorage() {
   try {
-    const data = localStorage.getItem('subjectsData');
+    const data = localStorage.getItem(dk('subjectsData'));
     return data ? JSON.parse(data) : null;
   } catch {
     return null;
@@ -1845,16 +1872,8 @@ function generatePrintReport() {
     return;
   }
 
-  const dept = sessionStorage.getItem('atlasDept') || 'IT';
   const user = sessionStorage.getItem('atlasUser') || 'Administrator';
-  const deptMap = {
-    IT:   'Information Technology',
-    CS:   'Computer Science',
-    MB:   'Marine Biology',
-    ES:   'Environmental Science',
-    MedB: 'Medical Biology'
-  };
-  const deptFull = deptMap[dept] || dept;
+  const deptFull = deptName();
 
   const mode = getActiveSemester();
   const semesterLabel = mode ? (mode.year ? `${mode.year} - ${mode.semester}` : mode.semester) : 'All Semesters';
@@ -2207,18 +2226,26 @@ function debounce(fn, delay) {
    14. INITIALIZATION
    ============================================================ */
 window.addEventListener('DOMContentLoaded', async () => {
-  // Clear stale localStorage if data version changed
-  if (localStorage.getItem('atlasDataVersion') !== DATA_VERSION) {
-    localStorage.removeItem('facultyData');
-    localStorage.removeItem('subjectsData');
-    localStorage.removeItem('classSizesData');
-    localStorage.removeItem('lastGAResult');
-    localStorage.setItem('atlasDataVersion', DATA_VERSION);
+  if (!document.getElementById('facultyTable')) return;   // not the chairperson dashboard
+
+  // Clear stale localStorage if data version changed (this department's keys only)
+  if (localStorage.getItem(dk('atlasDataVersion')) !== DATA_VERSION) {
+    localStorage.removeItem(dk('facultyData'));
+    localStorage.removeItem(dk('subjectsData'));
+    localStorage.removeItem(dk('classSizesData'));
+    localStorage.removeItem(dk('lastGAResult'));
+    localStorage.setItem(dk('atlasDataVersion'), DATA_VERSION);
   }
+
+  // The department's file decides the defaults: tags, subjects, blocks and class sizes
+  await loadCurriculumData();
+  if (!ATLAS_CURRICULUM) showToast('Curriculum could not be loaded.', 'error');
+  await loadRuntimeRooms();
+  applyDeptLabels();
 
   // Load class sizes (editable, not fixed)
   if (!loadClassSizesFromStorage()) {
-    saveClassSizes(DEFAULT_CLASS_SIZES);
+    saveClassSizes(defaultClassSizes());
   }
 
   initCharts();
@@ -2237,12 +2264,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (savedFaculty && savedFaculty.length > 0) {
     savedFaculty.forEach(f => addFacultyRow(f));
   } else {
-    INITIAL_FACULTY.forEach(f => addFacultyRow(f));
+    defaultFaculty().forEach(f => addFacultyRow(f));
   }
   updateAllSelectAllBtnStates();
 
-  // Load subjects (defaults come from the curriculum file)
-  await loadCurriculumData();
+  // Load subjects (defaults come from the department's curriculum file)
   let savedSubjects = loadSubjectsFromStorage();
   // Rows saved before prospectus codes existed are replaced by the curriculum defaults
   if (savedSubjects && savedSubjects.length && !savedSubjects.some(s => s.code)) savedSubjects = null;
@@ -2262,9 +2288,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Update semester badges now that subjects are loaded
   updateAllSemesterBadges();
 
-  // Restore last GA result and re-render all views
+  // Restore this department's last GA result and re-render all views
   try {
-    const saved = localStorage.getItem('lastGAResult');
+    const saved = localStorage.getItem(dk('lastGAResult'));
     if (saved) {
       lastGAResult = JSON.parse(saved);
       if (lastGAResult && lastGAResult.length) {
@@ -2281,7 +2307,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Restore analytics cache and re-populate capacity panels
   try {
-    const savedAnalytics = localStorage.getItem('atlasAnalyticsCache');
+    const savedAnalytics = localStorage.getItem(dk('atlasAnalyticsCache'));
     if (savedAnalytics) {
       const analytics = JSON.parse(savedAnalytics);
       window.__atlasAnalytics = analytics;
@@ -2294,7 +2320,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 function getActiveSemester() {
   try {
-    const mode = JSON.parse(localStorage.getItem('academicMode') || 'null');
+    const mode = JSON.parse(localStorage.getItem(dk('academicMode')) || 'null');
     return mode && mode.semester ? mode : null;
   } catch { return null; }
 }
@@ -2356,7 +2382,7 @@ function filterResultBySemester(data) {
    ============================================================ */
 function getSystemSettings() {
   try {
-    const s = JSON.parse(localStorage.getItem('systemSettings') || '{}');
+    const s = JSON.parse(localStorage.getItem(dk('systemSettings')) || '{}');
     return {
       max_units:            parseInt(s.max_units)            || 24,
       units_per_assignment: parseInt(s.units_per_assignment) || 2,
@@ -2368,7 +2394,7 @@ function getSystemSettings() {
 }
 
 function saveSystemSettings(settings) {
-  try { localStorage.setItem('systemSettings', JSON.stringify(settings)); } catch { /* ignore */ }
+  try { localStorage.setItem(dk('systemSettings'), JSON.stringify(settings)); } catch { /* ignore */ }
 }
 
 function initSystemSettings() {
@@ -2413,7 +2439,7 @@ function initAcademicMode() {
       return;
     }
     const mode = { year, semester };
-    localStorage.setItem('academicMode', JSON.stringify(mode));
+    localStorage.setItem(dk('academicMode'), JSON.stringify(mode));
     updateAllSemesterBadges();
     if (savedMsg) {
       savedMsg.style.display = 'inline-flex';
@@ -2439,7 +2465,7 @@ function initAcademicMode() {
    ============================================================ */
 function loadClassSizesFromStorage() {
   try {
-    const data = localStorage.getItem('classSizesData');
+    const data = localStorage.getItem(dk('classSizesData'));
     return data ? JSON.parse(data) : null;
   } catch {
     return null;
@@ -2448,36 +2474,60 @@ function loadClassSizesFromStorage() {
 
 function saveClassSizes(sizes) {
   try {
-    localStorage.setItem('classSizesData', JSON.stringify(sizes));
+    localStorage.setItem(dk('classSizesData'), JSON.stringify(sizes));
   } catch (e) {
     console.warn('LocalStorage save failed:', e);
   }
 }
 
 function getClassSizes() {
-  return loadClassSizesFromStorage() || DEFAULT_CLASS_SIZES;
+  return loadClassSizesFromStorage() || defaultClassSizes();
 }
 
 /* ============================================================
    ROOM MANAGEMENT UI
    ============================================================ */
-const DEFAULT_LECTURE_ROOMS = [...LECTURE_ROOMS];
-const DEFAULT_LABORATORY_ROOMS = [...LABORATORY_ROOMS];
+// The active department's rooms. Saved edits (roomsData::<DEPT>) win; otherwise they come from
+// the backend (GET /rooms?dept=<DEPT>).
+let runtimeLectureRooms = [];
+let runtimeLabRooms = [];
+let runtimeRoomCapacity = {};
 
-let runtimeLectureRooms = [...LECTURE_ROOMS];
-let runtimeLabRooms = [...LABORATORY_ROOMS];
-let runtimeRoomCapacity = { ...DEFAULT_ROOM_CAPACITY };
+async function loadRuntimeRooms() {
+  const stored = loadRoomsFromStorage();
+  const src = stored && Array.isArray(stored.lecture)
+    ? { lecture: stored.lecture, lab: stored.lab || [], capacity: stored.capacity || {} }
+    : await fetchRoomDefaults();
+  runtimeLectureRooms = [...src.lecture];
+  runtimeLabRooms = [...src.lab];
+  runtimeRoomCapacity = JSON.parse(JSON.stringify(src.capacity || {}));
+}
+
+async function syncRoomsToBackend() {
+  try {
+    await fetch(`${API_BASE}/rooms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dept: DEPT,
+        lecture_rooms: runtimeLectureRooms,
+        laboratory_rooms: runtimeLabRooms,
+        room_capacity: runtimeRoomCapacity
+      })
+    });
+  } catch { /* backend optional sync */ }
+}
 
 function loadRoomsFromStorage() {
   try {
-    const data = localStorage.getItem('roomsData');
+    const data = localStorage.getItem(dk('roomsData'));
     return data ? JSON.parse(data) : null;
   } catch { return null; }
 }
 
 function saveRoomsToStorage() {
   try {
-    localStorage.setItem('roomsData', JSON.stringify({
+    localStorage.setItem(dk('roomsData'), JSON.stringify({
       lecture: runtimeLectureRooms,
       lab: runtimeLabRooms,
       capacity: runtimeRoomCapacity
@@ -2544,13 +2594,6 @@ function renderRoomList(containerId, rooms) {
 }
 
 function initRoomManagement() {
-  const stored = loadRoomsFromStorage();
-  if (stored) {
-    runtimeLectureRooms = stored.lecture || [...LECTURE_ROOMS];
-    runtimeLabRooms = stored.lab || [...LABORATORY_ROOMS];
-    runtimeRoomCapacity = stored.capacity || { ...DEFAULT_ROOM_CAPACITY };
-  }
-
   renderRoomList('lectureRoomsList', runtimeLectureRooms);
   renderRoomList('labRoomsList', runtimeLabRooms);
 
@@ -2586,27 +2629,21 @@ function initRoomManagement() {
     populateSCRoomDropdown();
   populateSCBuildingDropdown();
     showToast('Rooms saved successfully.', 'success');
-    try {
-      await fetch(`${API_BASE}/rooms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lecture_rooms: runtimeLectureRooms,
-          laboratory_rooms: runtimeLabRooms,
-          room_capacity: runtimeRoomCapacity
-        })
-      });
-    } catch { /* backend optional sync */ }
+    await syncRoomsToBackend();
   });
 
-  document.getElementById('resetRooms')?.addEventListener('click', () => {
-    runtimeLectureRooms = [...DEFAULT_LECTURE_ROOMS];
-    runtimeLabRooms = [...DEFAULT_LABORATORY_ROOMS];
-    runtimeRoomCapacity = { ...DEFAULT_ROOM_CAPACITY };
+  document.getElementById('resetRooms')?.addEventListener('click', async () => {
+    const d = roomDefaultsFromFile();
+    runtimeLectureRooms = [...d.lecture];
+    runtimeLabRooms = [...d.lab];
+    runtimeRoomCapacity = JSON.parse(JSON.stringify(d.capacity));
     renderRoomList('lectureRoomsList', runtimeLectureRooms);
     renderRoomList('labRoomsList', runtimeLabRooms);
     saveRoomsToStorage();
+    populateSCRoomDropdown();
+    populateSCBuildingDropdown();
     showToast('Rooms reset to defaults.', 'info');
+    await syncRoomsToBackend();
   });
 }
 
@@ -2667,7 +2704,7 @@ function initClassSizesManagement() {
       await fetch(`${API_BASE}/class-sizes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sizes)
+        body: JSON.stringify({ dept: DEPT, ...sizes })
       });
     } catch { /* optional backend sync */ }
   });
@@ -2675,10 +2712,10 @@ function initClassSizesManagement() {
   document.getElementById('addClassSizeRow')?.addEventListener('click', () => {
     const tbody = document.querySelector('#classSizesTable tbody');
     if (!tbody) return;
-    const newKey = `IT${Math.floor(Math.random()*90)+10}B${Math.floor(Math.random()*3)+1}`;
+    const newKey = `${DEPT}${Math.floor(Math.random()*90)+10}B${Math.floor(Math.random()*3)+1}`;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input type="text" class="cs-key" value="${newKey}" placeholder="e.g. IT1B1" style="max-width:90px;"></td>
+      <td><input type="text" class="cs-key" value="${newKey}" placeholder="e.g. ${DEPT}1B1" style="max-width:90px;"></td>
       <td>
         <select class="cs-year">
           <option>1st Year</option>
@@ -2696,7 +2733,7 @@ function initClassSizesManagement() {
   });
 
   document.getElementById('resetClassSizes')?.addEventListener('click', () => {
-    saveClassSizes(DEFAULT_CLASS_SIZES);
+    saveClassSizes(defaultClassSizes());
     renderClassSizesTable();
     showToast('Class sizes reset to defaults.', 'info');
   });
@@ -2709,14 +2746,14 @@ let softConstraintsCache = {};
 
 function loadSoftConstraintsFromStorage() {
   try {
-    const data = localStorage.getItem('softConstraintsData');
+    const data = localStorage.getItem(dk('softConstraintsData'));
     return data ? JSON.parse(data) : {};
   } catch { return {}; }
 }
 
 function saveSoftConstraintsToStorage(data) {
   try {
-    localStorage.setItem('softConstraintsData', JSON.stringify(data));
+    localStorage.setItem(dk('softConstraintsData'), JSON.stringify(data));
   } catch (e) { console.warn('SC save failed:', e); }
 }
 
@@ -2750,6 +2787,9 @@ function populateSCBuildingDropdown() {
     else if (name.startsWith('CL'))   { bld = 'CL';       label = 'CL Building'; }
     else if (name.startsWith('MTC'))  { bld = 'MTC';      label = 'MTC Building'; }
     else if (name.startsWith('NIT'))  { bld = 'NIT';      label = 'NIT Building'; }
+    else if (name.startsWith('CSLR')) { bld = 'CSLR';     label = 'CSLR Building'; }
+    else if (name.startsWith('GE Bldg')) { bld = 'GE Bldg'; label = 'GE Building'; }
+    else if (name.startsWith('Physics')) { bld = 'Physics Room'; label = 'Physics Rooms'; }
     else { bld = name; label = name; }
     if (!buildingSet.has(bld)) buildingSet.set(bld, label);
   });
@@ -2858,7 +2898,7 @@ function initSoftConstraints() {
       await fetch(`${API_BASE}/soft-constraints`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ faculty: name, constraints })
+        body: JSON.stringify({ dept: DEPT, faculty: name, constraints })
       });
     } catch { /* optional backend sync */ }
   });
@@ -2997,6 +3037,73 @@ function showToast(msg, type = 'info') {
 }
 
 window.switchPanel = switchPanel;
+
+/* ============================================================
+   DEPARTMENT LABELS, NOTICES AND RESET
+   ============================================================ */
+function applyDeptLabels() {
+  const name = deptName();
+  const user = sessionStorage.getItem('atlasUser');
+  const lbl = document.getElementById('navUserLabel');
+  if (lbl && user) lbl.textContent = user + ' \u00b7 ' + name;
+  const banner = document.getElementById('deptBanner');
+  const bannerName = document.getElementById('deptBannerName');
+  if (banner && bannerName) {
+    bannerName.textContent = name + ' Department';
+    banner.style.display = '';
+  }
+  renderSampleNotices();
+}
+
+// One small notice in the Faculty and Subjects area and one in the class size area.
+function renderSampleNotices() {
+  const c = ATLAS_CURRICULUM;
+  const placeholder = !!(c && (c.class_sizes_placeholder || (c.rooms && c.rooms.capacity_placeholder)));
+  ['sampleNoticeFaculty', 'sampleNoticeClassSizes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = !placeholder;
+  });
+}
+
+/* Logout, a different department, or a page restored for another department: drop every
+   result, analytics, report, faculty, subject and class size held in memory, and empty the
+   report and result DOM. The next department then loads only its own keys. */
+function resetDepartmentState() {
+  if (progressInterval) clearInterval(progressInterval);
+  progressInterval = null;
+  currentRun = null;
+  lastGAResult = [];
+  softConstraintsCache = {};
+  window.__atlasAnalytics = null;
+  ATLAS_CURRICULUM = null;
+  SPECIALIZATIONS = [];
+  runtimeLectureRooms = [];
+  runtimeLabRooms = [];
+  runtimeRoomCapacity = {};
+
+  [dashboardChart, miniDashChart, reportsChart, reportsBarChart].forEach(ch => {
+    if (!ch) return;
+    ch.data.labels = [];
+    ch.data.datasets.forEach(ds => { ds.data = []; });
+    try { ch.update('none'); } catch { /* chart already gone */ }
+  });
+
+  ['#gaScheduleTable tbody', '#facultyTable tbody', '#subjectsTable tbody', '#classSizesTable tbody']
+    .forEach(sel => { const el = document.querySelector(sel); if (el) el.innerHTML = ''; });
+  ['facultyTimetableContainer', 'reportsSummaryGrid', 'dashboardFacultyAssignments', 'fairnessPerFaculty',
+   'subjectsContainer', 'roomUtilCapBody', 'capacityDetailsBody', 'capacityHardViolationsItems',
+   'lectureRoomsList', 'labRoomsList', 'editAssignmentList'
+  ].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+  ['statAvgLoad', 'statOverloaded', 'statBalance', 'fairnessScore', 'fairnessScoreLabel', 'fairnessJain',
+   'fairnessStdDev', 'fairnessMatchRate', 'navUserLabel', 'deptBannerName'
+  ].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+  const card = document.getElementById('capacitySummaryCard');
+  if (card) card.style.display = 'none';
+  const banner = document.getElementById('deptBanner');
+  if (banner) banner.style.display = 'none';
+}
+window.addEventListener('atlas:logout', resetDepartmentState);
+
 /* ============================================================
    DASHBOARD PAGE - dashboard.html inline script (migrated)
    ============================================================ */
@@ -3015,17 +3122,10 @@ window.switchPanel = switchPanel;
   if (!navUserLabel) return; // not on dashboard
 
   window.addEventListener('DOMContentLoaded', () => {
-    const deptMap = {
-      IT:   'IT Dept',
-      CS:   'CS Dept',
-      MB:   'Marine Bio',
-      ES:   'Env. Science',
-      MedB: 'Med Biology',
-    };
-    const dept = sessionStorage.getItem('atlasDept');
+    // The department name comes from the department's file (applyDeptLabels runs once it is loaded)
     const user = sessionStorage.getItem('atlasUser');
     const lbl  = document.getElementById('navUserLabel');
-    if (lbl && user) lbl.textContent = user + (dept ? ' · ' + (deptMap[dept] || dept) : '');
+    if (lbl && user) lbl.textContent = user + ' · ' + deptName();
 
     // Profile dropdown - click to open/close
     const profileDrop = document.querySelector('.nav-item.dropdown');

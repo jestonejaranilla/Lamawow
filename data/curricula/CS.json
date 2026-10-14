@@ -1,0 +1,580 @@
+{
+  "dept": "CS",
+  "program": "BSCS",
+  "name": "Computer Science",
+  "prospectus": "BS Computer Science ICPS, CMO 25 s.2015, effective 1st sem SY 2025-2026 (Doc PSU-CIM-CUR-022A)",
+  "blocks": {
+    "1": [
+      "B1"
+    ],
+    "2": [
+      "B1",
+      "B2",
+      "B3"
+    ],
+    "3": [
+      "B1",
+      "B2"
+    ],
+    "4": [
+      "B1"
+    ]
+  },
+  "class_sizes": {
+    "CS1B1": {
+      "year": "1st Year",
+      "block": "B1",
+      "size": 38
+    },
+    "CS2B1": {
+      "year": "2nd Year",
+      "block": "B1",
+      "size": 42
+    },
+    "CS2B2": {
+      "year": "2nd Year",
+      "block": "B2",
+      "size": 48
+    },
+    "CS2B3": {
+      "year": "2nd Year",
+      "block": "B3",
+      "size": 40
+    },
+    "CS3B1": {
+      "year": "3rd Year",
+      "block": "B1",
+      "size": 42
+    },
+    "CS3B2": {
+      "year": "3rd Year",
+      "block": "B2",
+      "size": 40
+    },
+    "CS4B1": {
+      "year": "4th Year",
+      "block": "B1",
+      "size": 47
+    }
+  },
+  "class_sizes_placeholder": true,
+  "specializations": [
+    "Core Theory",
+    "Programming",
+    "Systems",
+    "Data Management",
+    "Networks & Security",
+    "Applied Computing",
+    "Mathematics",
+    "Web & App Dev",
+    "Research & Capstone",
+    "Industry Practice",
+    "Elective",
+    "Environmental Science"
+  ],
+  "rooms": {
+    "lecture": "default",
+    "lab": "default"
+  },
+  "notes": "CS Elective 4 options: Mathematical Methods for Computational Science, IT Audits and Controls, Integrative Programming and Technologies 1, Platform Technologies. CS Elective 5 options: Parallel and Distributed Computing, IT Service Management, Event Driven Programming, Human Computer Interaction 2.",
+  "courses": [
+    {
+      "code": "GE-MMW",
+      "title": "Mathematics in the Modern World",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "CC 1",
+      "title": "Introduction to Computing",
+      "year": 1,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Core Theory",
+        "Elective"
+      ]
+    },
+    {
+      "code": "CC 2",
+      "title": "Computer Programming 1",
+      "year": 1,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Programming"
+      ]
+    },
+    {
+      "code": "CS 1",
+      "title": "Discrete Structures 1",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "AMR 1",
+      "title": "Statistical Methods for Computer Science",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "AMR",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "CC 3",
+      "title": "Computer Programming 2",
+      "year": 1,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Programming"
+      ]
+    },
+    {
+      "code": "Electronics",
+      "title": "Fundamentals of Electronics",
+      "year": 1,
+      "semester": 2,
+      "lec": 1,
+      "lab": 2,
+      "category": "Electronics",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "CS 2",
+      "title": "Discrete Structures 2",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "AMR 2",
+      "title": "Calculus for Computer Science",
+      "year": 2,
+      "semester": 1,
+      "lec": 4,
+      "lab": 0,
+      "category": "AMR",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "CC 4",
+      "title": "Data Structures and Algorithms",
+      "year": 2,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Programming",
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "CC 5",
+      "title": "Information Management 1",
+      "year": 2,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Data Management"
+      ]
+    },
+    {
+      "code": "CS 3",
+      "title": "Automata Theory and Formal Languages",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Core Theory",
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "CS 4",
+      "title": "Web Systems and Technologies",
+      "year": 2,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Web & App Dev"
+      ]
+    },
+    {
+      "code": "CS 5",
+      "title": "Object Oriented Programming",
+      "year": 2,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Programming"
+      ]
+    },
+    {
+      "code": "CS 6",
+      "title": "Computer Architecture and Organization",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Systems"
+      ]
+    },
+    {
+      "code": "CS 7",
+      "title": "Algorithms and Complexities",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Core Theory",
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "CS 8",
+      "title": "Multimedia Technology",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "CS 9",
+      "title": "Software Engineering 1",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "GE-Elect ES",
+      "title": "Environmental Science",
+      "year": 3,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "CC 6",
+      "title": "Application Development and Emerging Technologies",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CC",
+      "scheduled": true,
+      "specialization": [
+        "Web & App Dev"
+      ]
+    },
+    {
+      "code": "CS 10",
+      "title": "Information Management 2",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Data Management"
+      ]
+    },
+    {
+      "code": "CS 11",
+      "title": "Programming Languages",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Programming"
+      ]
+    },
+    {
+      "code": "CS E1",
+      "title": "Intelligent Systems 1",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "CS E2",
+      "title": "Graphics and Visual Computing",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "GE-STS",
+      "title": "Science, Technology and Society",
+      "year": 3,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Core Theory"
+      ]
+    },
+    {
+      "code": "CS 12",
+      "title": "Software Engineering 2",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "CS 13",
+      "title": "Computer Security and Information Assurance",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Networks & Security"
+      ]
+    },
+    {
+      "code": "CS 14",
+      "title": "Operating Systems",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Systems"
+      ]
+    },
+    {
+      "code": "CS 15",
+      "title": "Networks and Communication",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Networks & Security"
+      ]
+    },
+    {
+      "code": "CS E3",
+      "title": "Intelligent Systems 2",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "CS E4",
+      "title": "CS Elective 4",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "Thesis 1",
+      "title": "Proposal Writing",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 0,
+      "category": "Thesis",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    },
+    {
+      "code": "CS 16",
+      "title": "Human Computer Interaction",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Applied Computing"
+      ]
+    },
+    {
+      "code": "CS 17",
+      "title": "Social Issues and Professional Practices",
+      "year": 4,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Core Theory"
+      ]
+    },
+    {
+      "code": "CS E5",
+      "title": "CS Elective 5",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "CS",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "Thesis 2",
+      "title": "Data Gathering and Writing",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 0,
+      "category": "Thesis",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    },
+    {
+      "code": "Practicum",
+      "title": "Practicum (300 hours)",
+      "year": 4,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "Practicum",
+      "scheduled": false,
+      "specialization": [
+        "Industry Practice"
+      ]
+    },
+    {
+      "code": "Thesis 3",
+      "title": "Thesis Writing and Colloquium",
+      "year": 4,
+      "semester": 2,
+      "lec": 2,
+      "lab": 0,
+      "category": "Thesis",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    }
+  ]
+}

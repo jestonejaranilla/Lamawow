@@ -1,0 +1,630 @@
+{
+  "dept": "MB",
+  "program": "BSMB",
+  "name": "Marine Biology",
+  "prospectus": "BS Marine Biology, CMO 46 s.2017, effective SY 2022-2023",
+  "blocks": {
+    "1": [
+      "B1",
+      "B2"
+    ],
+    "2": [
+      "B1",
+      "B2",
+      "B3"
+    ],
+    "3": [
+      "B1",
+      "B2"
+    ],
+    "4": [
+      "B1",
+      "B2"
+    ]
+  },
+  "class_sizes": {
+    "MB1B1": {
+      "year": "1st Year",
+      "block": "B1",
+      "size": 47
+    },
+    "MB1B2": {
+      "year": "1st Year",
+      "block": "B2",
+      "size": 41
+    },
+    "MB2B1": {
+      "year": "2nd Year",
+      "block": "B1",
+      "size": 44
+    },
+    "MB2B2": {
+      "year": "2nd Year",
+      "block": "B2",
+      "size": 48
+    },
+    "MB2B3": {
+      "year": "2nd Year",
+      "block": "B3",
+      "size": 46
+    },
+    "MB3B1": {
+      "year": "3rd Year",
+      "block": "B1",
+      "size": 42
+    },
+    "MB3B2": {
+      "year": "3rd Year",
+      "block": "B2",
+      "size": 41
+    },
+    "MB4B1": {
+      "year": "4th Year",
+      "block": "B1",
+      "size": 48
+    },
+    "MB4B2": {
+      "year": "4th Year",
+      "block": "B2",
+      "size": 42
+    }
+  },
+  "class_sizes_placeholder": true,
+  "specializations": [
+    "Mathematics",
+    "Chemistry",
+    "Physics",
+    "Biology",
+    "Marine Science",
+    "Earth Science",
+    "Computing",
+    "Research & Capstone",
+    "Industry Practice",
+    "Elective"
+  ],
+  "rooms": {
+    "lecture": {
+      "CSLR 1": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 2": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 3": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 4": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 5": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 6": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 7": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 8": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 9": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 10": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 1": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 2": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 3": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 4": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 5": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 6": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 7": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 8": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 9": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 10": {
+        "recommended": 40,
+        "max": 55
+      }
+    },
+    "lab": {
+      "Physics Room 1": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 2": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 3": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 4": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 5": {
+        "recommended": 40,
+        "max": 50
+      }
+    },
+    "lab_rooms_also_lecture": true,
+    "capacity_placeholder": true
+  },
+  "notes": "Summer Practicum (3 units) is not included: it has no classes and the engine has no summer mode.",
+  "courses": [
+    {
+      "code": "GE-MMW",
+      "title": "Mathematics in the Modern World",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "GE-Elect IT",
+      "title": "Living in the IT Era",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Computing"
+      ]
+    },
+    {
+      "code": "Earth Sci",
+      "title": "Earth Science",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "Earth",
+      "scheduled": true,
+      "specialization": [
+        "Earth Science"
+      ]
+    },
+    {
+      "code": "Chem 1",
+      "title": "Inorganic Chemistry",
+      "year": 1,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "Chem",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "Math 1",
+      "title": "Calculus (Integrative)",
+      "year": 1,
+      "semester": 2,
+      "lec": 5,
+      "lab": 0,
+      "category": "Math",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "Chem 2",
+      "title": "Organic Chemistry",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Chem",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "Math 2",
+      "title": "Inferential Statistics and Biometry",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "Math",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "Chem 3",
+      "title": "Biochemistry",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 1,
+      "category": "Chem",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "Physic 1",
+      "title": "General Physics",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "Physic",
+      "scheduled": true,
+      "specialization": [
+        "Physics"
+      ]
+    },
+    {
+      "code": "MBio 100",
+      "title": "Marine Botany",
+      "year": 2,
+      "semester": 1,
+      "lec": 2,
+      "lab": 2,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Marine Science"
+      ]
+    },
+    {
+      "code": "GE-STS",
+      "title": "Science, Technology and Society",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Physics 2",
+      "title": "Waves, Optics, and Thermodynamics",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "Physics",
+      "scheduled": true,
+      "specialization": [
+        "Physics"
+      ]
+    },
+    {
+      "code": "MBio 101",
+      "title": "Marine Zoology I (Invertebrates)",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 2,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Marine Science"
+      ]
+    },
+    {
+      "code": "MBio Elect 1",
+      "title": "Fundamentals of GIS and Remote Sensing",
+      "year": 2,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "MBio 102",
+      "title": "Marine Zoology II (Vertebrates)",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 2,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Marine Science"
+      ]
+    },
+    {
+      "code": "MBio 103",
+      "title": "Oceanography I",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 2,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Marine Science",
+        "Earth Science"
+      ]
+    },
+    {
+      "code": "MBio 104",
+      "title": "Elements of Research",
+      "year": 3,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    },
+    {
+      "code": "Bio 105",
+      "title": "General Ecology",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology",
+        "Marine Science"
+      ]
+    },
+    {
+      "code": "Bio 106",
+      "title": "Genetics",
+      "year": 3,
+      "semester": 1,
+      "lec": 3,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "MBio 105",
+      "title": "Oceanography II",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 2,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Marine Science",
+        "Earth Science"
+      ]
+    },
+    {
+      "code": "MBio 106",
+      "title": "Marine Ecology",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 2,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Marine Science"
+      ]
+    },
+    {
+      "code": "Bio 108",
+      "title": "General Physiology",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Bio 109",
+      "title": "Developmental Biology",
+      "year": 3,
+      "semester": 2,
+      "lec": 3,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "MBio Elect 2",
+      "title": "Scientific Diving",
+      "year": 3,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "Res 1",
+      "title": "Proposal Writing",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 0,
+      "category": "Res",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    },
+    {
+      "code": "MBio 107",
+      "title": "Coral Reefs",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 2,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Marine Science"
+      ]
+    },
+    {
+      "code": "MBio 108",
+      "title": "Marine Microbiology and Fungi",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 2,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Marine Science",
+        "Biology"
+      ]
+    },
+    {
+      "code": "MBio 109",
+      "title": "Systematics, Biodiversity, and Evolution",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 2,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Marine Science",
+        "Biology"
+      ]
+    },
+    {
+      "code": "MBio 110",
+      "title": "Integrated Coastal/Resource Management",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 2,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Marine Science"
+      ]
+    },
+    {
+      "code": "Bio 114",
+      "title": "Cell and Molecular Biology",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Res 2",
+      "title": "Data Gathering and Analysis",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 0,
+      "category": "Res",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    },
+    {
+      "code": "MBio Elect 3",
+      "title": "Phycology",
+      "year": 4,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "MBio",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "Res 3",
+      "title": "Thesis Writing/Colloquium",
+      "year": 4,
+      "semester": 2,
+      "lec": 2,
+      "lab": 0,
+      "category": "Res",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    }
+  ]
+}

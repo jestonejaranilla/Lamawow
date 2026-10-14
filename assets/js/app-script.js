@@ -18,10 +18,11 @@
   const session = app.session();
   const isFaculty = session.role === 'faculty';
   const DASHBOARD = isFaculty ? '../faculty/dashboard.html' : '../pages/dashboard.html';
-  const DEPARTMENTS = {
-    IT: 'Information Technology', CS: 'Computer Science', MB: 'Marine Biology',
-    ES: 'Environmental Science', MedB: 'Medical Biology'
-  };
+  /* Department scope: only keys of the department chosen at login are read, exported or cleared. */
+  const DEPT = (window.atlasDept && window.atlasDept.current()) || 'IT';
+  const dk = base => base + '::' + DEPT;
+  const hasDept = Boolean(session.dept);
+  let deptName = DEPT;            // replaced by the `name` of the department's file
   const PSU_EMAIL = /^[a-zA-Z0-9._%+-]+@psu\.palawan\.edu\.ph$/i;
   const isDesktop = () => window.matchMedia('(min-width: 901px)').matches;
   const $ = id => document.getElementById(id);
@@ -56,9 +57,14 @@
 
   function exportAll() {
     const data = {};
+    const suffix = '::' + DEPT;
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
+      // this department's keys and device-level settings only; never another department's data
       if (!key) continue;
+      const mine = key.endsWith(suffix) || key.startsWith('facultySettings::' + DEPT + ':');
+      const legacy = (window.atlasDept && window.atlasDept.BASE_KEYS.includes(key)) || key.startsWith('facultySettings:') && !key.startsWith('facultySettings::');
+      if ((key.includes('::') && !mine) || legacy) continue;
       try { data[key] = JSON.parse(localStorage.getItem(key)); } catch { data[key] = localStorage.getItem(key); }
     }
     download('atlas-psu-data.json', data);
@@ -66,7 +72,7 @@
   }
 
   function logout() {
-    sessionStorage.clear();
+    if (window.atlasLogout) window.atlasLogout(); else sessionStorage.clear();
     window.location.href = LOGIN;
   }
 
@@ -158,9 +164,9 @@
     select.addEventListener('change', () => { app.set('startPage', select.value); toast('Saved'); });
 
     function renderStats() {
-      const schedule = app.readJSON('lastGAResult', []);
-      const faculty = app.readJSON('facultyData', []);
-      const subjects = app.readJSON('subjectsData', []);
+      const schedule = app.readJSON(dk('lastGAResult'), []);
+      const faculty = app.readJSON(dk('facultyData'), []);
+      const subjects = app.readJSON(dk('subjectsData'), []);
       $('dataStats').innerHTML = [
         [Array.isArray(schedule) ? schedule.length : 0, 'Classes'],
         [Array.isArray(faculty) ? faculty.length : 0, 'Faculty'],
@@ -172,8 +178,8 @@
     $('btnExport').addEventListener('click', exportAll);
     $('btnClearSchedule').addEventListener('click', () => {
       if (!window.confirm('Clear the saved schedule on this device? Faculty will no longer see it.')) return;
-      localStorage.removeItem('lastGAResult');
-      localStorage.removeItem('atlasAnalyticsCache');
+      localStorage.removeItem(dk('lastGAResult'));
+      localStorage.removeItem(dk('atlasAnalyticsCache'));
       renderStats();
       toast('Saved schedule cleared');
     });
@@ -239,7 +245,7 @@
     syncQuiet();
 
     if (isFaculty) {
-      const key = 'facultySettings:' + session.faculty;
+      const key = 'facultySettings::' + DEPT + ':' + session.faculty;
       const defaults = { enabled: true, lead: 10, atStart: true, sound: true, vibrate: true, browser: false };
       const read = () => Object.assign({}, defaults, app.readJSON(key, {}));
       const current = read();
@@ -274,10 +280,17 @@
       const shown = nameInput.value.trim() || emailInput.value.trim() || 'User';
       $('acctName').textContent = shown;
       $('acctAvatar').textContent = shown.charAt(0).toUpperCase();
-      $('acctMeta').textContent = (isFaculty ? 'Faculty' : 'Chairperson') + (DEPARTMENTS[session.dept] ? ' · ' + session.dept : '');
+      $('acctMeta').textContent = (isFaculty ? 'Faculty' : 'Chairperson') + (hasDept ? ' · ' + deptName : '');
     }
     paint();
-    $('acctDept').textContent = DEPARTMENTS[session.dept] ? DEPARTMENTS[session.dept] + ' Department' : 'Not set';
+    const paintDept = () => { $('acctDept').textContent = hasDept ? deptName + ' Department' : 'Not set'; };
+    paintDept();
+    if (hasDept) {
+      fetch('../data/curricula/' + DEPT + '.json', { cache: 'no-cache' })
+        .then(r => r.json())
+        .then(c => { if (c && c.dept === DEPT && c.name) { deptName = c.name; paint(); paintDept(); } })
+        .catch(() => { /* keep the code */ });
+    }
     $('acctRole').textContent = isFaculty ? 'Faculty' : 'Department chairperson';
 
     $('btnSaveProfile').addEventListener('click', () => {

@@ -110,7 +110,9 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
     }
 
     # ── Room utilization ──────────────────────────────────────────────────────
-    from config.settings import ALL_ROOMS, TIME_SLOTS
+    from config.settings import TIME_SLOTS
+    from config.rooms import current_rooms
+    ALL_ROOMS = current_rooms().all_rooms
     total_slots = len(TIME_SLOTS)
     room_usage: dict = {}
     for a in assignments:

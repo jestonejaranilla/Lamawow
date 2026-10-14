@@ -1,0 +1,631 @@
+{
+  "dept": "MedB",
+  "program": "BSBio-MedBio",
+  "name": "Medical Biology",
+  "prospectus": "BS Biology major in Medical Biology, For BOR Approval, effective SY 2023-2024",
+  "blocks": {
+    "1": [
+      "B1"
+    ],
+    "2": [
+      "B1",
+      "B2"
+    ],
+    "3": [
+      "B1"
+    ],
+    "4": [
+      "B1",
+      "B2"
+    ]
+  },
+  "class_sizes": {
+    "MedB1B1": {
+      "year": "1st Year",
+      "block": "B1",
+      "size": 37
+    },
+    "MedB2B1": {
+      "year": "2nd Year",
+      "block": "B1",
+      "size": 42
+    },
+    "MedB2B2": {
+      "year": "2nd Year",
+      "block": "B2",
+      "size": 37
+    },
+    "MedB3B1": {
+      "year": "3rd Year",
+      "block": "B1",
+      "size": 38
+    },
+    "MedB4B1": {
+      "year": "4th Year",
+      "block": "B1",
+      "size": 47
+    },
+    "MedB4B2": {
+      "year": "4th Year",
+      "block": "B2",
+      "size": 48
+    }
+  },
+  "class_sizes_placeholder": true,
+  "specializations": [
+    "Mathematics",
+    "Chemistry",
+    "Physics",
+    "Biology",
+    "Environmental Science",
+    "Computing",
+    "Research & Capstone",
+    "Industry Practice",
+    "Elective"
+  ],
+  "rooms": {
+    "lecture": {
+      "CSLR 1": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 2": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 3": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 4": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 5": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 6": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 7": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 8": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 9": {
+        "recommended": 40,
+        "max": 55
+      },
+      "CSLR 10": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 1": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 2": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 3": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 4": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 5": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 6": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 7": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 8": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 9": {
+        "recommended": 40,
+        "max": 55
+      },
+      "GE Bldg 10": {
+        "recommended": 40,
+        "max": 55
+      }
+    },
+    "lab": {
+      "Physics Room 1": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 2": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 3": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 4": {
+        "recommended": 40,
+        "max": 50
+      },
+      "Physics Room 5": {
+        "recommended": 40,
+        "max": 50
+      }
+    },
+    "lab_rooms_also_lecture": true,
+    "capacity_placeholder": true
+  },
+  "notes": "Scan was blurry. Rows with a 'verify' flag need checking against the printed prospectus.",
+  "courses": [
+    {
+      "code": "GE-Elect ES",
+      "title": "Environmental Science",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "GE-MMW",
+      "title": "Mathematics in the Modern World",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
+      ]
+    },
+    {
+      "code": "Bio 100",
+      "title": "General Botany",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Bio 101",
+      "title": "General Zoology",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Chem 1",
+      "title": "Inorganic Chemistry",
+      "year": 1,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "Chem",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ],
+      "verify": "scan was blurry, verify code/units against the printed prospectus"
+    },
+    {
+      "code": "Bio 103",
+      "title": "Systematics",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Chem 2",
+      "title": "Organic Molecules",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Chem",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "Bio 102",
+      "title": "Evolutionary Biology",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "GE-STS",
+      "title": "Science, Technology and Society",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Chem 3",
+      "title": "Analytical Methods for Biology",
+      "year": 2,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "Chem",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "Bio 104",
+      "title": "Microbiology",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "GE-Elect IT",
+      "title": "Living in the IT Era",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Computing"
+      ]
+    },
+    {
+      "code": "Bio 106",
+      "title": "General Ecology",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology",
+        "Environmental Science"
+      ]
+    },
+    {
+      "code": "Chem 4",
+      "title": "Biomolecules",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Chem",
+      "scheduled": true,
+      "specialization": [
+        "Chemistry",
+        "Biology"
+      ]
+    },
+    {
+      "code": "Bio 105",
+      "title": "Genetic",
+      "year": 3,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Bio 107",
+      "title": "Epidemiology",
+      "year": 3,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ],
+      "verify": "scan was blurry, verify code/units against the printed prospectus"
+    },
+    {
+      "code": "Bio 108",
+      "title": "General Physiology",
+      "year": 3,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Bio 110",
+      "title": "Statistical Biology",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology",
+        "Mathematics"
+      ],
+      "verify": "scan was blurry, verify code/units against the printed prospectus"
+    },
+    {
+      "code": "Bio 112",
+      "title": "Medical Microbiology",
+      "year": 3,
+      "semester": 1,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ],
+      "verify": "scan was blurry, verify code/units against the printed prospectus"
+    },
+    {
+      "code": "Bio 119",
+      "title": "Medical Histology",
+      "year": 3,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ],
+      "verify": "scan was blurry, verify code/units against the printed prospectus"
+    },
+    {
+      "code": "Bio 111",
+      "title": "Human Anatomy and Physiology",
+      "year": 3,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ],
+      "verify": "scan was blurry, verify code/units against the printed prospectus"
+    },
+    {
+      "code": "Bio 109",
+      "title": "Developmental Biology",
+      "year": 3,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Bio 115",
+      "title": "Human Genetics",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ],
+      "verify": "scan was blurry, verify code/units against the printed prospectus"
+    },
+    {
+      "code": "Bio 114",
+      "title": "Cell and Molecular Biology",
+      "year": 3,
+      "semester": 2,
+      "lec": 3,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Bio Elect 1",
+      "title": "Elective 1",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "Thesis 1",
+      "title": "Proposal Writing",
+      "year": 3,
+      "semester": 2,
+      "lec": 2,
+      "lab": 0,
+      "category": "Thesis",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    },
+    {
+      "code": "Bio 113",
+      "title": "Biophysics",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 2,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology",
+        "Physics"
+      ]
+    },
+    {
+      "code": "Bio 116",
+      "title": "Immunology",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Bio 117",
+      "title": "Basic Pharmacology",
+      "year": 4,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology",
+        "Chemistry"
+      ]
+    },
+    {
+      "code": "Bio 118",
+      "title": "Medical Parasitology",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Biology"
+      ]
+    },
+    {
+      "code": "Bio Elect 2",
+      "title": "Elective 2",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 1,
+      "category": "Bio",
+      "scheduled": true,
+      "specialization": [
+        "Elective"
+      ]
+    },
+    {
+      "code": "Thesis 2",
+      "title": "Data Gathering and Writing",
+      "year": 4,
+      "semester": 1,
+      "lec": 2,
+      "lab": 0,
+      "category": "Thesis",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    },
+    {
+      "code": "Thesis 3",
+      "title": "Thesis Writing/Colloquium",
+      "year": 4,
+      "semester": 2,
+      "lec": 2,
+      "lab": 0,
+      "category": "Thesis",
+      "scheduled": true,
+      "specialization": [
+        "Research & Capstone"
+      ]
+    },
+    {
+      "code": "Practicum",
+      "title": "On the Job Training (23 Days/180 Hours)",
+      "year": 4,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "Practicum",
+      "scheduled": false,
+      "specialization": [
+        "Industry Practice"
+      ]
+    }
+  ]
+}

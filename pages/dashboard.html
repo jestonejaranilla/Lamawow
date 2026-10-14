@@ -63,7 +63,7 @@
           <a href="../app/account.html" role="menuitem">Account settings</a>
           <a href="../app/appearance.html" role="menuitem">Appearance</a>
           <a href="../app/about.html" role="menuitem">About</a>
-          <a href="login.html" role="menuitem" onclick="sessionStorage.clear()">Logout</a>
+          <a href="login.html" role="menuitem" onclick="atlasLogout()">Logout</a>
         </div>
       </div>
     </div>
@@ -370,6 +370,8 @@
           <span class="status-chip">Auto-saved</span>
         </div>
 
+        <p class="dept-notice" id="sampleNoticeFaculty" hidden>Class sizes and room capacities are sample data. Edit them before scheduling.</p>
+
         <h3 class="section-heading">Faculty Management</h3>
         <div class="faculty-scroll-wrap">
           <table id="facultyTable">
@@ -558,6 +560,7 @@
 
         <!-- ── CLASS SIZES ── -->
         <h3 class="section-heading">Class Sizes</h3>
+        <p class="dept-notice" id="sampleNoticeClassSizes" hidden>Class sizes and room capacities are sample data. Edit them before scheduling.</p>
         <div class="faculty-scroll-wrap" style="margin-bottom:16px;">
           <table id="classSizesTable">
             <thead>
@@ -714,12 +717,7 @@
 
 <script>
 (function(){
-  var DEPT_FULL={IT:'Information Technology',CS:'Computer Science',MB:'Marine Biology',ES:'Environmental Science',MedB:'Medical Biology'};
-
-  /* department shown in the dashboard banner */
-  var dept=sessionStorage.getItem('atlasDept');
-  var banner=document.getElementById('deptBanner'),bannerName=document.getElementById('deptBannerName');
-  if(dept&&banner&&bannerName){bannerName.textContent=(DEPT_FULL[dept]||dept)+' Department';banner.style.display='';}
+  /* the department name in the banner comes from the department's file (main-script.js) */
 
   /* mobile-friendly input hints */
   function enh(){

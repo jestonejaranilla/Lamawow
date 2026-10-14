@@ -12,13 +12,10 @@
     ],
     "3": [
       "B1",
-      "B2",
-      "B3"
+      "B2"
     ],
     "4": [
-      "B1",
-      "B2",
-      "B3"
+      "B1"
     ]
   },
   "courses": [
@@ -47,6 +44,19 @@
       "scheduled": true,
       "specialization": [
         "Programming"
+      ]
+    },
+    {
+      "code": "GE-STS",
+      "title": "Science, Technology and Society",
+      "year": 1,
+      "semester": 1,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Core Theory"
       ]
     },
     {
@@ -86,6 +96,19 @@
       "scheduled": true,
       "specialization": [
         "Programming"
+      ]
+    },
+    {
+      "code": "GE-MMW",
+      "title": "Mathematics in the Modern World",
+      "year": 1,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
       ]
     },
     {
@@ -205,6 +228,33 @@
       "scheduled": true,
       "specialization": [
         "Systems"
+      ]
+    },
+    {
+      "code": "GE-Elect MDS",
+      "title": "Mathematics for Data Science",
+      "year": 2,
+      "semester": 2,
+      "lec": 3,
+      "lab": 0,
+      "category": "GE",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics",
+        "Data Management"
+      ]
+    },
+    {
+      "code": "Electronics",
+      "title": "Fundamentals of Electronics",
+      "year": 2,
+      "semester": 2,
+      "lec": 1,
+      "lab": 2,
+      "category": "ELEC",
+      "scheduled": true,
+      "specialization": [
+        "Mathematics"
       ]
     },
     {
@@ -447,5 +497,63 @@
         "Elective"
       ]
     }
-  ]
+  ],
+  "name": "Information Technology",
+  "prospectus": "BSIT, effective SY 2018-2019 (Doc PSU-CIM-CUR-024)",
+  "specializations": [
+    "Core Theory",
+    "Programming",
+    "Systems",
+    "Data Management",
+    "Networks & Security",
+    "Applied Computing",
+    "Mathematics",
+    "Web & App Dev",
+    "Research & Capstone",
+    "Industry Practice",
+    "Elective"
+  ],
+  "class_sizes": {
+    "IT1B1": {
+      "year": "1st Year",
+      "block": "B1",
+      "size": 38
+    },
+    "IT1B2": {
+      "year": "1st Year",
+      "block": "B2",
+      "size": 46
+    },
+    "IT2B1": {
+      "year": "2nd Year",
+      "block": "B1",
+      "size": 48
+    },
+    "IT2B2": {
+      "year": "2nd Year",
+      "block": "B2",
+      "size": 43
+    },
+    "IT3B1": {
+      "year": "3rd Year",
+      "block": "B1",
+      "size": 41
+    },
+    "IT3B2": {
+      "year": "3rd Year",
+      "block": "B2",
+      "size": 46
+    },
+    "IT4B1": {
+      "year": "4th Year",
+      "block": "B1",
+      "size": 44
+    }
+  },
+  "class_sizes_placeholder": true,
+  "rooms": {
+    "lecture": "default",
+    "lab": "default"
+  },
+  "notes": "GE-MMW, Mathematics for Data Science and Fundamentals of Electronics are taught by Math/CS faculty of the College of Sciences."
 }

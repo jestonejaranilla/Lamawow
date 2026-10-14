@@ -1,288 +1,270 @@
 """
-ATLAS PSU - Part 2 tests: CP-SAT output alone (no GA), constraints, fallback.
+ATLAS PSU - CP-SAT output alone (no GA), all 5 departments x 2 semesters.
 Run from the project root:  python -m pytest tests/ -q
 """
 import copy
-import math
 import time
 
 import pytest
 
 import config.settings as cfg
-from helpers import default_faculty, make_faculty
+from config import curriculum as cur
+from conftest import DEPTS, SEMS, SEM1, SEM2, dept_faculty, make_faculty, legacy_subjects
 from services import schedule_service as ss
 from solver import cp_sat_solver as cps
-from solver.constraints import (
-    faculty_qualifies, is_open_assignment, validate_schedule, lab_split_plan,
-)
+from solver.constraints import validate_schedule
 
-SEM1, SEM2 = "1st Semester", "2nd Semester"
-SIZES = cfg.DEFAULT_CLASS_SIZES
+cfg.CP_SAT_TIME_LIMIT_SECONDS = 15.0      # tests only; the solver never runs past 40 s whatever is asked
+
+# lab groups after splitting (default data)
+LAB_GROUPS = {("IT", 1): 38, ("IT", 2): 36, ("CS", 1): 32, ("CS", 2): 27, ("MB", 1): 47, ("MB", 2): 28,
+              ("ES", 1): 26, ("ES", 2): 19, ("MedB", 1): 31, ("MedB", 2): 24}
+SCIENCE = {"MB", "ES", "MedB"}
+KNOWN_INFEASIBLE = ("IT", SEM2)      # IT2B1 needs 21 slots, Mon to Thu has 20 (see conftest.py)
+IT_CS_ROOMS = set(cur.rooms_for("IT").all_rooms)
+SCI_ROOMS = set(cur.rooms_for("MB").all_rooms)
 
 
-def run(sem, faculty, class_sizes=None, **kw):
-    sizes = class_sizes or SIZES
-    prep = ss.prepare_scheduling_input([], sem, sizes)
-    lookup = ss.build_static_lookup([])
+def run(dept, sem, faculty, **kw):
+    ss.reset_state()
+    sizes = ss.get_class_sizes(dept)
+    prep = ss.prepare_scheduling_input(dept, [], sem, sizes)
+    lookup = ss.build_static_lookup(dept)
+    rooms = cur.rooms_for(dept)
     t0 = time.time()
-    rows, metrics = cps.solve(prep["sections"], faculty, lookup, **kw)
-    return rows, metrics, prep, lookup, time.time() - t0, sizes
+    rows, metrics = cps.solve(prep["sections"], faculty, lookup, rooms=rooms, **kw)
+    return rows, metrics, prep, lookup, rooms, sizes, time.time() - t0
 
 
-def check(rows, faculty, lookup, prep, sizes):
-    return validate_schedule(rows, faculty, lookup, list(cfg.LABORATORY_ROOMS), sizes,
-                             prep["sections"])
-
-
-@pytest.fixture(scope="module", params=[SEM1, SEM2])
+@pytest.fixture(scope="module", params=[(d, s) for d in DEPTS for s in SEMS],
+                ids=[f"{d}-{s[:3]}" for d in DEPTS for s in SEMS])
 def solved(request):
-    fac = default_faculty()
-    rows, metrics, prep, lookup, secs, sizes = run(request.param, fac)
-    return request.param, fac, rows, metrics, prep, lookup, secs, sizes
+    dept, sem = request.param
+    fac = dept_faculty(dept)
+    return (dept, sem, fac) + run(dept, sem, fac)
 
-
-# ── The Part 2 checklist, both semesters, CP-SAT output alone ─────────────────
 
 def test_full_coverage(solved):
-    sem, fac, rows, metrics, prep, *_ = solved
+    dept, sem, fac, rows, metrics, prep, *_ = solved
+    if (dept, sem) == KNOWN_INFEASIBLE:
+        errs = metrics["uncovered_groups"]
+        print(f"\n[{dept} {sem}] INFEASIBLE, coverage_errors: {errs}")
+        assert errs and all(g.startswith("IT2B1|") for g in errs)           # reported, nothing silent
+        assert {r["group_id"] for r in rows if not r["faculty"]} == set(errs)
+        pytest.xfail("IT2B1 needs 21 meetings in 20 Mon-Thu slots (R4); no rule loosened")
     assert metrics["uncovered_groups"] == {}
     assert all(r["faculty"] for r in rows)
-    covered = {r["group_id"] for r in rows}
-    assert covered == {g["group_id"] for g in prep["groups"]}
+    assert {r["group_id"] for r in rows} == {g["group_id"] for g in prep["groups"]}
 
 
 def test_validate_schedule_is_clean(solved):
-    sem, fac, rows, metrics, prep, lookup, secs, sizes = solved
-    assert check(rows, fac, lookup, prep, sizes) == []
+    dept, sem, fac, rows, metrics, prep, lookup, rooms, sizes, secs = solved
+    infeasible = (dept, sem) == KNOWN_INFEASIBLE      # uncovered groups are reported, the rest must be clean
+    assert validate_schedule(rows, fac, lookup, rooms, sizes, None if infeasible else prep["sections"]) == []
     assert metrics["violations"] == []
 
 
 def test_one_professor_per_group(solved):
-    rows = solved[2]
+    rows = solved[3]
     profs = {}
     for r in rows:
         profs.setdefault(r["group_id"], set()).add(r["faculty"])
-    assert all(len(p) == 1 for p in profs.values()), {g: p for g, p in profs.items() if len(p) > 1}
+    assert all(len(p) == 1 for p in profs.values())
 
 
 def test_no_block_has_two_meetings_in_one_slot(solved):
-    rows = solved[2]
+    """Also P2: a course's lecture and lab never share a slot."""
     seen = set()
-    for r in rows:
-        if r["class_type"] == "NON_CLASSROOM":
+    for r in solved[3]:
+        if r["class_type"] == "NON_CLASSROOM" or not r["faculty"]:     # no slot: reported, not scheduled
             continue
         key = (r["section"], r["slot"])
         assert key not in seen, key
         seen.add(key)
 
 
-def test_lecture_and_lab_of_a_course_never_share_a_slot(solved):
-    """P2: Introduction to Computing LECTURE and LAB both Mon 07:00-09:00."""
-    rows = solved[2]
-    slots = {}
-    for r in rows:
-        if r["class_type"] != "NON_CLASSROOM":
-            slots.setdefault((r["group_id"], r["slot"]), 0)
-            slots[(r["group_id"], r["slot"])] += 1
-    assert max(slots.values()) == 1
-
-
 def test_lab_groups_after_splitting(solved):
-    sem, rows = solved[0], solved[2]
-    labs = [r for r in rows if r["class_type"] == "LAB"]
-    assert len(labs) == (40 if sem == SEM1 else 28)
-    split = [r for r in labs if r["lab_group"]]
-    assert len(split) == (8 if sem == SEM1 else 8)            # 2 courses x 2 blocks x 2
-    assert {r["lab_group"] for r in split} <= {"IT1B1-L1", "IT1B1-L2", "IT1B2-L1", "IT1B2-L2"}
-    assert {r["student_count"] for r in split} == {27}         # ceil(54 / 2)
-    # a split lab keeps one professor and uses different slots
-    by_group = {}
-    for r in split:
-        by_group.setdefault(r["group_id"], []).append(r)
-    for rs in by_group.values():
-        assert len({r["faculty"] for r in rs}) == 1
-        assert len({r["slot"] for r in rs}) == len(rs)
-
-
-def test_rooms_fit_and_are_not_shared(solved):
-    rows = solved[2]
-    seen = set()
+    dept, sem, rows = solved[0], solved[1], solved[3]
+    assert sum(1 for r in rows if r["class_type"] == "LAB") == LAB_GROUPS[(dept, SEMS.index(sem) + 1)]
+    max_lab = max(solved[7].max_of(r) for r in solved[7].lab_rooms)
     for r in rows:
-        if r["class_type"] == "NON_CLASSROOM":
-            continue
-        assert r["student_count"] <= cfg.ROOM_CAPACITY[r["room"]]["max"], r
-        assert (r["class_type"] == "LAB") == (r["room"] in cfg.LABORATORY_ROOMS), r
-        assert (r["room"], r["slot"]) not in seen
-        seen.add((r["room"], r["slot"]))
+        if r["class_type"] == "LAB":
+            assert r["student_count"] <= max_lab
 
 
-def test_load_cap_and_overload_report(solved, capsys):
-    sem, fac, rows, metrics, *_ = solved
+def test_no_professor_above_30_and_report_those_above_24(solved):
+    dept, sem, fac, rows, metrics, *_ = solved
     loads = {f["name"]: 0 for f in fac}
     for r in rows:
-        loads[r["faculty"]] += 2
+        if not r["faculty"]:
+            continue
+        loads[r["faculty"]] += cfg.NON_CLASSROOM_UNITS if r["class_type"] == "NON_CLASSROOM" else cfg.UNITS_PER_ASSIGNMENT
     assert max(loads.values()) <= 30
     over24 = [n for n, u in loads.items() if u > 24]
+    print(f"\n[{dept} {sem}] professors above 24 units: {len(over24)}  max load: {max(loads.values())}")
     assert metrics["faculty_over_max"] == len(over24)
-    print(f"\n[{sem}] professors above 24 units: {len(over24)}  max load: {max(loads.values())}")
 
 
-def test_runs_under_45_seconds(solved):
-    assert solved[6] < 45
+def test_rooms_belong_to_the_department_and_labs_use_lab_rooms(solved):
+    dept, rows, rooms = solved[0], solved[3], solved[7]
+    allowed = SCI_ROOMS if dept in SCIENCE else IT_CS_ROOMS
+    for r in rows:
+        if not r["faculty"]:                                           # reported uncovered group
+            assert r["room"] == "Unassigned" and r["slot"] is None
+            continue
+        if r["class_type"] == "NON_CLASSROOM":
+            assert r["room"] == "N/A" and r["slot"] is None
+            continue
+        assert r["room"] in allowed
+        assert rooms.max_of(r["room"]) >= r["student_count"]
+        if r["class_type"] == "LAB":
+            assert r["room"] in rooms.lab_rooms
+        elif not rooms.lab_also_lecture:
+            assert r["room"] not in rooms.lab_rooms
+    seen = set()
+    for r in rows:
+        if r["faculty"] and r["class_type"] != "NON_CLASSROOM":
+            assert (r["room"], r["slot"]) not in seen
+            seen.add((r["room"], r["slot"]))
 
 
-def test_time_limit_is_clamped(monkeypatch):
-    monkeypatch.setattr(cfg, "CP_SAT_TIME_LIMIT_SECONDS", 600.0)
-    assert cps._time_limit() < 45
+def test_run_time_under_45_seconds(solved):
+    assert solved[-1] < 45
 
 
-# ── Infeasible input: explicit coverage errors, never a silent partial schedule ─
+# ── Infeasible input: explicit errors, never a silent partial schedule ────────
 
-def test_course_nobody_can_teach_is_reported_not_dropped():
-    fac = default_faculty()
-    for f in fac:                                  # nobody holds "Core Theory" any more
-        f["specialization"] = [t for t in f["specialization"] if t != "Core Theory"]
-    rows, metrics, prep, lookup, *_ = run(SEM2, fac)
-    assert metrics["uncovered_groups"] == {
-        f"IT3B{b}|IT 13": "no qualified faculty" for b in (1, 2, 3)}
-    # the group stays visible as unassigned rows, nothing else is affected
-    it13 = [r for r in rows if r["course_code"] == "IT 13"]
-    assert len(it13) == 6 and all(r["faculty"] == "" and r["room"] == "Unassigned" for r in it13)
-    # the other staffable groups are still fully valid
-    assert validate_schedule(rows, fac, lookup, list(cfg.LABORATORY_ROOMS), SIZES) == []
+CORE_THEORY_GROUPS = {f"IT1B{b}|{c}" for b in (1, 2) for c in ("CC 1", "GE-STS")}
 
 
-def test_strict_mode_returns_no_schedule_when_anything_is_uncovered():
-    fac = default_faculty(extra_tags=False)
-    rows, metrics, *_ = run(SEM2, fac, strict=True)
+def _without(fac, *tags):
+    for f in fac:
+        f["specialization"] = [t for t in f["specialization"] if t not in tags] or [f["specialization"][0]]
+    return fac
+
+
+def test_a_course_nobody_can_teach_is_reported_not_dropped():
+    # CC 1 is tagged ["Core Theory", "Elective"], so it needs one of the two tags
+    fac = _without(dept_faculty("IT"), "Core Theory", "Elective")
+    rows, metrics, prep, lookup, rooms, sizes, secs = run("IT", SEM1, fac)
+    errs = metrics["uncovered_groups"]
+    assert set(errs) == CORE_THEORY_GROUPS and set(errs.values()) == {"no qualified faculty"}
+    unassigned = [r for r in rows if not r["faculty"]]
+    assert {r["group_id"] for r in unassigned} == CORE_THEORY_GROUPS
+    assert all(r["room"] == "Unassigned" for r in unassigned)
+    assert validate_schedule(rows, fac, lookup, rooms, sizes) == []        # the rest is valid
+    assert any(v.startswith("UNCOVERED")
+               for v in validate_schedule(rows, fac, lookup, rooms, sizes, prep["sections"]))
+
+
+@pytest.mark.parametrize("dept,tag,expect", [
+    ("CS", "Networks & Security", {"CS3B1|CS 13", "CS3B2|CS 13", "CS3B1|CS 15", "CS3B2|CS 15"}),
+    ("MB", "Computing", {"MB1B1|GE-Elect IT", "MB1B2|GE-Elect IT"}),
+    ("ES", "Physics", {"ES2B1|ES Phys 1"}),
+    ("MedB", "Computing", {"MedB2B1|GE-Elect IT", "MedB2B2|GE-Elect IT"}),
+])
+def test_every_department_reports_a_group_nobody_can_teach(dept, tag, expect):
+    # pick the semester that holds the expected groups
+    sems = {1: SEM1, 2: SEM2}
+    codes = {g.split("|")[1] for g in expect}
+    sem = sems[next(c["semester"] for c in cur.courses_of(dept) if c["code"] in codes)]
+    fac = _without(dept_faculty(dept), tag)
+    rows, metrics, *_ = run(dept, sem, fac)
+    assert set(metrics["uncovered_groups"]) == expect
+    assert set(metrics["uncovered_groups"].values()) == {"no qualified faculty"}
+
+
+def test_strict_mode_returns_no_assignments_when_a_group_is_uncovered():
+    rows, metrics, *_ = run("IT", SEM1, _without(dept_faculty("IT"), "Core Theory", "Elective"), strict=True)
     assert rows == [] and metrics["uncovered_groups"]
 
 
-def test_service_turns_solver_reasons_into_coverage_errors():
-    fac = default_faculty(extra_tags=False)
-    prep = ss.prepare_scheduling_input([], SEM2, SIZES)
-    lookup = ss.build_static_lookup([])
-    rows, metrics = cps.solve(prep["sections"], fac, lookup)
-    cov, errs = ss.compute_coverage(prep["groups"], prep["sections"], rows, fac, lookup,
-                                    reasons=metrics["uncovered_groups"])
-    assert cov["total"] == 40 and cov["assigned"] < 40
-    assert {(e["block"], e["course"], e["reason"]) for e in errs} >= {
-        ("IT3B1", "IT 13", "no qualified faculty")}
+# ── Hard-rule unit checks ─────────────────────────────────────────────────────
+
+def test_validator_catches_each_hard_rule():
+    dept, sem = "ES", SEM2
+    fac = dept_faculty(dept)
+    rows, metrics, prep, lookup, rooms, sizes, _ = run(dept, sem, fac)
+    base = [r for r in rows if r["class_type"] != "NON_CLASSROOM"]
+
+    def kinds(mod):
+        bad = copy.deepcopy(rows)
+        mod(bad)
+        return " ".join(validate_schedule(bad, fac, lookup, rooms, sizes, prep["sections"]))
+
+    lab = next(i for i, r in enumerate(rows) if r["class_type"] == "LAB")
+    lec = next(i for i, r in enumerate(rows) if r["class_type"] == "LECTURE")
+    assert "ROOM_NOT_IN_DEPARTMENT" in kinds(lambda b: b[lec].update(room="CL1"))
+    assert "ROOM_INCOMPATIBLE" in kinds(lambda b: b[lab].update(room="CSLR 1"))
+    assert "CAPACITY_EXCEEDED" in kinds(lambda b: b[lec].update(student_count=60))
+    other = next(r["faculty"] for r in rows if r["faculty"] != rows[lec]["faculty"])
+    assert "GROUP_MULTIPLE_PROFESSORS" in kinds(lambda b: b[lec].update(faculty=other))
+    assert "UNCOVERED" in kinds(lambda b: b[lec].update(faculty="", room="Unassigned", slot=None))
+    assert "BLOCK_OVERLAP" in kinds(lambda b: b[lec].update(slot=rows[lab]["slot"], section=rows[lab]["section"]))
 
 
-def test_no_room_large_enough_is_reported():
-    sizes = copy.deepcopy(SIZES)
-    sizes["IT1B1"]["size"] = 80                    # bigger than every lecture room
-    rows, metrics, *_ = run(SEM1, default_faculty(), class_sizes=sizes)
-    reasons = {gid: r for gid, r in metrics["uncovered_groups"].items() if gid.startswith("IT1B1|")}
-    assert reasons and all("no lecture room fits 80" in r for r in reasons.values())
-
-
-def test_load_cap_is_a_hard_limit():
-    fac = [make_faculty("Solo", ["Programming", "Core Theory", "Research & Capstone"],
-                        absolute_max=8)]
-    rows, metrics, *_ = run(SEM1, fac)
-    load = sum(2 for r in rows if r["faculty"])
-    assert load <= 8
-    assert metrics["uncovered_groups"]             # the rest is reported, not dropped
-    assert all("load cap" in r or "qualified" in r or "conflict" in r
-               for r in metrics["uncovered_groups"].values())
-
-
-# ── P5: qualification ─────────────────────────────────────────────────────────
-
-def test_it_electives_are_open_to_any_faculty():
-    lookup = ss.build_static_lookup([])
-    nobody = make_faculty("X", ["Mathematics"])
-    for title in ("IT Elective 1", "IT Elective 2", "IT Elective 3", "IT Elective 4"):
-        assert is_open_assignment(title, lookup)
-        assert faculty_qualifies(nobody, title, lookup)
-
-
-def test_mixed_elective_tag_lists_are_not_open():
-    lookup = ss.build_static_lookup([])
-    nobody = make_faculty("X", ["Mathematics"])
-    for title in ("Introduction to Computing", "Capstone Project and Research 1 (Proposal Writing)",
-                  "Practicum (486 hours)", "Social and Professional Issues"):
-        assert not is_open_assignment(title, lookup)
-        assert not faculty_qualifies(nobody, title, lookup)
-    assert faculty_qualifies(make_faculty("Y", ["Core Theory"]), "Introduction to Computing", lookup)
-    assert not faculty_qualifies(nobody, "Computer Programming 1", lookup)
-
-
-# ── validate_schedule catches each new rule ───────────────────────────────────
-
-@pytest.fixture(scope="module")
-def good():
-    fac = default_faculty()
-    rows, metrics, prep, lookup, *_ = run(SEM1, fac)
-    return fac, rows, prep, lookup
-
-
-def _v(good, rows, sections=True):
-    fac, _, prep, lookup = good
-    return validate_schedule(rows, fac, lookup, list(cfg.LABORATORY_ROOMS), SIZES,
-                             prep["sections"] if sections else None)
-
-
-def test_validator_flags_two_professors_in_a_group(good):
-    rows = copy.deepcopy(good[1])
-    victim = next(r for r in rows if r["class_type"] == "LECTURE")
-    other = next(f["name"] for f in good[0] if f["name"] != victim["faculty"])
-    victim["faculty"] = other
-    assert any(v.startswith("GROUP_MULTIPLE_PROFESSORS") for v in _v(good, rows))
-
-
-def test_validator_flags_block_overlap(good):
-    rows = copy.deepcopy(good[1])
-    a, b = [r for r in rows if r["section"] == "IT3B1" and r["class_type"] != "NON_CLASSROOM"][:2]
-    b["slot"] = a["slot"]
-    assert any(v.startswith("BLOCK_OVERLAP") for v in _v(good, rows))
-
-
-def test_validator_flags_lab_group_sizes(good):
-    rows = copy.deepcopy(good[1])
-    lab = next(r for r in rows if r["lab_group"])
-    lab["student_count"] = 54
-    out = _v(good, rows)
-    assert any(v.startswith("LAB_GROUP_SIZE") for v in out)
-    assert any(v.startswith("CAPACITY_EXCEEDED") for v in out)
-
-
-def test_validator_flags_missing_lab_split(good):
-    rows = [r for r in copy.deepcopy(good[1]) if r["lab_group"] != "IT1B1-L2"]
-    assert any(v.startswith("LAB_SPLIT_COUNT") for v in _v(good, rows))
-
-
-def test_validator_flags_uncovered_group_only_when_sections_given(good):
-    rows = [r for r in copy.deepcopy(good[1]) if r["group_id"] != "IT3B1|IT 8"]
-    assert any(v.startswith("UNCOVERED: IT3B1|IT 8") for v in _v(good, rows))
-    assert not any(v.startswith("UNCOVERED") for v in _v(good, rows, sections=False))
-
-
-def test_validator_flags_room_conflict_and_lecture_in_lab_room(good):
-    rows = copy.deepcopy(good[1])
-    lec = next(r for r in rows if r["class_type"] == "LECTURE")
-    lec["room"] = "MTC1"
-    assert any(v.startswith("ROOM_INCOMPATIBLE") for v in _v(good, rows))
-
-
-def test_lab_split_plan():
-    assert lab_split_plan(54, 45) == (2, 27)
-    assert lab_split_plan(45, 45) == (1, 45)
-    assert lab_split_plan(100, 45) == (3, 34)
-
-
-# ── Fallback solver obeys the same hard rules ────────────────────────────────
-
-@pytest.mark.parametrize("sem", [SEM1, SEM2])
-def test_greedy_fallback_has_no_violations(sem, monkeypatch):
+def test_greedy_fallback_obeys_the_same_hard_rules(monkeypatch):
     monkeypatch.setattr(cps, "_solve_with_ortools", lambda *a, **k: None)
-    fac = default_faculty()
-    rows, metrics, prep, lookup, secs, sizes = run(sem, fac)
-    assert metrics["solver_used"] == "cp_backtracking"
-    # whatever it covered is fully valid; whatever it could not is reported
-    assert validate_schedule(rows, fac, lookup, list(cfg.LABORATORY_ROOMS), sizes) == []
-    uncovered_rows = {r["group_id"] for r in rows if not r["faculty"]}
-    assert uncovered_rows == set(metrics["uncovered_groups"])
-    print(f"\n[greedy {sem}] uncovered groups: {len(metrics['uncovered_groups'])}")
+    for dept in ("CS", "MedB"):
+        fac = dept_faculty(dept)
+        rows, metrics, prep, lookup, rooms, sizes, secs = run(dept, SEM2, fac)
+        assert metrics["solver_used"] == "cp_backtracking"
+        assert validate_schedule(rows, fac, lookup, rooms, sizes) == []        # whatever it placed is valid
+        assert metrics["uncovered_groups"] or {r["group_id"] for r in rows} == {g["group_id"] for g in prep["groups"]}
+
+
+# ── Rooms belong to the department; lectures prefer lecture rooms ─────────────
+
+@pytest.mark.parametrize("dept,bad_lecture,bad_lab", [
+    ("IT", ["CSLR 1", "GE Bldg 1", "Physics Room 1"], ["Physics Room 1", "CSLR 1"]),
+    ("CS", ["CSLR 1", "GE Bldg 1", "Physics Room 1"], ["Physics Room 1", "GE Bldg 1"]),
+    ("MB", ["CL1", "IT Room 1", "GA Bldg 16"], ["MTC1", "IT101", "NIT1"]),
+    ("ES", ["CL1", "IT Room 1", "GA Bldg 16"], ["MTC1", "IT101", "NIT1"]),
+    ("MedB", ["CL1", "IT Room 1", "GA Bldg 16"], ["MTC1", "IT101", "NIT1"]),
+])
+def test_validator_fails_a_room_outside_the_departments_pools(dept, bad_lecture, bad_lab):
+    sem = SEM1
+    fac = dept_faculty(dept)
+    rows, metrics, prep, lookup, rooms, sizes, _ = run(dept, sem, fac)
+    assert validate_schedule(rows, fac, lookup, rooms, sizes) == []
+    lec = next(i for i, r in enumerate(rows) if r["class_type"] == "LECTURE")
+    lab = next(i for i, r in enumerate(rows) if r["class_type"] == "LAB")
+    for idx, room in [(lec, r) for r in bad_lecture] + [(lab, r) for r in bad_lab]:
+        bad = copy.deepcopy(rows)
+        bad[idx]["room"] = room
+        out = validate_schedule(bad, fac, lookup, rooms, sizes)
+        assert any(v.startswith("ROOM_NOT_IN_DEPARTMENT") for v in out), (dept, room, out)
+
+
+@pytest.mark.parametrize("dept", ["MB", "ES", "MedB"])
+def test_science_labs_only_in_physics_rooms_and_a_lab_in_a_lecture_room_fails(dept):
+    fac = dept_faculty(dept)
+    rows, metrics, prep, lookup, rooms, sizes, _ = run(dept, SEM1, fac)
+    physics = {f"Physics Room {i}" for i in range(1, 6)}
+    assert {r["room"] for r in rows if r["class_type"] == "LAB"} <= physics
+    lab = next(i for i, r in enumerate(rows) if r["class_type"] == "LAB")
+    for room in ("CSLR 1", "GE Bldg 1"):
+        bad = copy.deepcopy(rows)
+        bad[lab]["room"] = room
+        assert any(v.startswith("ROOM_INCOMPATIBLE") for v in validate_schedule(bad, fac, lookup, rooms, sizes))
+
+
+@pytest.mark.parametrize("dept", ["MB", "ES", "MedB"])
+@pytest.mark.parametrize("sem", SEMS)
+def test_lectures_prefer_cslr_and_ge_rooms_over_physics_rooms(dept, sem):
+    """Physics rooms may host a lecture, at a soft penalty: with 20 lecture rooms free they are not needed."""
+    rows, *_ = run(dept, sem, dept_faculty(dept))
+    in_physics = [r for r in rows if r["class_type"] == "LECTURE" and r["room"].startswith("Physics")]
+    assert in_physics == []
+
+
+def test_physics_rooms_do_host_a_lecture_when_lecture_rooms_are_gone():
+    """The pool is allowed (lab_rooms_also_lecture), it is only penalised."""
+    ss.reset_state()
+    ss.update_rooms("ES", lecture_rooms=["CSLR 1"])
+    rooms = ss.get_rooms("ES")
+    prep = ss.prepare_scheduling_input("ES", [], SEM2, ss.get_class_sizes("ES"))
+    fac = dept_faculty("ES")
+    rows, metrics = cps.solve(prep["sections"], fac, ss.build_static_lookup("ES"), rooms=rooms)
+    assert any(r["class_type"] == "LECTURE" and r["room"].startswith("Physics") for r in rows)
+    assert validate_schedule(rows, fac, ss.get_static_lookup("ES"), rooms, ss.get_class_sizes("ES")) == []

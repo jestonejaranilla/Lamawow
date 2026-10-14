@@ -4,10 +4,19 @@ ATLAS PSU - routes/analytics_routes.py
 
 from flask import Blueprint, jsonify
 
-from services.schedule_service import get_progress, get_soft_constraints, get_static_lookup
+from config.curriculum import UnknownDepartment
+from routes.schedule_routes import request_dept, _err
+from services.schedule_service import (
+    get_progress, get_soft_constraints, get_static_lookup, get_faculty, get_class_sizes, get_rooms,
+)
 from services.analytics_service import compute_analytics
 
 analytics_bp = Blueprint("analytics", __name__)
+
+
+@analytics_bp.errorhandler(UnknownDepartment)
+def _bad_dept(e):
+    return _err(str(e), 400)
 
 
 def _ok(data=None, metrics=None, warnings=None):
@@ -22,7 +31,8 @@ def _ok(data=None, metrics=None, warnings=None):
 @analytics_bp.route("/analytics", methods=["GET"])
 def get_analytics():
     """Return analytics for the most recent completed schedule."""
-    p = get_progress()
+    dept = request_dept()
+    p = get_progress(dept)
     if p.get("running"):
         return _ok(data={"status": "running"}, warnings=["Schedule still in progress."])
     if not p.get("result"):
@@ -31,17 +41,16 @@ def get_analytics():
     analytics = p.get("analytics")
     if not analytics:
         # Re-compute on demand (e.g. after server restart with cached result)
-        import app as _app
-        static_lookup = get_static_lookup()
-        sc = get_soft_constraints()
-        analytics = compute_analytics(
-            p["result"],
-            _app.faculty_runtime_list,
-            static_lookup,
-            sc,
-            p.get("metrics", {}),
-            class_sizes=_app.class_sizes_store,
-        )
+        from config.rooms import use_rooms
+        with use_rooms(get_rooms(dept)):
+            analytics = compute_analytics(
+                p["result"],
+                get_faculty(dept),
+                get_static_lookup(dept),
+                get_soft_constraints(dept),
+                p.get("metrics", {}),
+                class_sizes=get_class_sizes(dept),
+            )
 
     return _ok(data=analytics, metrics=p.get("metrics", {}), warnings=p.get("warnings", []))
 
@@ -49,7 +58,7 @@ def get_analytics():
 @analytics_bp.route("/analytics/workload", methods=["GET"])
 def get_workload():
     """Workload distribution subset."""
-    p = get_progress()
+    p = get_progress(request_dept())
     analytics = p.get("analytics", {})
     return _ok(data={
         "faculty_utilization":   analytics.get("faculty_utilization", []),
@@ -59,20 +68,20 @@ def get_workload():
 
 @analytics_bp.route("/analytics/specialization", methods=["GET"])
 def get_specialization():
-    p = get_progress()
+    p = get_progress(request_dept())
     analytics = p.get("analytics", {})
     return _ok(data=analytics.get("specialization_metrics", {}))
 
 
 @analytics_bp.route("/analytics/rooms", methods=["GET"])
 def get_room_analytics():
-    p = get_progress()
+    p = get_progress(request_dept())
     analytics = p.get("analytics", {})
     return _ok(data=analytics.get("room_utilization", []))
 
 
 @analytics_bp.route("/analytics/satisfaction", methods=["GET"])
 def get_satisfaction():
-    p = get_progress()
+    p = get_progress(request_dept())
     analytics = p.get("analytics", {})
     return _ok(data=analytics.get("satisfaction_metrics", {}))

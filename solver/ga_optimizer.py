@@ -24,7 +24,7 @@ from solver.constraints import (
     validate_schedule, is_non_classroom,
 )
 from solver.objective_functions import schedule_fitness
-from config.settings import LABORATORY_ROOMS
+from config.rooms import current_rooms, use_rooms
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -32,6 +32,14 @@ from config.settings import LABORATORY_ROOMS
 def _is_fixed(a: dict) -> bool:
     """Rows the GA never touches: no slot/room (non-classroom) or no professor."""
     return is_non_classroom(a) or not a.get("faculty") or not a.get("slot")
+
+
+def _faculty_unchanged(child: list, base: list) -> bool:
+    """R8: the GA never changes who teaches what (same rows, same professor per row)."""
+    return (len(child) == len(base) and
+            all(c.get("faculty") == b.get("faculty") and c.get("meeting_id") == b.get("meeting_id")
+                and c.get("group_id") == b.get("group_id") and c.get("lab_group") == b.get("lab_group")
+                for c, b in zip(child, base)))
 
 
 def _build_fac_slot_map(assignments: list) -> dict:
@@ -220,7 +228,7 @@ def _mutate_room(assignments: list, soft_constraints: dict,
     preferred_room     = sc.get("preferred_room")
     preferred_building = sc.get("preferred_building")
 
-    pool = _cfg.LABORATORY_ROOMS if a["class_type"] == "LAB" else _cfg.LECTURE_ROOMS
+    pool = current_rooms().pool(a["class_type"])
     current_key = f"{a['room']}|{a['slot']}"
     free_pool = [r for r in pool if f"{r}|{a['slot']}" not in room_slot_used - {current_key}]
     if not free_pool:
@@ -272,7 +280,8 @@ def _mutate_room(assignments: list, soft_constraints: dict,
         elif preferred_building and preferred_building.lower() in r.lower():
             pref_match = -1
 
-        return (over, affinity + pref_match, gap)
+        lab_for_lecture = 1 if (a["class_type"] != "LAB" and r in current_rooms().lab_rooms) else 0
+        return (lab_for_lecture, over, affinity + pref_match, gap)
 
     free_pool.sort(key=_room_sort_key)
     new_room = free_pool[0]
@@ -293,7 +302,7 @@ def _crossover(parent_a: list, parent_b: list, faculty_list: list, static_lookup
     The result is validated against all hard constraints; if invalid,
     falls back to parent_a unchanged.
     """
-    if random.random() > rate or len(parent_a) != len(parent_b):
+    if random.random() > rate or len(parent_a) != len(parent_b) or not _faculty_unchanged(parent_b, parent_a):
         return copy.deepcopy(parent_a)
 
     child = copy.deepcopy(parent_a)
@@ -303,7 +312,7 @@ def _crossover(parent_a: list, parent_b: list, faculty_list: list, static_lookup
             child[i]["slot_display"] = parent_b[i]["slot_display"]
             child[i]["room"] = parent_b[i]["room"]
 
-    violations = validate_schedule(child, faculty_list, static_lookup, list(LABORATORY_ROOMS), class_sizes)
+    violations = validate_schedule(child, faculty_list, static_lookup, current_rooms(), class_sizes)
     if violations:
         return copy.deepcopy(parent_a)
     return child
@@ -321,7 +330,22 @@ def optimize(
     progress_cb: Optional[Callable] = None,
     time_limit: float = 120.0,
     class_sizes: dict = None,
+    rooms=None,
 ) -> tuple[list, dict]:
+    """
+    Run GA preference optimizer over a valid CP-SAT schedule.
+    `rooms` is the department's RoomSet (default: the active one).
+    """
+    rs = rooms if rooms is not None else current_rooms()
+    with use_rooms(rs):
+        return _optimize(base_schedule, faculty_list, static_lookup, soft_constraints,
+                         generations, population_size, mutation_rate, crossover_rate,
+                         progress_cb, time_limit, class_sizes)
+
+
+def _optimize(base_schedule, faculty_list, static_lookup, soft_constraints, generations,
+              population_size, mutation_rate, crossover_rate, progress_cb, time_limit,
+              class_sizes) -> tuple:
     """
     Run GA preference optimizer over a valid CP-SAT schedule.
 
@@ -346,12 +370,13 @@ def optimize(
 
     base_fit = fitness(base_schedule)
 
-    lab_list = list(LABORATORY_ROOMS)
-    base_bad = len(validate_schedule(base_schedule, faculty_list, static_lookup, lab_list, class_sizes))
+    base_bad = len(validate_schedule(base_schedule, faculty_list, static_lookup, current_rooms(), class_sizes))
 
     def accept(child, fallback):
-        """R8: a child that breaks a hard rule is rejected."""
-        bad = len(validate_schedule(child, faculty_list, static_lookup, lab_list, class_sizes))
+        """R8: a child that moves a professor or breaks a hard rule (R1 to R7) is rejected."""
+        if not _faculty_unchanged(child, base_schedule):
+            return fallback
+        bad = len(validate_schedule(child, faculty_list, static_lookup, current_rooms(), class_sizes))
         return child if bad <= base_bad else fallback
 
     # Seed population from base schedule with perturbations
@@ -408,6 +433,10 @@ def optimize(
 
         population = new_pop
         actual_generations = gen + 1
+
+    # Final gate: if the best child is not valid, the CP-SAT schedule is returned unchanged.
+    if best is not base_schedule and accept(best, None) is None:
+        best, best_fit = copy.deepcopy(base_schedule), base_fit
 
     ga_time = round(time.time() - t0, 3)
     improvement = round(best_fit - base_fit, 2)

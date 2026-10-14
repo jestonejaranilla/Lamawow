@@ -4270,3 +4270,8 @@ html[data-motion="reduce"] *, html[data-motion="reduce"] *::before, html[data-mo
   .ptr.spin svg { animation: ptr-spin 0.7s linear infinite; transform: none !important; }
 }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
+
+/* Department notices and course flags */
+.dept-notice { margin: 0 0 12px; padding: 8px 12px; font-size: 0.8rem; color: var(--text-muted, #6e6358); background: var(--surface-2, rgba(217, 146, 43, 0.12)); border-left: 3px solid #d9922b; border-radius: 6px; }
+.dept-notice[hidden] { display: none; }
+.course-flag { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 6px; font-size: 0.7rem; font-weight: 700; color: #fff; background: #d9922b; border-radius: 50%; cursor: help; vertical-align: middle; }
