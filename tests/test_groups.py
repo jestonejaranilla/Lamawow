@@ -139,12 +139,11 @@ def test_block_without_class_size_is_a_coverage_error():
 # ── Engine end to end ─────────────────────────────────────────────────────────
 
 def faculty(extra=None):
-    specs = [["Networks & Security"], ["Systems"], ["Programming"], ["Mathematics"],
-             ["Networks & Security"], ["Web & App Dev"], ["Systems"], ["Data Management"],
-             ["Applied Computing"], ["Data Management"]] + (extra or [])
-    return [{"name": f"Prof {i}", "specialization": s, "max_units": 24,
-             "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]}
-            for i, s in enumerate(specs)]
+    from helpers import default_faculty, make_faculty
+    fac = default_faculty()
+    for i, spec in enumerate(extra or []):
+        fac.append(make_faculty(f"Extra {i}", spec))
+    return fac
 
 
 def run_job(sem, fac):
@@ -167,7 +166,7 @@ def test_engine_sem1_full_coverage_and_non_classroom_rows():
     assert p["phase"] == "done"
     assert p["coverage"] == {"assigned": 42, "total": 42}
     assert p["coverage_errors"] == []
-    assert len(p["result"]) == 78
+    assert len(p["result"]) == 82            # 4 first-year labs split in two
     non = [a for a in p["result"] if a["class_type"] == "NON_CLASSROOM"]
     assert len(non) == 3
     for a in non:
@@ -175,12 +174,15 @@ def test_engine_sem1_full_coverage_and_non_classroom_rows():
     assert all(a["section"] and a["group_id"] for a in p["result"])
     # NON_CLASSROOM rows count 2 load units
     util = {u["faculty"]: u["assigned_units"] for u in p["analytics"]["faculty_utilization"]}
-    assert sum(util.values()) == 2 * 78
+    assert sum(util.values()) == 2 * 82
 
 
 def test_engine_reports_uncoverable_group_with_reason():
     # default faculty has nobody tagged "Core Theory" -> IT 13 (3 blocks) cannot be staffed
-    p, _ = run_job(SEM2, faculty())
+    fac = faculty()
+    for f in fac:
+        f["specialization"] = [t for t in f["specialization"] if t != "Core Theory"]
+    p, _ = run_job(SEM2, fac)
     assert p["coverage"]["total"] == 40
     assert p["coverage"]["assigned"] == 37
     errs = {(e["block"], e["course"]): e["reason"] for e in p["coverage_errors"]}
@@ -190,7 +192,7 @@ def test_engine_reports_uncoverable_group_with_reason():
 
 
 def test_engine_sem2_full_coverage_when_core_theory_faculty_exists():
-    p, _ = run_job(SEM2, faculty(extra=[["Core Theory"]]))
+    p, _ = run_job(SEM2, faculty())
     assert p["coverage"] == {"assigned": 40, "total": 40}
     assert p["coverage_errors"] == []
 

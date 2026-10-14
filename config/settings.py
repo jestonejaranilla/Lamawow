@@ -120,7 +120,20 @@ GA_WEIGHTS = {
 }
 
 # ── Solver Config ─────────────────────────────────────────────────────────────
-CP_SAT_TIME_LIMIT_SECONDS = 60.0
+CP_SAT_TIME_LIMIT_SECONDS = 30.0      # default; the solver never runs past the max below
+CP_SAT_MAX_TIME_LIMIT_SECONDS = 40.0  # hard ceiling (always under 45 s), best solution is returned
+# False: schedule every group that can be staffed and list the rest in coverage_errors.
+# True: if any group cannot be covered, return no assignments, only coverage_errors.
+REQUIRE_FULL_COVERAGE = False
+
+# CP-SAT objective weights (integers)
+CP_WEIGHTS = {
+    "uncovered_group":   1_000_000,  # coverage dominates everything else
+    "exact_spec":        40,         # per meeting, exact specialization match
+    "course_professor":  30,         # per distinct professor teaching the same course
+    "over_soft_cap":     25,         # per load unit above max_units (24)
+    "load_balance":      3,          # per load unit away from the mean load
+}
 UNITS_PER_ASSIGNMENT = 2
 # Load units counted for one NON_CLASSROOM group (IT 20, IT 22); configurable.
 NON_CLASSROOM_UNITS = 2

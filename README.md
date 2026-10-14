@@ -55,16 +55,22 @@ That last finding is why every recommendation is editable and reviewable before 
 
 ### Phase 1 - CP-SAT Solver (`solver/cp_sat_solver.py`)
 
-Uses Google OR-Tools CP-SAT to generate a conflict-free base schedule. If OR-Tools is not installed, the solver falls back to a deterministic greedy backtracking algorithm with the same hard-constraint guarantees.
+Uses Google OR-Tools CP-SAT to generate a conflict-free base schedule. The model decides professor, slot and (through exact per-slot capacity constraints) room together, with a time limit under 45 seconds, and returns the best solution found.
 
 Hard constraints enforced:
-- Faculty qualification based on the specialization map
-- Faculty day availability
-- Absolute maximum load per faculty (standard 24 units, overload cap 30 units per CHED CMO No. 40, s. 2006)
-- No faculty double-booking within a time slot
-- No room conflicts within a time slot
-- Room type compatibility (LAB subjects go to laboratory rooms only)
-- Full section coverage across all year levels and blocks
+- Every group (block x course) is covered, or reported in `coverage_errors` with a reason ("no qualified faculty", "no available day", "load cap reached", "no lecture room fits N students", ...). Nothing is dropped silently.
+- Exactly one professor per group: all lecture meetings, the lab meeting and every lab sub-group share the same professor
+- Faculty qualification (IT Electives are open to any faculty; every other course needs a matching specialization tag)
+- Faculty day availability and no faculty double-booking
+- Load: hard cap at `absolute_max_units` (30), soft penalty above `max_units` (24)
+- A block never has two meetings in the same slot
+- Room capacity by `max`, no room double-booking; LECTURE meetings use lecture rooms, LAB meetings use laboratory rooms
+- Lab splitting: a lab larger than the largest lab room is split into `ceil(size / maxLab)` groups (for example IT1B1-L1, IT1B1-L2) with the same professor and different slots
+- Groups with no slot or room (IT 20, IT 22) get one professor and count `NON_CLASSROOM_UNITS` load units
+
+Objective: exact specialization match, the same professor for the same course across blocks, balanced load.
+
+If OR-Tools is not installed, a greedy group-level solver runs instead. It obeys the same hard rules (same room matching, same checks) but it is not optimal, and it may leave groups uncovered; those are reported exactly like the CP-SAT path.
 
 ### Phase 2 - Genetic Algorithm Optimizer (`solver/ga_optimizer.py`)
 
@@ -176,7 +182,7 @@ data/curricula/
                               backend and by the dashboard. Other departments = more files.
 
 solver/
-  cp_sat_solver.py            Phase 1: hard constraint solver (OR-Tools + greedy fallback)
+  cp_sat_solver.py            Phase 1: CP-SAT model (OR-Tools) + greedy fallback with the same hard rules
   ga_optimizer.py             Phase 2: preference optimizer (never violates hard constraints)
   constraints.py              Qualification, availability, load, and room compatibility checks
   objective_functions.py      Fitness scoring and satisfaction metrics used by the GA
@@ -240,7 +246,7 @@ Key constants in `config/settings.py`:
 | `HOURS` | 5 blocks per day | 07:00 to 09:00 through 17:00 to 19:00 |
 | `TIME_SLOTS` | 30 total | Cartesian product of days x hours |
 | `UNITS_PER_ASSIGNMENT` | 2 | Teaching units counted per assigned slot |
-| `CP_SAT_TIME_LIMIT_SECONDS` | 60.0 | OR-Tools solver time limit |
+| `CP_SAT_TIME_LIMIT_SECONDS` | 40.0 | OR-Tools solver time limit (never above `CP_SAT_MAX_SECONDS`, 40) |
 | `GA_WEIGHTS` | See settings.py | Soft preference scoring weights for the GA |
 
 ---

@@ -29,11 +29,16 @@ from config.settings import LABORATORY_ROOMS
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
+def _is_fixed(a: dict) -> bool:
+    """Rows the GA never touches: no slot/room (non-classroom) or no professor."""
+    return is_non_classroom(a) or not a.get("faculty") or not a.get("slot")
+
+
 def _build_fac_slot_map(assignments: list) -> dict:
     """Returns {faculty_name: set of occupied slots}."""
     fsm: dict = {}
     for a in assignments:
-        if is_non_classroom(a):
+        if _is_fixed(a):
             continue
         fsm.setdefault(a["faculty"], set()).add(a["slot"])
     return fsm
@@ -55,7 +60,7 @@ def _build_affinity_maps(assignments: list) -> tuple[dict, dict]:
     for a in assignments:
         slot = a.get("slot", "")
         room = a.get("room", "")
-        if not slot or not room or room == "Unassigned" or is_non_classroom(a):
+        if not slot or not room or room == "Unassigned" or _is_fixed(a):
             continue
         day = slot.split(":")[0].strip()
         bld = get_building(room)
@@ -108,7 +113,7 @@ def _mutate_slot_swap(assignments: list, faculty_list: list, soft_constraints: d
     # Group by faculty
     fac_indices: dict = {}
     for i, a in enumerate(result):
-        if is_non_classroom(a) or not a["faculty"]:
+        if _is_fixed(a):
             continue
         fac_indices.setdefault(a["faculty"], []).append(i)
 
@@ -145,7 +150,7 @@ def _mutate_slot_shift(assignments: list, faculty_list: list, soft_constraints: 
     result = copy.deepcopy(assignments)
 
     fsm = _build_fac_slot_map(result)
-    movable = [i for i, x in enumerate(result) if not is_non_classroom(x)]
+    movable = [i for i, x in enumerate(result) if not _is_fixed(x)]
     if not movable:
         return result
     idx = random.choice(movable)
@@ -197,15 +202,15 @@ def _mutate_room(assignments: list, soft_constraints: dict,
       - Per-day building affinity (faculty and section)
       - Explicit faculty room/building preferences
     """
-    from config.settings import LABORATORY_ROOMS, ALL_ROOMS
+    import config.settings as _cfg
     result = copy.deepcopy(assignments)
 
     # Build affinity maps from current schedule
     fac_day_building, sec_day_building = _build_affinity_maps(result)
 
     room_slot_used = {f"{a['room']}|{a['slot']}" for a in result
-                      if a["room"] != "Unassigned" and not is_non_classroom(a)}
-    movable = [i for i, x in enumerate(result) if not is_non_classroom(x)]
+                      if a["room"] != "Unassigned" and not _is_fixed(a)}
+    movable = [i for i, x in enumerate(result) if not _is_fixed(x)]
     if not movable:
         return result
     idx = random.choice(movable)
@@ -215,7 +220,7 @@ def _mutate_room(assignments: list, soft_constraints: dict,
     preferred_room     = sc.get("preferred_room")
     preferred_building = sc.get("preferred_building")
 
-    pool = LABORATORY_ROOMS if a["class_type"] == "LAB" else ALL_ROOMS
+    pool = _cfg.LABORATORY_ROOMS if a["class_type"] == "LAB" else _cfg.LECTURE_ROOMS
     current_key = f"{a['room']}|{a['slot']}"
     free_pool = [r for r in pool if f"{r}|{a['slot']}" not in room_slot_used - {current_key}]
     if not free_pool:
@@ -227,10 +232,11 @@ def _mutate_room(assignments: list, soft_constraints: dict,
         size_entry = class_sizes.get(a.get("section", ""))
         student_count = size_entry.get("size", 0) if isinstance(size_entry, dict) else 0
 
-    # Filter by capacity; for labs, fall back to best-available (batch-split)
+    # Hard capacity: a room whose max is below the student count is never chosen
     if student_count > 0:
-        cap_ok = [r for r in free_pool if not room_exceeds_hard_max(r, student_count)]
-        free_pool = cap_ok if cap_ok else free_pool
+        free_pool = [r for r in free_pool if not room_exceeds_hard_max(r, student_count)]
+        if not free_pool:
+            return result
 
     # Composite sort: capacity fit → building affinity → preference → usage
     slot = a.get("slot", "")
@@ -297,7 +303,7 @@ def _crossover(parent_a: list, parent_b: list, faculty_list: list, static_lookup
             child[i]["slot_display"] = parent_b[i]["slot_display"]
             child[i]["room"] = parent_b[i]["room"]
 
-    violations = validate_schedule(child, faculty_list, static_lookup, LABORATORY_ROOMS, class_sizes)
+    violations = validate_schedule(child, faculty_list, static_lookup, list(LABORATORY_ROOMS), class_sizes)
     if violations:
         return copy.deepcopy(parent_a)
     return child
@@ -340,16 +346,26 @@ def optimize(
 
     base_fit = fitness(base_schedule)
 
+    lab_list = list(LABORATORY_ROOMS)
+    base_bad = len(validate_schedule(base_schedule, faculty_list, static_lookup, lab_list, class_sizes))
+
+    def accept(child, fallback):
+        """R8: a child that breaks a hard rule is rejected."""
+        bad = len(validate_schedule(child, faculty_list, static_lookup, lab_list, class_sizes))
+        return child if bad <= base_bad else fallback
+
     # Seed population from base schedule with perturbations
     population = [copy.deepcopy(base_schedule)]
     for _ in range(population_size - 1):
         ind = copy.deepcopy(base_schedule)
         for _ in range(3):
             op = random.choice([_mutate_slot_swap, _mutate_slot_shift, _mutate_room])
+            prev = ind
             if op == _mutate_room:
                 ind = op(ind, soft_constraints, class_sizes)
             else:
                 ind = op(ind, faculty_list, soft_constraints)
+            ind = accept(ind, prev)
         population.append(ind)
 
     best = copy.deepcopy(base_schedule)
@@ -386,7 +402,7 @@ def optimize(
                     lambda s: _mutate_slot_shift(s, faculty_list, soft_constraints),
                     lambda s: _mutate_room(s, soft_constraints, class_sizes),
                 ])
-                child = op(child)
+                child = accept(op(child), child)
 
             new_pop.append(child)
 

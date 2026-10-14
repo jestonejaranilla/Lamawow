@@ -22,21 +22,30 @@ def get_required_specs(subject_name: str, static_lookup: dict) -> list:
     return static_lookup.get(subject_name, SPECIALIZATION_MAP.get(subject_name, []))
 
 
+OPEN_TAG = "Elective"
+
+
+def is_open_assignment(subject_name: str, static_lookup: dict) -> bool:
+    """
+    A course is an OPEN assignment - any faculty member may teach it - when its
+    only specialization tag is "Elective" (the IT Electives: IT E1 to IT E4) or
+    when it has no tags at all. A course that lists "Elective" next to another
+    tag (for example ["Core Theory", "Elective"]) is NOT open: the faculty must
+    hold one of the listed tags.
+    """
+    required = get_required_specs(subject_name, static_lookup)
+    return (not required) or all(tag == OPEN_TAG for tag in required)
+
+
 def faculty_qualifies(faculty: dict, subject_name: str, static_lookup: dict) -> bool:
-    if subject_name.startswith("IT Elective"):
+    """
+    Hard qualification rule.
+      - IT Electives (tag list == ["Elective"]) and untagged courses: any faculty.
+      - Everything else: the faculty member holds at least one listed tag.
+    """
+    if is_open_assignment(subject_name, static_lookup):
         return True
     required = get_required_specs(subject_name, static_lookup)
-    if "Elective" in required and not any(
-        s for s in required if s != "Elective"
-    ):
-        return True  # open assignment - any faculty qualifies
-    if "Elective" in required:
-        fac_specs = faculty.get("specialization", [])
-        primary = [s for s in required if s != "Elective"]
-        return any(spec in fac_specs for spec in primary) or True
-    required = get_required_specs(subject_name, static_lookup)
-    if not required:
-        return True
     return any(spec in faculty.get("specialization", []) for spec in required)
 
 
@@ -85,8 +94,11 @@ def assignment_units(assignment: dict) -> int:
 # ── Room Compatibility ────────────────────────────────────────────────────────
 
 def room_compatible(room_name: str, class_type: str, lab_rooms: list) -> bool:
+    """LAB meetings use laboratory rooms only; LECTURE meetings use lecture rooms only."""
     if class_type == "LAB":
         return room_name in lab_rooms
+    if class_type == "LECTURE":
+        return room_name not in lab_rooms
     return True
 
 
@@ -101,6 +113,30 @@ def get_room_capacity(room_name: str) -> dict:
     return ROOM_CAPACITY.get(room_name, {"recommended": 9999, "max": 9999})
 
 
+def room_max(room_name: str) -> int:
+    """Hard capacity (`max`) of a room; 9999 when unknown or not numeric."""
+    try:
+        return int(get_room_capacity(room_name).get("max", 9999))
+    except (TypeError, ValueError):
+        return 9999
+
+
+def max_room_capacity(rooms: list) -> int:
+    return max((room_max(r) for r in rooms), default=0)
+
+
+def lab_split_plan(size: int, max_lab: int):
+    """
+    R5: a lab larger than the largest allowed lab room is split into
+    k = ceil(size / max_lab) groups of ceil(size / k) students.
+    Returns (k, students_per_group).
+    """
+    if size <= 0 or max_lab <= 0 or size <= max_lab:
+        return 1, size
+    k = -(-size // max_lab)
+    return k, -(-size // k)
+
+
 def room_exceeds_hard_max(room_name: str, student_count: int) -> bool:
     """
     Hard constraint: True if student_count exceeds the room's absolute maximum.
@@ -108,8 +144,7 @@ def room_exceeds_hard_max(room_name: str, student_count: int) -> bool:
     """
     if student_count <= 0:
         return False
-    cap = get_room_capacity(room_name)
-    return student_count > cap.get("max", 9999)
+    return student_count > room_max(room_name)
 
 
 def room_capacity_penalty(room_name: str, student_count: int) -> float:
@@ -197,33 +232,64 @@ def get_building(room_name: str) -> str:
 
 # ── Schedule Validator ────────────────────────────────────────────────────────
 
+def _group_key(a: dict) -> str:
+    return a.get("group_id") or f"{a.get('section', '')}|{a.get('subject', '')}"
+
+
+def expected_row_counts(sections: list, lab_rooms: list) -> dict:
+    """{group_id: rows a fully covered schedule must contain} (lab splits included)."""
+    max_lab = max_room_capacity(lab_rooms)
+    expected: dict = {}
+    for sec in sections:
+        key = sec.get("group_id") or f"{sec.get('section', '')}|{sec.get('name', '')}"
+        n = 1
+        if sec.get("class_type") == "LAB":
+            n, _ = lab_split_plan(int(sec.get("student_count", 0) or 0), max_lab)
+        expected[key] = expected.get(key, 0) + n
+    return expected
+
+
 def validate_schedule(assignments: list, faculty_list: list, static_lookup: dict,
-                       lab_rooms: list, class_sizes: dict = None) -> list:
+                       lab_rooms: list, class_sizes: dict = None,
+                       sections: list = None) -> list:
     """
-    Returns list of violation strings.
-    Empty list = fully valid schedule.
+    Returns list of violation strings. Empty list = fully valid schedule.
+
+    Always checked (rows that have a professor):
+      faculty overlap, room conflict, block overlap (R4), availability,
+      qualification, room type, room capacity by `max` (R5), one professor per
+      group (R2), lab-group sizes (R5), load cap (R7).
+    Checked only when `sections` (the meetings given to the solver) is passed:
+      full coverage (R1/R3) - every group has all its rows and a professor.
+    Rows without a professor are reported through coverage_errors, so they are
+    skipped by the checks that need a professor.
     """
     violations = []
     fac_map = {f["name"]: f for f in faculty_list}
+    max_lab = max_room_capacity(lab_rooms)
 
-    # Track occupancy
-    fac_slot: dict = {}     # (faculty, slot) → subject+section
-    room_slot: dict = {}    # (room, slot) → subject+section
+    fac_slot: dict = {}      # (faculty, slot) → label
+    room_slot: dict = {}     # (room, slot) → label
+    block_slot: dict = {}    # (block, slot) → label
     fac_load: dict = {f["name"]: 0 for f in faculty_list}
+    group_profs: dict = {}   # group → {faculty}
+    group_rows: dict = {}    # group → rows with a professor
+    lab_rows: dict = {}      # group → [lab rows with a professor]
 
     for a in assignments:
-        # Rows without a professor are reported through coverage_errors
-        # (R3), not as validation violations.
         if not a.get("faculty"):
             continue
 
         label = f"{a['subject']}({a['section']})"
+        gkey = _group_key(a)
         fac = fac_map.get(a["faculty"])
         if not fac:
             violations.append(f"UNKNOWN_FACULTY: {a['faculty']}")
             continue
 
-        # Qualification
+        group_profs.setdefault(gkey, set()).add(a["faculty"])
+        group_rows[gkey] = group_rows.get(gkey, 0) + 1
+
         if not faculty_qualifies(fac, a["subject"], static_lookup):
             violations.append(f"UNQUALIFIED: {a['faculty']} → {a['subject']}")
 
@@ -233,42 +299,84 @@ def validate_schedule(assignments: list, faculty_list: list, static_lookup: dict
         if is_non_classroom(a):
             continue
 
-        key = f"{a['faculty']}|{a['slot']}"
-        room_key = f"{a['room']}|{a['slot']}"
+        slot, room = a.get("slot"), a.get("room")
+        if not slot:
+            violations.append(f"NO_SLOT: {label} has a professor but no slot")
+            continue
 
-        # No faculty double-booking
+        key = f"{a['faculty']}|{slot}"
         if key in fac_slot:
-            violations.append(f"FACULTY_OVERLAP: {a['faculty']} at {a['slot']}: {fac_slot[key]} vs {label}")
+            violations.append(f"FACULTY_OVERLAP: {a['faculty']} at {slot}: {fac_slot[key]} vs {label}")
         else:
             fac_slot[key] = label
 
-        # No room conflict
-        if room_key in room_slot:
-            violations.append(f"ROOM_CONFLICT: {a['room']} at {a['slot']}: {room_slot[room_key]} vs {label}")
+        bkey = f"{a.get('section', '')}|{slot}"
+        if a.get("section"):
+            if bkey in block_slot:
+                violations.append(f"BLOCK_OVERLAP: {a['section']} at {slot}: {block_slot[bkey]} vs {label}")
+            else:
+                block_slot[bkey] = label
+
+        if not room or room in ("Unassigned", "N/A"):
+            violations.append(f"NO_ROOM: {label} at {slot}")
         else:
-            room_slot[room_key] = label
+            room_key = f"{room}|{slot}"
+            if room_key in room_slot:
+                violations.append(f"ROOM_CONFLICT: {room} at {slot}: {room_slot[room_key]} vs {label}")
+            else:
+                room_slot[room_key] = label
 
-        # Availability
-        if not faculty_available_at(fac, a["slot"]):
-            violations.append(f"UNAVAILABLE: {a['faculty']} not available {a['slot']}")
+            if not room_compatible(room, a["class_type"], lab_rooms):
+                violations.append(f"ROOM_INCOMPATIBLE: {room} for {a['class_type']} class {label}")
 
-        # Room compatibility
-        if not room_compatible(a["room"], a["class_type"], lab_rooms):
-            violations.append(f"ROOM_INCOMPATIBLE: {a['room']} for {a['class_type']} class {label}")
-
-        # Room capacity (hard max violation)
-        if class_sizes:
-            section_key = a.get("section", "")
-            student_count = class_sizes.get(section_key, {}).get("size", 0) if isinstance(
-                class_sizes.get(section_key), dict) else 0
-            if student_count > 0 and room_exceeds_hard_max(a["room"], student_count):
-                cap = get_room_capacity(a["room"])
+            # Room capacity (hard max). The row's own student_count is used: it is
+            # the lab-group size for split labs.
+            student_count = int(a.get("student_count", 0) or 0)
+            if student_count <= 0 and class_sizes:
+                entry = class_sizes.get(a.get("section", ""))
+                student_count = entry.get("size", 0) if isinstance(entry, dict) else 0
+            if student_count > 0 and room_exceeds_hard_max(room, student_count):
                 violations.append(
-                    f"CAPACITY_EXCEEDED: {a['room']} (max {cap.get('max')}) cannot fit "
+                    f"CAPACITY_EXCEEDED: {room} (max {room_max(room)}) cannot fit "
                     f"{student_count} students for {label}"
                 )
 
-    # Load caps
+        if not faculty_available_at(fac, slot):
+            violations.append(f"UNAVAILABLE: {a['faculty']} not available {slot}")
+
+        if a["class_type"] == "LAB":
+            lab_rows.setdefault(gkey, []).append(a)
+
+    # One professor per group (R2)
+    for gkey, profs in group_profs.items():
+        if len(profs) > 1:
+            violations.append(f"GROUP_MULTIPLE_PROFESSORS: {gkey}: {', '.join(sorted(profs))}")
+
+    # Lab-group sizes (R5)
+    if class_sizes:
+        for gkey, rows in lab_rows.items():
+            entry = class_sizes.get(rows[0].get("section", ""))
+            size = entry.get("size", 0) if isinstance(entry, dict) else 0
+            if size <= 0:
+                continue
+            k, sub = lab_split_plan(size, max_lab)
+            if len(rows) != k:
+                violations.append(f"LAB_SPLIT_COUNT: {gkey}: {len(rows)} lab group(s), expected {k}")
+            for r in rows:
+                if int(r.get("student_count", 0) or 0) != sub:
+                    violations.append(
+                        f"LAB_GROUP_SIZE: {gkey} {r.get('lab_group') or ''}: "
+                        f"{r.get('student_count')} students, expected {sub}"
+                    )
+
+    # Full coverage (R1/R3)
+    if sections is not None:
+        for gkey, want in expected_row_counts(sections, lab_rooms).items():
+            have = group_rows.get(gkey, 0)
+            if have < want:
+                violations.append(f"UNCOVERED: {gkey}: {have}/{want} meeting(s) have a professor")
+
+    # Load caps (R7, hard)
     for f in faculty_list:
         load = fac_load.get(f["name"], 0)
         if load > f.get("absolute_max_units", 30):

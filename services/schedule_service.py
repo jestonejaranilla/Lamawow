@@ -16,8 +16,10 @@ from solver.cp_sat_solver import solve as cp_solve
 from solver.ga_optimizer import optimize as ga_optimize
 from services.analytics_service import compute_analytics
 from solver.constraints import (
-    faculty_qualifies, is_non_classroom, assignment_units, NON_CLASSROOM,
+    faculty_qualifies, assignment_units, NON_CLASSROOM, validate_schedule,
 )
+
+import config.settings as _settings_cfg
 
 DEFAULT_DEPT = "IT"
 
@@ -280,11 +282,15 @@ def _diagnose_group(group: dict, faculty_list: list, static_lookup: dict,
 
 
 def compute_coverage(groups: list, sections: list, assignments: list,
-                     faculty_list: list, static_lookup: dict, prep_errors: list = None):
+                     faculty_list: list, static_lookup: dict, prep_errors: list = None,
+                     reasons: dict = None):
     """
     A group is covered when every one of its meetings has a professor.
+    `reasons` ({group_id: reason}) comes from the solver; groups without an
+    entry are diagnosed here.
     Returns ({"assigned": n, "total": n}, coverage_errors).
     """
+    reasons = reasons or {}
     expected = {}
     for sec in sections:
         expected[sec.get("group_id", "")] = expected.get(sec.get("group_id", ""), 0) + 1
@@ -308,7 +314,7 @@ def compute_coverage(groups: list, sections: list, assignments: list,
             "course":   g["course_code"],
             "title":    g["title"],
             "group_id": gid,
-            "reason":   _diagnose_group(g, faculty_list, static_lookup, loads),
+            "reason":   reasons.get(gid) or _diagnose_group(g, faculty_list, static_lookup, loads),
             "missing_meetings": max(0, want - have),
         })
     return {"assigned": assigned, "total": len(groups)}, errors
@@ -367,6 +373,8 @@ def run_scheduling_job(
             _set_progress(current=pct, total=100)
 
         cp_assignments, cp_metrics = cp_solve(sections, faculty_list, static_lookup, cp_progress)
+        uncovered = cp_metrics.pop("uncovered_groups", {})
+        cp_violations = cp_metrics.pop("violations", [])
 
         _set_progress(phase="ga", current=40)
 
@@ -393,6 +401,16 @@ def run_scheduling_job(
             class_sizes=class_sizes,
         )
 
+        # R8: the GA may only move slots and rooms. If anything it produced breaks
+        # a hard rule, keep the CP-SAT schedule instead.
+        ga_warning = None
+        ga_violations = validate_schedule(best_assignments, faculty_list, static_lookup,
+                                          list(_settings_cfg.LABORATORY_ROOMS),
+                                          class_sizes)
+        if len(ga_violations) > len(cp_violations):
+            best_assignments = cp_assignments
+            ga_warning = "GA result broke a hard rule and was discarded; showing the CP-SAT schedule."
+
         _set_progress(current=90, phase="analytics")
 
         # ── Phase 3: Analytics ────────────────────────────────────────────────
@@ -405,10 +423,16 @@ def run_scheduling_job(
         # ── Coverage (R3) ─────────────────────────────────────────────────────
         coverage, coverage_errors = compute_coverage(
             groups or [], sections, best_assignments, faculty_list, static_lookup, prep_errors,
+            reasons=uncovered,
         )
 
         # Warnings
         warnings = list(prep_warnings or [])
+        if ga_warning:
+            warnings.append(ga_warning)
+        if cp_violations:
+            warnings.append(f"{len(cp_violations)} hard-rule violation(s) found in the schedule: "
+                            + "; ".join(cp_violations[:3]))
         if coverage_errors:
             warnings.append(
                 f"{len(coverage_errors)} group(s) could not be fully covered "
@@ -418,7 +442,7 @@ def run_scheduling_job(
         if unassigned:
             warnings.append(f"{unassigned} section(s) could not be assigned to any faculty.")
         if cp_metrics.get("solver_used") == "cp_backtracking":
-            warnings.append("OR-Tools not available - used backtracking solver.")
+            warnings.append("OR-Tools not available - used the greedy fallback solver (not optimal).")
 
         # Capacity warnings from analytics
         cap_analytics = analytics.get("capacity_metrics", {})
