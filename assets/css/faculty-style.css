@@ -111,7 +111,6 @@
 .fs-help { margin-bottom: var(--space-3); font-size: 0.875rem; color: var(--text-muted); }
 .fs-error { margin-bottom: var(--space-3); color: #b91c1c; font-size: 0.875rem; font-weight: 600; }
 .fs-error[hidden] { display: none; }
-.fs-logout { display: inline-flex; justify-content: center; text-decoration: none; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 768px) {
@@ -142,7 +141,7 @@
 .fs-day-btn.has-class::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--clr-primary-400); }
 .fs-day-btn:not(.has-class)::after { content: ""; width: 5px; height: 5px; }
 .fs-day-btn.selected { background: var(--clr-primary-600); color: #fff; }
-.fs-day-btn.selected small { color: rgba(255, 255, 255, 0.85); }
+.fs-day-btn.selected small { color: var(--on-accent); }
 .fs-day-btn.selected::after { background: #fff; }
 .fs-day-all { font-size: 0.8125rem; }
 
@@ -150,8 +149,8 @@
   .fs-clock { padding: 0; background: transparent; border: 0; }
   .fs-clock-time { font-size: 1.5rem; }
   .fs-status, .fs-status-live { background: var(--clr-primary-600); border: 0; border-radius: var(--radius-xl); }
-  .fs-status-label, .fs-status-meta { color: rgba(255, 255, 255, 0.85); }
-  .fs-status-title { color: #fff; }
+  .fs-status-label, .fs-status-meta { color: var(--on-accent); }
+  .fs-status-title { color: var(--on-accent); }
   .fs-status-count, .fs-status-live .fs-status-count { color: #fff; font-size: 1.125rem; }
   .fs-class { border: 0; background: var(--bg-surface-2); border-radius: var(--radius-lg); }
   .fs-day-today .fs-class { border: 0; }
@@ -161,6 +160,7 @@
 
 /* ---------- Night theme ---------- */
 [data-theme="dark"] .fs-alert { background: rgba(217, 146, 43, 0.15); color: #f0c987; border-color: rgba(217, 146, 43, 0.5); }
+@media (min-width: 769px) { [data-theme="dark"] .fs-status-live { background: var(--clr-success-100); } }
 [data-theme="dark"] .fs-chip-live { background: rgba(34, 197, 94, 0.18); color: #8fd9a8; }
 [data-theme="dark"] .fs-status-live .fs-status-count { color: #fff; }
 [data-theme="dark"] .fs-error { color: #f19a93; }

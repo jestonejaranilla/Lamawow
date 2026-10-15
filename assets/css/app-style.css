@@ -28,7 +28,6 @@ body.page-app { height: auto; min-height: 100vh; min-height: 100dvh; overflow: a
 .app-nav-ic { width: 20px; height: 20px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .app-nav-value { margin-left: auto; font-size: 0.8125rem; font-style: normal; font-weight: 500; color: var(--text-muted); }
 .app-chev { display: none; width: 18px; height: 18px; fill: none; stroke: var(--text-muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.app-logout { margin-top: var(--space-4); }
 
 /* ---------- Cards and rows ---------- */
 .app-content { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
@@ -105,7 +104,7 @@ html[data-motion="reduce"] input[type="checkbox"].app-switch:checked::after { tr
 }
 .app-btn:hover { background: var(--bg-surface-3); }
 .app-btn-primary { background: var(--clr-primary-500); color: #fff; border-color: transparent; }
-.app-btn-primary:hover { background: var(--clr-primary-600); }
+.app-btn-primary:hover { background: var(--btn-hover); }
 .app-btn-danger { color: var(--bad); border-color: var(--bad); }
 .app-btn-danger:hover { background: var(--bad-soft); }
 
@@ -167,10 +166,19 @@ html[data-motion="reduce"] input[type="checkbox"].app-switch:checked::after { tr
   body[data-page="menu"] .app-nav-value + .app-chev { margin-left: var(--space-2); }
   body[data-page="menu"] .app-nav-link span { flex: 1; }
   body[data-page="menu"] .app-nav-ic { color: var(--clr-primary-600); }
-  body[data-page="menu"] .app-logout { width: 100%; margin-top: var(--space-6); }
   .app-card { padding: var(--space-4); border: 0; background: var(--bg-surface-2); }
   .app-row { border-bottom-color: var(--border-default); }
   .app-input { background: var(--bg-surface); }
   .app-actions .app-btn { flex: 1 1 100%; }
   .app-stat { background: var(--bg-surface); }
 }
+
+/* Solver settings card */
+.app-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
+.app-subhead { margin: var(--space-2) 0; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.app-field { display: grid; gap: 4px; padding: 8px 0; }
+.app-field label { font-weight: 600; color: var(--text-primary); }
+.app-field .app-hint { margin: 0; font-size: 0.75rem; }
+.app-error { margin: 0; font-size: 0.8125rem; color: #b91c1c; }
+.app-input[aria-invalid="true"] { border-color: #b91c1c; }
+@media (max-width: 700px) { .app-field-grid { grid-template-columns: 1fr; } }

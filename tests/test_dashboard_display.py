@@ -46,6 +46,7 @@ def open_dashboard(browser, dept):
     page = ctx.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "Failed to load resource" not in m.text else None)
     page.goto(f"{BASE}/pages/login.html")
     page.evaluate(
         """d => { sessionStorage.clear();
@@ -76,10 +77,10 @@ def test_results_show_labels_and_coverage(browser, dept):
     page, errors = open_dashboard(browser, dept)
     page.evaluate(
         """d => { localStorage.setItem('academicMode::'+d, JSON.stringify({year:'2025-2026',semester:'1st Semester'}));
-            localStorage.setItem('systemSettings::'+d, JSON.stringify({max_units:24,units_per_assignment:2,cp_sat_time_limit:10})); }""",
+            localStorage.setItem('systemSettings::'+d, JSON.stringify({max_units:24,units_per_assignment:2,cp_sat_time_limit:10,
+                population:6,generations:3,mutation:0.15,crossover:0.8})); }""",
         dept)
-    page.evaluate("""() => { document.getElementById('populationSize').value = 6;
-        document.getElementById('numGenerations').value = 3; document.getElementById('runGA').click(); }""")
+    page.evaluate("document.getElementById('runGA').click()")
     page.wait_for_selector("#gaScheduleTable tbody tr td:nth-child(3)", state="attached", timeout=120_000)
     page.wait_for_function("!document.getElementById('runGA').disabled", timeout=120_000)
 
@@ -96,3 +97,152 @@ def test_results_show_labels_and_coverage(browser, dept):
     page.evaluate("atlasLogout()")                           # nothing of this department stays on screen
     assert page.inner_text("#coverageSummary").strip() == ""
     page.context.close()
+
+
+# ── Part 8: panel layout ──────────────────────────────────────────────────────
+@pytest.mark.parametrize("dept", list(DEPTS))
+def test_panel_layout_and_preferences_round_trip(browser, dept):
+    page, errors = open_dashboard(browser, dept)
+    panel = lambda sel: page.evaluate("s => { const e = document.querySelector(s); const p = e && e.closest('.panel');"
+                                      " return p ? p.dataset.title : null }", sel)
+    # Rooms panel keeps year/semester, rooms, class sizes; nothing else
+    for sel in ("#academicModeCard", "#lectureRoomsList", "#labRoomsList", "#classSizesTable"):
+        assert panel(sel) == "Rooms", sel
+    assert page.locator(".panel[data-title='Rooms'] h2").inner_text().strip() == "Rooms and Blocks"
+    assert page.locator(".panel[data-title='Rooms'] #engineSettingsCard").count() == 0
+    assert page.locator(".panel[data-title='Rooms'] #scFacultySelect").count() == 0
+    assert page.locator(".nav-item[data-panel='4']").inner_text().strip() == "Rooms"
+    assert page.locator(".bn-item[data-go='4']").inner_text().strip() == "Rooms"
+    # Professor Preferences sits in Faculty and Subjects, between the faculty table and the subjects section
+    for sel in ("#scFacultySelect", "#softConstraintForm", "#scSaveBtn", "#scPreferredPeriod"):
+        assert panel(sel) == "Faculty and Subjects", sel
+    order = page.evaluate("""() => { const q = s => document.querySelector(s);
+        const a = q('#facultyTable'), b = q('#scFacultySelect'), c = q('#subjectsTable');
+        const f = Node.DOCUMENT_POSITION_FOLLOWING;
+        return [!!(a.compareDocumentPosition(b) & f), !!(b.compareDocumentPosition(c) & f)]; }""")
+    assert order == [True, True]
+    # the button goes to the solver settings
+    for i in ("populationSize", "numGenerations", "mutationRate", "crossoverRate", "sysMaxUnits",
+              "saveSystemSettings", "engineSettingsCard", "engineSettingsHolder"):
+        assert page.locator("#" + i).count() == 0, i                 # moved to the menu settings page
+    assert page.inner_text("#solverSummary") == "30 s limit, 50 population, 100 generations"
+    btn = page.locator("#goToAdvancedSettings")
+    assert btn.inner_text().strip() == "Solver Settings"
+    assert "application-settings.html#solver" in btn.get_attribute("onclick")
+    # preference save and load still work
+    page.wait_for_function("document.querySelector('#scFacultySelect').options.length > 1")
+    name = page.evaluate("document.querySelector('#scFacultySelect').options[1].value")
+    page.evaluate("""n => { const s = document.getElementById('scFacultySelect'); s.value = n;
+        const p = document.getElementById('scPreferredPeriod'); p.selectedIndex = 1;
+        document.getElementById('scSaveBtn').click(); }""", name)
+    page.wait_for_function("k => localStorage.getItem(k)", arg="softConstraintsData::" + dept)
+    saved = page.evaluate("k => JSON.parse(localStorage.getItem(k))", "softConstraintsData::" + dept)
+    assert saved[name]["preferred_period"]
+    page.reload()
+    page.wait_for_function("document.querySelector('#scFacultySelect').options.length > 1")
+    page.evaluate("""n => { document.getElementById('scFacultySelect').value = n;
+        document.getElementById('scLoadBtn').click(); }""", name)
+    assert page.evaluate("document.getElementById('scPreferredPeriod').value") == saved[name]["preferred_period"]
+    assert not errors, errors
+    page.context.close()
+
+
+# ── Part 9: solver settings in the menu settings page ─────────────────────────
+SETTINGS_URL = BASE + "/app/application-settings.html"
+IDS = {"max_units": "sysMaxUnits", "units_per_assignment": "sysUnitsPerAssignment",
+       "cp_sat_time_limit": "sysCpSatTimeLimit", "population": "populationSize", "generations": "numGenerations",
+       "mutation": "mutationRate", "crossover": "crossoverRate"}
+
+
+def fill(page, values):
+    for k, v in values.items():
+        page.fill("#" + IDS[k], str(v))
+
+
+def stored(page, dept):
+    return page.evaluate("d => JSON.parse(localStorage.getItem('systemSettings::' + d) || 'null')", dept)
+
+
+def test_solver_settings_card_validation_per_department_and_run_request(browser):
+    import json
+    page, errors = open_dashboard(browser, "IT")
+    page.goto(SETTINGS_URL + "#solver")
+    assert page.locator("#solver").is_visible()
+    assert page.evaluate("document.querySelector('main .app-card').id") == "solver"       # first card
+    assert page.input_value("#sysCpSatTimeLimit") == "30"                                 # default is 30, not 60
+
+    # bad values: inline error, nothing saved
+    page.evaluate("localStorage.removeItem('systemSettings::IT')")
+    fill(page, {"max_units": 41, "units_per_assignment": 11, "cp_sat_time_limit": 41, "population": 3,
+                "generations": 201, "mutation": 1.5, "crossover": -0.1})
+    page.click("#btnSaveSolver")
+    for field in IDS.values():
+        assert page.locator("#err-" + field).is_visible(), field
+    assert stored(page, "IT") is None
+    page.fill("#populationSize", "7.5")
+    page.click("#btnSaveSolver")
+    assert "whole number" in page.inner_text("#err-populationSize")
+
+    # valid values for IT
+    it = {"max_units": 30, "units_per_assignment": 2, "cp_sat_time_limit": 12, "population": 7,
+          "generations": 2, "mutation": 0.2, "crossover": 0.5}
+    fill(page, it)
+    page.click("#btnSaveSolver")
+    assert not page.locator("#err-populationSize").is_visible()
+    assert stored(page, "IT") == it
+
+    # CS keeps its own values
+    page.evaluate("sessionStorage.setItem('atlasDept', 'CS')")
+    page.goto(SETTINGS_URL)
+    assert page.input_value("#populationSize") == "50" and stored(page, "CS") is None
+    fill(page, {"population": 9})
+    page.click("#btnSaveSolver")
+    assert stored(page, "CS")["population"] == 9 and stored(page, "IT")["population"] == 7
+
+    # the run request uses the IT values (read at click time, no reload after the change)
+    page.evaluate("sessionStorage.setItem('atlasDept', 'IT')")
+    page.goto(BASE + "/pages/dashboard.html")
+    page.wait_for_selector("#facultyTable tbody tr", state="attached")
+    assert page.inner_text("#solverSummary") == "12 s limit, 7 population, 2 generations"
+    bodies = []
+    page.on("request", lambda r: bodies.append(r.post_data) if r.url.endswith("/run-ga") else None)
+    page.evaluate("document.getElementById('runGA').click()")
+    page.wait_for_function("document.getElementById('runGA').disabled")
+    body = json.loads(bodies[0])
+    print("\n/run-ga body:", {k: body[k] for k in ("dept", "population", "generations", "mutation", "crossover",
+                                                    "cp_sat_time_limit", "units_per_assignment", "active_semester")})
+    assert (body["population"], body["generations"], body["mutation"], body["crossover"]) == (7, 2, 0.2, 0.5)
+    assert body["cp_sat_time_limit"] == 12 and body["dept"] == "IT"
+    page.wait_for_function("!document.getElementById('runGA').disabled", timeout=120_000)
+
+    # restore defaults
+    page.goto(SETTINGS_URL)
+    page.click("#btnRestoreSolver")
+    assert stored(page, "IT") == {"max_units": 24, "units_per_assignment": 2, "cp_sat_time_limit": 30,
+                                  "population": 50, "generations": 100, "mutation": 0.09, "crossover": 0.95}
+    assert not errors, errors
+    page.context.close()
+
+
+def test_old_out_of_range_saved_value_falls_back_to_the_default(browser):
+    page, _ = open_dashboard(browser, "MB")
+    page.evaluate("localStorage.setItem('systemSettings::MB', JSON.stringify({cp_sat_time_limit: 60, population: 500}))")
+    page.reload()
+    page.wait_for_selector("#facultyTable tbody tr", state="attached")
+    assert page.inner_text("#solverSummary") == "30 s limit, 50 population, 100 generations"
+    page.context.close()
+
+
+def test_faculty_account_does_not_get_the_solver_card(browser):
+    ctx = browser.new_context()
+    ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())
+    page = ctx.new_page()
+    page.goto(f"{BASE}/pages/login.html")
+    page.evaluate("""() => { sessionStorage.clear(); sessionStorage.setItem('atlasRole','faculty');
+        sessionStorage.setItem('atlasDept','IT'); sessionStorage.setItem('atlasUser','Prof. Maria Santos');
+        sessionStorage.setItem('atlasFaculty','Prof. Maria Santos'); sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph'); }""")
+    page.goto(SETTINGS_URL + "#solver")
+    page.wait_for_selector("main .app-card")
+    assert page.locator("#solver").count() == 0
+    assert page.locator("#populationSize").count() == 0
+    ctx.close()

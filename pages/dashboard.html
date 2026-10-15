@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="icon" type="image/png" href="../assets/images/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="../assets/images/favicon.svg">
   <link rel="manifest" href="../manifest.json">
   <link rel="apple-touch-icon" href="../assets/images/favicon.png">
   <meta name="theme-color" content="#9a3608">
@@ -17,6 +17,7 @@
   <!-- App Styles & Scripts -->
   <script src="../assets/js/app-core.js"></script>
   <link rel="stylesheet" href="../assets/css/main-style.css">
+  <script src="../assets/js/solver-settings.js" defer></script>
   <script src="../assets/js/display.js" defer></script>
   <script src="../assets/js/curriculum.js" defer></script>
   <script src="../assets/js/main-script.js" defer></script>
@@ -31,7 +32,7 @@
     <div class="nav-left">
       <div class="nav-brand-wrap">
         <img
-            src="../assets/images/favicon.png"
+            src="../assets/images/logo.svg"
             alt="Palawan State University Logo"
             class="psu-logo"
             width="36"
@@ -41,11 +42,11 @@
         <span class="brand">ATLAS PSU</span>
       </div>
       <div class="nav-menu" role="menubar">
-        <div class="nav-item" role="menuitem" tabindex="0" data-panel="0"><svg class="nav-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Dashboard</span></div>
-        <div class="nav-item" role="menuitem" tabindex="0" data-panel="1"><svg class="nav-ic" viewBox="0 0 24 24" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>Workload Optimization</span></div>
-        <div class="nav-item" role="menuitem" tabindex="0" data-panel="2"><svg class="nav-ic" viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Reports</span></div>
-        <div class="nav-item" role="menuitem" tabindex="0" data-panel="3"><svg class="nav-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Faculty &amp; Subjects</span></div>
-        <div class="nav-item" role="menuitem" tabindex="0" data-panel="4"><svg class="nav-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></div>
+        <div class="nav-item" role="menuitem" tabindex="0" data-panel="0"><span class="nav-ic ic ic-dashboard" aria-hidden="true"></span><span>Dashboard</span></div>
+        <div class="nav-item" role="menuitem" tabindex="0" data-panel="1"><span class="nav-ic ic ic-optimize" aria-hidden="true"></span><span>Workload Optimization</span></div>
+        <div class="nav-item" role="menuitem" tabindex="0" data-panel="2"><span class="nav-ic ic ic-reports" aria-hidden="true"></span><span>Reports</span></div>
+        <div class="nav-item" role="menuitem" tabindex="0" data-panel="3"><span class="nav-ic ic ic-faculty" aria-hidden="true"></span><span>Faculty &amp; Subjects</span></div>
+        <div class="nav-item" role="menuitem" tabindex="0" data-panel="4" aria-label="Rooms"><span class="nav-ic ic ic-rooms" aria-hidden="true"></span><span>Rooms</span></div>
       </div>
     </div>
 
@@ -63,13 +64,12 @@
           <a href="../app/account.html" role="menuitem">Account settings</a>
           <a href="../app/appearance.html" role="menuitem">Appearance</a>
           <a href="../app/about.html" role="menuitem">About</a>
-          <a href="login.html" role="menuitem" onclick="atlasLogout()">Logout</a>
         </div>
       </div>
     </div>
-    <button type="button" class="nav-back is-hidden" id="navBack" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <button type="button" class="nav-back is-hidden" id="navBack" aria-label="Back"><span class="ic ic-back" aria-hidden="true"></span></button>
     <span class="nav-title" id="navTitle"></span>
-    <a class="nav-more" href="../app/menu.html" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></a>
+    <a class="nav-more" href="../app/menu.html" aria-label="Menu"><span class="ic ic-menu" aria-hidden="true"></span></a>
   </nav>
 
   <!-- ========================================================
@@ -80,9 +80,9 @@
 
       <!-- PANEL 0: DASHBOARD -->
       <section class="panel" id="panel-dashboard" data-title="Dashboard" aria-label="Dashboard">
-        <div class="dash-brand"><img src="../assets/images/favicon.png" alt="" width="40" height="40"><span>ATLAS PSU</span></div>
+        <div class="dash-brand"><img src="../assets/images/logo.svg" alt="" width="40" height="40"><span>ATLAS PSU</span></div>
         <div class="dept-banner" id="deptBanner" style="display:none;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01"/></svg>
+          <span class="ic ic-building" aria-hidden="true"></span>
           <div class="dept-banner-text">
             <span class="dept-banner-label">Your department</span>
             <strong id="deptBannerName"></strong>
@@ -90,7 +90,7 @@
         </div>
         <div class="page-header">
           <div>
-            <h2><svg class="title-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</h2>
+            <h2><span class="title-ic ic ic-dashboard" aria-hidden="true"></span>Dashboard</h2>
           </div>
           <div id="dashboardSemContext" class="sem-context-badge" style="display:none;"></div>
         </div>
@@ -178,7 +178,7 @@
       <section class="panel" data-title="Optimization" aria-label="Workload Optimization">
         <div class="page-header">
           <div>
-            <h2><svg class="title-ic" viewBox="0 0 24 24" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Workload Optimization</h2>
+            <h2><span class="title-ic ic ic-optimize" aria-hidden="true"></span>Workload Optimization</h2>
           </div>
           <div id="optimizationSemContext" class="sem-context-badge" style="display:none;"></div>
         </div>
@@ -194,8 +194,10 @@
             Run Optimization
           </button>
 
-          <button class="btn btn-outline btn-full btn-advanced-settings" id="goToAdvancedSettings" onclick="switchPanel(4); const p=document.querySelectorAll('.panel')[4]; if(p) p.scrollTop=0;">
-            Advanced Settings
+          <p class="solver-summary" id="solverSummary" aria-live="polite"></p>
+
+          <button class="btn btn-outline btn-full btn-advanced-settings" id="goToAdvancedSettings" onclick="window.location.href='../app/application-settings.html#solver'">
+            Solver Settings
           </button>
         </div>
 
@@ -248,7 +250,7 @@
       <section class="panel" id="reportsPanel" data-title="Reports" aria-label="Faculty Analytics and Reports">
         <div class="page-header">
           <div>
-            <h2><svg class="title-ic" viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Reports</h2>
+            <h2><span class="title-ic ic ic-reports" aria-hidden="true"></span>Reports</h2>
           </div>
           <div id="reportsSemContext" class="sem-context-badge" style="display:none;"></div>
         </div>
@@ -367,7 +369,7 @@
       <!-- PANEL 3: FACULTY & SUBJECTS -->
       <section class="panel" data-title="Faculty and Subjects" aria-label="Faculty and Curriculum Management">
         <div class="page-header">
-          <h2><svg class="title-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Faculty &amp; Subjects</h2>
+          <h2><span class="title-ic ic ic-faculty" aria-hidden="true"></span>Faculty &amp; Subjects</h2>
           <span class="status-chip">Auto-saved</span>
         </div>
 
@@ -403,6 +405,90 @@
 
         <div class="section-divider"></div>
 
+        <!-- ── SOFT CONSTRAINTS (PROFESSOR PREFERENCES) ── -->
+        <h3 class="section-heading">Professor Preferences<span class="info-tip" tabindex="0" role="note" aria-label="Soft rules: they affect scoring but never block an assignment" data-tip="Soft rules: they affect scoring but never block an assignment">i</span></h3>
+                <div class="soft-constraint-select-row">
+          <label for="scFacultySelect" style="font-size:0.8125rem;font-weight:600;color:var(--text-primary);white-space:nowrap;">Faculty Member</label>
+          <select id="scFacultySelect" style="max-width:280px;"></select>
+          <button class="btn btn-secondary" id="scLoadBtn" style="padding:0.4rem 0.875rem;font-size:0.8rem;">Load Preferences</button>
+        </div>
+
+        <div id="softConstraintForm" class="soft-constraint-form hidden">
+          <div class="sc-form-grid">
+            <div class="modal-form-group">
+              <label for="scPreferredPeriod">Preferred Teaching Period</label>
+              <select id="scPreferredPeriod">
+                <option value="">- No Preference -</option>
+                <option value="morning">Morning (7 AM - 12 PM)</option>
+                <option value="afternoon">Afternoon (12 PM - 5 PM)</option>
+                <option value="evening">Evening (5 PM onwards)</option>
+              </select>
+            </div>
+            <div class="modal-form-group">
+              <label for="scPreferredRoom">Room Preference</label>
+              <select id="scPreferredRoom">
+                <option value="">- No Preference -</option>
+              </select>
+            </div>
+            <div class="modal-form-group">
+              <label for="scPreferredBuilding">Building Preference</label>
+              <select id="scPreferredBuilding">
+                <option value="">- No Preference -</option>
+              </select>
+            </div>
+            <div class="modal-form-group">
+              <label for="scPreferredFloor">Floor Preference</label>
+              <select id="scPreferredFloor">
+                <option value="">- No Preference -</option>
+                <option value="1">Floor 1</option>
+                <option value="2">Floor 2</option>
+                <option value="3">Floor 3</option>
+                <option value="4">Floor 4</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="modal-form-group" style="margin-top:8px;">
+            <label>Day Restrictions (days to avoid scheduling)</label>
+            <div class="avail-checkboxes sc-day-restrict">
+              <label><input type="checkbox" value="Mon" class="sc-restrict-day"> Mon</label>
+              <label><input type="checkbox" value="Tue" class="sc-restrict-day"> Tue</label>
+              <label><input type="checkbox" value="Wed" class="sc-restrict-day"> Wed</label>
+              <label><input type="checkbox" value="Thu" class="sc-restrict-day"> Thu</label>
+              <label><input type="checkbox" value="Fri" class="sc-restrict-day"> Fri</label>
+              <label><input type="checkbox" value="Sat" class="sc-restrict-day"> Sat</label>
+            </div>
+          </div>
+
+          <div class="sc-leave-section">
+            <div class="modal-form-group">
+              <label>Date Unavailability (specific dates to avoid)</label>
+              <div id="unavailDatesContainer" class="date-list-container"></div>
+              <button type="button" class="btn btn-secondary" id="addUnavailDate" style="margin-top:8px;padding:0.3rem 0.75rem;font-size:0.8rem;">+ Add Date</button>
+            </div>
+
+            <div class="modal-form-group">
+              <label>Leave Dates (date range)</label>
+              <div id="leaveDatesContainer" class="date-list-container"></div>
+              <button type="button" class="btn btn-secondary" id="addLeaveDate" style="margin-top:8px;padding:0.3rem 0.75rem;font-size:0.8rem;">+ Add Leave Period</button>
+            </div>
+
+            <div class="modal-form-group">
+              <label class="sc-checkbox-label">
+                <input type="checkbox" id="scMaternityLeave">
+                <span>Maternity Leave</span>
+              </label>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn" id="scSaveBtn">Save Preferences</button>
+            <button class="btn btn-secondary" id="scClearBtn">Clear Preferences</button>
+          </div>
+        </div>
+
+        <div class="section-divider"></div>
+
         <h3 class="section-heading">Subjects</h3>
         <div class="faculty-scroll-wrap">
           <table id="subjectsTable">
@@ -427,61 +513,10 @@
       </section>
 
       <!-- PANEL 4: SETTINGS -->
-      <section class="panel" data-title="Settings" aria-label="Settings">
+      <section class="panel" data-title="Rooms" aria-label="Rooms and Blocks">
         <div class="page-header">
-          <h2><svg class="title-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</h2>
+          <h2><span class="title-ic ic ic-rooms" aria-hidden="true"></span>Rooms and Blocks</h2>
         </div>
-
-        <!-- ── SYSTEM SETTINGS ── -->
-        <h3 class="section-heading">System Settings<span class="info-tip" tabindex="0" role="note" aria-label="Applies on the next optimization run" data-tip="Applies on the next optimization run">i</span></h3>
-        <div class="academic-mode-card" id="engineSettingsCard">
-          <div class="engine-settings-row">
-            <div class="engine-settings-col">
-              <div class="engine-settings-section-label">CP-SAT &amp; Engine</div>
-              <div class="modal-form-group">
-                <label for="sysMaxUnits">Standard Max Units<span class="info-tip" tabindex="0" role="note" aria-label="Used for chart colors and overload warnings." data-tip="Used for chart colors and overload warnings.">i</span></label>
-                <input type="number" id="sysMaxUnits" min="1" max="60" value="24" placeholder="24">
-              </div>
-              <div class="modal-form-group">
-                <label for="sysUnitsPerAssignment">Units Per Assignment<span class="info-tip" tabindex="0" role="note" aria-label="How many units each scheduled slot counts as." data-tip="How many units each scheduled slot counts as.">i</span></label>
-                <input type="number" id="sysUnitsPerAssignment" min="1" max="6" value="2" placeholder="2">
-              </div>
-              <div class="modal-form-group">
-                <label for="sysCpSatTimeLimit">CP-SAT Time Limit (seconds)<span class="info-tip" tabindex="0" role="note" aria-label="Max solver time before falling back to backtracking." data-tip="Max solver time before falling back to backtracking.">i</span></label>
-                <input type="number" id="sysCpSatTimeLimit" min="5" max="600" step="5" value="60" placeholder="60">
-              </div>
-            </div>
-            <div class="engine-settings-divider"></div>
-            <div class="engine-settings-col">
-              <div class="engine-settings-section-label">Genetic Algorithm</div>
-              <div class="modal-form-group">
-                <label for="populationSize">Population Size</label>
-                <input type="number" id="populationSize" value="50" min="5" max="200">
-                <p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Candidate schedules per generation.</p>
-              </div>
-              <div class="modal-form-group">
-                <label for="numGenerations">Generations</label>
-                <input type="number" id="numGenerations" value="100" min="10" max="1000">
-                <p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">How many GA iterations to run.</p>
-              </div>
-              <div class="modal-form-group">
-                <label for="mutationRate">Mutation Rate</label>
-                <input type="number" id="mutationRate" value="0.09" step="0.01" min="0" max="1">
-                <p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Probability of schedule mutation.</p>
-              </div>
-              <div class="modal-form-group">
-                <label for="crossoverRate">Crossover Rate</label>
-                <input type="number" id="crossoverRate" value="0.95" step="0.1" min="0" max="1">
-                <p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Rate of combining parent schedules.</p>
-              </div>
-            </div>
-          </div>
-          <div style="margin-top:18px;">
-            <button class="btn" id="saveSystemSettings">Save System Settings</button>
-          </div>
-        </div>
-
-        <div class="section-divider"></div>
 
         <!-- ── ACADEMIC YEAR & SEMESTER MODE ── -->
         <h3 class="section-heading">Academic Year &amp; Semester</h3>
@@ -582,90 +617,6 @@
           <button class="btn btn-secondary" id="resetClassSizes">Reset to Defaults</button>
         </div>
 
-        <div class="section-divider"></div>
-
-        <!-- ── SOFT CONSTRAINTS (PROFESSOR PREFERENCES) ── -->
-        <h3 class="section-heading">Professor Preferences<span class="info-tip" tabindex="0" role="note" aria-label="Soft rules: they affect scoring but never block an assignment" data-tip="Soft rules: they affect scoring but never block an assignment">i</span></h3>
-                <div class="soft-constraint-select-row">
-          <label for="scFacultySelect" style="font-size:0.8125rem;font-weight:600;color:var(--text-primary);white-space:nowrap;">Faculty Member</label>
-          <select id="scFacultySelect" style="max-width:280px;"></select>
-          <button class="btn btn-secondary" id="scLoadBtn" style="padding:0.4rem 0.875rem;font-size:0.8rem;">Load Preferences</button>
-        </div>
-
-        <div id="softConstraintForm" class="soft-constraint-form hidden">
-          <div class="sc-form-grid">
-            <div class="modal-form-group">
-              <label for="scPreferredPeriod">Preferred Teaching Period</label>
-              <select id="scPreferredPeriod">
-                <option value="">- No Preference -</option>
-                <option value="morning">Morning (7 AM - 12 PM)</option>
-                <option value="afternoon">Afternoon (12 PM - 5 PM)</option>
-                <option value="evening">Evening (5 PM onwards)</option>
-              </select>
-            </div>
-            <div class="modal-form-group">
-              <label for="scPreferredRoom">Room Preference</label>
-              <select id="scPreferredRoom">
-                <option value="">- No Preference -</option>
-              </select>
-            </div>
-            <div class="modal-form-group">
-              <label for="scPreferredBuilding">Building Preference</label>
-              <select id="scPreferredBuilding">
-                <option value="">- No Preference -</option>
-              </select>
-            </div>
-            <div class="modal-form-group">
-              <label for="scPreferredFloor">Floor Preference</label>
-              <select id="scPreferredFloor">
-                <option value="">- No Preference -</option>
-                <option value="1">Floor 1</option>
-                <option value="2">Floor 2</option>
-                <option value="3">Floor 3</option>
-                <option value="4">Floor 4</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="modal-form-group" style="margin-top:8px;">
-            <label>Day Restrictions (days to avoid scheduling)</label>
-            <div class="avail-checkboxes sc-day-restrict">
-              <label><input type="checkbox" value="Mon" class="sc-restrict-day"> Mon</label>
-              <label><input type="checkbox" value="Tue" class="sc-restrict-day"> Tue</label>
-              <label><input type="checkbox" value="Wed" class="sc-restrict-day"> Wed</label>
-              <label><input type="checkbox" value="Thu" class="sc-restrict-day"> Thu</label>
-              <label><input type="checkbox" value="Fri" class="sc-restrict-day"> Fri</label>
-              <label><input type="checkbox" value="Sat" class="sc-restrict-day"> Sat</label>
-            </div>
-          </div>
-
-          <div class="sc-leave-section">
-            <div class="modal-form-group">
-              <label>Date Unavailability (specific dates to avoid)</label>
-              <div id="unavailDatesContainer" class="date-list-container"></div>
-              <button type="button" class="btn btn-secondary" id="addUnavailDate" style="margin-top:8px;padding:0.3rem 0.75rem;font-size:0.8rem;">+ Add Date</button>
-            </div>
-
-            <div class="modal-form-group">
-              <label>Leave Dates (date range)</label>
-              <div id="leaveDatesContainer" class="date-list-container"></div>
-              <button type="button" class="btn btn-secondary" id="addLeaveDate" style="margin-top:8px;padding:0.3rem 0.75rem;font-size:0.8rem;">+ Add Leave Period</button>
-            </div>
-
-            <div class="modal-form-group">
-              <label class="sc-checkbox-label">
-                <input type="checkbox" id="scMaternityLeave">
-                <span>Maternity Leave</span>
-              </label>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:10px;margin-top:16px;">
-            <button class="btn" id="scSaveBtn">Save Preferences</button>
-            <button class="btn btn-secondary" id="scClearBtn">Clear Preferences</button>
-          </div>
-        </div>
-
       </section>
 
     </div><!-- /.panels-container -->
@@ -706,11 +657,11 @@
   </div>
 
   <nav class="bottom-nav" aria-label="Primary">
-    <button type="button" class="bn-item" data-go="0"><svg class="bn-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Home</span></button>
-    <button type="button" class="bn-item" data-go="1"><svg class="bn-ic" viewBox="0 0 24 24" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>Optimize</span></button>
-    <button type="button" class="bn-item" data-go="2"><svg class="bn-ic" viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Reports</span></button>
-    <button type="button" class="bn-item" data-go="3"><svg class="bn-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Faculty</span></button>
-    <button type="button" class="bn-item" data-go="4"><svg class="bn-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
+    <button type="button" class="bn-item" data-go="0"><span class="bn-ic ic ic-dashboard" aria-hidden="true"></span><span>Home</span></button>
+    <button type="button" class="bn-item" data-go="1"><span class="bn-ic ic ic-optimize" aria-hidden="true"></span><span>Optimize</span></button>
+    <button type="button" class="bn-item" data-go="2"><span class="bn-ic ic ic-reports" aria-hidden="true"></span><span>Reports</span></button>
+    <button type="button" class="bn-item" data-go="3"><span class="bn-ic ic ic-faculty" aria-hidden="true"></span><span>Faculty</span></button>
+    <button type="button" class="bn-item" data-go="4" aria-label="Rooms"><span class="bn-ic ic ic-rooms" aria-hidden="true"></span><span>Rooms</span></button>
   </nav>
 
   <!-- Toast notification -->

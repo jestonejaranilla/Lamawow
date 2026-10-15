@@ -11,7 +11,7 @@ body.page-landing { display: flex; flex-direction: column; height: 100vh; height
 }
 .ld-btn-lg { min-height: 54px; padding: 0 30px; font-size: 1rem; }
 .ld-btn-solid { color: #fff; background: var(--clr-primary-500); box-shadow: 0 8px 20px rgba(192, 68, 10, 0.25); }
-.ld-btn-solid:hover { color: #fff; background: var(--clr-primary-600); transform: translateY(-1px); }
+.ld-btn-solid:hover { color: #fff; background: var(--btn-hover); transform: translateY(-1px); }
 .ld-btn-line { color: var(--text-primary); background: transparent; border-color: var(--border-strong); }
 .ld-btn-line:hover { color: var(--clr-primary-600); border-color: var(--clr-primary-500); background: var(--bg-surface); }
 

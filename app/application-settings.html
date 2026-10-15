@@ -14,6 +14,7 @@
   <script src="../assets/js/app-core.js"></script>
   <link rel="stylesheet" href="../assets/css/main-style.css">
   <link rel="stylesheet" href="../assets/css/app-style.css">
+  <script src="../assets/js/solver-settings.js" defer></script>
   <script src="../assets/js/app-script.js" defer></script>
 </head>
 <body class="page-app" data-page="settings">
@@ -28,6 +29,58 @@
   <div class="app-shell">
     <nav class="app-nav" id="appNav" aria-label="Menu"></nav>
     <main class="app-content">
+      <section class="app-card" id="solver" hidden>
+        <h2>Solver settings</h2>
+        <p class="app-hint">Applies on the next optimization run of <strong id="solverDept"></strong>. Each department keeps its own values.</p>
+        <div class="app-field-grid">
+          <div>
+            <h3 class="app-subhead">CP-SAT &amp; Engine</h3>
+          <div class="app-field">
+            <label for="sysMaxUnits">Standard Max Units<span class="info-tip" tabindex="0" role="note" aria-label="Used for chart colors and overload warnings." data-tip="Used for chart colors and overload warnings.">i</span></label>
+            <input class="app-input" type="number" id="sysMaxUnits" inputmode="decimal" min="1" max="40" step="1">
+            <p class="app-error" id="err-sysMaxUnits" role="alert" hidden></p>
+          </div>
+          <div class="app-field">
+            <label for="sysUnitsPerAssignment">Units Per Assignment<span class="info-tip" tabindex="0" role="note" aria-label="How many units each scheduled slot counts as." data-tip="How many units each scheduled slot counts as.">i</span></label>
+            <input class="app-input" type="number" id="sysUnitsPerAssignment" inputmode="decimal" min="1" max="10" step="1">
+            <p class="app-error" id="err-sysUnitsPerAssignment" role="alert" hidden></p>
+          </div>
+          <div class="app-field">
+            <label for="sysCpSatTimeLimit">CP-SAT Time Limit (seconds)<span class="info-tip" tabindex="0" role="note" aria-label="Max solver time before falling back to backtracking." data-tip="Max solver time before falling back to backtracking.">i</span></label>
+            <input class="app-input" type="number" id="sysCpSatTimeLimit" inputmode="decimal" min="5" max="40" step="1">
+            <p class="app-error" id="err-sysCpSatTimeLimit" role="alert" hidden></p>
+          </div>
+          </div>
+          <div>
+            <h3 class="app-subhead">Genetic Algorithm</h3>
+          <div class="app-field">
+            <label for="populationSize">Population Size</label>
+            <input class="app-input" type="number" id="populationSize" inputmode="decimal" min="4" max="100" step="1">
+            <p class="app-hint">Candidate schedules per generation (4 to 100).</p><p class="app-error" id="err-populationSize" role="alert" hidden></p>
+          </div>
+          <div class="app-field">
+            <label for="numGenerations">Generations</label>
+            <input class="app-input" type="number" id="numGenerations" inputmode="decimal" min="1" max="200" step="1">
+            <p class="app-hint">How many GA iterations to run (1 to 200).</p><p class="app-error" id="err-numGenerations" role="alert" hidden></p>
+          </div>
+          <div class="app-field">
+            <label for="mutationRate">Mutation Rate</label>
+            <input class="app-input" type="number" id="mutationRate" inputmode="decimal" min="0" max="1" step="0.01">
+            <p class="app-hint">Probability of schedule mutation (0 to 1).</p><p class="app-error" id="err-mutationRate" role="alert" hidden></p>
+          </div>
+          <div class="app-field">
+            <label for="crossoverRate">Crossover Rate</label>
+            <input class="app-input" type="number" id="crossoverRate" inputmode="decimal" min="0" max="1" step="0.01">
+            <p class="app-hint">Rate of combining parent schedules (0 to 1).</p><p class="app-error" id="err-crossoverRate" role="alert" hidden></p>
+          </div>
+          </div>
+        </div>
+        <div class="app-actions">
+          <button type="button" class="app-btn app-btn-primary" id="btnSaveSolver">Save</button>
+          <button type="button" class="app-btn" id="btnRestoreSolver">Restore defaults</button>
+        </div>
+      </section>
+
       <section class="app-card">
         <h2>Display</h2>
         <div class="app-row">

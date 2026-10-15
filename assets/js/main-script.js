@@ -37,20 +37,14 @@ const DAY_ORDER = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5 };
 
 // MAX_UNITS is now dynamic - read from Settings (localStorage), default 24
 function getMaxUnits() {
-  try {
-    const s = JSON.parse(localStorage.getItem(dk('systemSettings')) || '{}');
-    return parseInt(s.max_units) || 24;
-  } catch { return 24; }
+  return window.atlasSolver.read(DEPT).max_units;
 }
 // Keep a live reference updated on each access
 Object.defineProperty(window, 'MAX_UNITS', { get: getMaxUnits });
 
 // UNITS_PER_ASSIGNMENT - dynamic, read from Settings (localStorage), default 2
 function getUnitsPerAssignment() {
-  try {
-    const s = JSON.parse(localStorage.getItem(dk('systemSettings')) || '{}');
-    return parseInt(s.units_per_assignment) || 2;
-  } catch { return 2; }
+  return window.atlasSolver.read(DEPT).units_per_assignment;
 }
 
 // Per-faculty max_units lookup (falls back to global Standard Max Units)
@@ -228,19 +222,22 @@ let reportsChart    = null;
 let reportsBarChart = null;
 let miniDashChart   = null;
 
-/* Chart palette: ATLAS rust orange with its complement (teal) and warm neutrals */
-const NIGHT = document.documentElement.getAttribute('data-theme') === 'dark';
-const THEME = {
-  ink: NIGHT ? '#f3ece4' : '#1a130e',
-  tooltipText: NIGHT ? '#1a130e' : '#fffefb',
-  muted: NIGHT ? '#a99d90' : '#6e6358',
-  grid: NIGHT ? '#352c25' : '#ece6df',
-  surface: NIGHT ? '#1f1914' : '#ffffff',
-  ok: '#2a7f86', warn: '#d9922b', bad: '#b4372b',
-  series: NIGHT
-    ? ['#e8693a', '#4fb3bb', '#f0a47a', '#8aa0b3', '#e0b27a', '#9fcfd2', '#a99d90', '#c0440a', '#7fb0b3', '#e9c9a8']
-    : ['#9a3608', '#2a7f86', '#e8693a', '#5b6b7a', '#d9a066', '#7fb0b3', '#6e6358', '#c0440a', '#a7c4c6', '#e9c9a8']
-};
+/* Chart palette: every colour comes from the --chart-* tokens in main-style.css, so light and dark
+   (and auto / schedule, which switch while the page is open) share one source of truth. */
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const THEME = { series: [] };
+function readTheme() {
+  THEME.ink = cssVar('--chart-ink');
+  THEME.tooltipText = cssVar('--chart-tooltip-text');
+  THEME.muted = cssVar('--chart-muted');
+  THEME.grid = cssVar('--chart-grid');
+  THEME.surface = cssVar('--chart-surface');
+  THEME.ok = cssVar('--chart-ok');
+  THEME.warn = cssVar('--chart-warn');
+  THEME.bad = cssVar('--chart-bad');
+  THEME.series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => cssVar('--chart-s' + i));
+}
+readTheme();
 
 function styleChartDefaults() {
   const d = Chart.defaults;
@@ -257,6 +254,32 @@ function styleChartDefaults() {
     padding: 10, cornerRadius: 8, boxPadding: 4, displayColors: false
   });
 }
+
+/* Theme changed (light/dark/auto/schedule): re-read the tokens, recolour every chart and redraw. */
+function applyChartTheme() {
+  if (typeof Chart === 'undefined') return;
+  const old = { ok: THEME.ok, warn: THEME.warn, bad: THEME.bad, series: THEME.series.slice() };
+  readTheme();
+  const map = new Map([[old.ok, THEME.ok], [old.warn, THEME.warn], [old.bad, THEME.bad]]);
+  old.series.forEach((c, i) => { if (!map.has(c)) map.set(c, THEME.series[i]); });
+  const remap = c => (map.has(c) ? map.get(c) : c);
+  styleChartDefaults();
+  [dashboardChart, miniDashChart, reportsChart, reportsBarChart].forEach(ch => {
+    if (!ch) return;
+    ch.data.datasets.forEach(ds => {
+      if (Array.isArray(ds.backgroundColor)) ds.backgroundColor = ds.backgroundColor.map(remap);
+      else if (ds.backgroundColor) ds.backgroundColor = remap(ds.backgroundColor);
+    });
+    const sc = ch.options.scales || {};
+    Object.values(sc).forEach(ax => { if (ax.grid && ax.grid.color) ax.grid.color = THEME.grid; });
+    ch.update('none');
+  });
+  if (reportsChart) {
+    reportsChart.data.datasets.forEach(ds => { ds.borderColor = THEME.surface; });
+    reportsChart.update('none');
+  }
+}
+new MutationObserver(applyChartTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
 function initCharts() {
   if (typeof Chart === 'undefined') { console.warn('Chart.js is not loaded; charts are skipped.'); return; }
@@ -976,10 +999,8 @@ let currentRun = null;          // {dept, run_id} of the run this session starte
 const progressFill = document.querySelector('#gaProgressBar .fill');
 
 async function triggerGARunAPI() {
-  const population  = document.getElementById('populationSize').value;
-  const generations = document.getElementById('numGenerations').value;
-  const mutation    = document.getElementById('mutationRate').value;
-  const crossover   = document.getElementById('crossoverRate').value;
+  const sysCfg = getSystemSettings();      // read at click time: a change made in the menu settings applies now
+  const { population, generations, mutation, crossover } = sysCfg;
 
   if (!ATLAS_CURRICULUM) await loadCurriculumData();
   if (!ATLAS_CURRICULUM) {
@@ -1016,16 +1037,14 @@ async function triggerGARunAPI() {
   // Load soft constraints and include in payload for backend scoring
   const softConstraints = loadSoftConstraintsFromStorage();
 
-  const sysCfg = getSystemSettings();
-
   const payload = {
     dept:             DEPT,
     faculty:          getFacultyFromTable(),
     subjects:         expandedSubjects,
-    population:       Number(population),
-    generations:      Number(generations),
-    mutation:         Number(mutation),
-    crossover:        Number(crossover),
+    population,
+    generations,
+    mutation,
+    crossover,
     soft_constraints: softConstraints,
     active_semester:  mode ? mode.semester : null,
     class_sizes:      getClassSizes(),
@@ -2274,7 +2293,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   initRoomManagement();
   initClassSizesManagement();
   initAcademicMode();
-  initSystemSettings();
+  refreshSolverSummary();
+  window.addEventListener('pageshow', refreshSolverSummary);
+  window.addEventListener('focus', refreshSolverSummary);
+  window.addEventListener('storage', refreshSolverSummary);
 
   // Load faculty
   const savedFaculty = loadFacultyFromStorage();
@@ -2398,41 +2420,17 @@ function filterResultBySemester(data) {
 }
 
 /* ============================================================
-   SYSTEM SETTINGS (units_per_assignment, cp_sat_time_limit, max_units display)
+   SYSTEM SETTINGS (max_units, units_per_assignment, cp_sat_time_limit, GA parameters)
    ============================================================ */
+// The values are edited in app/application-settings.html and kept by assets/js/solver-settings.js
+// (one source of truth). Every call reads storage again.
 function getSystemSettings() {
-  try {
-    const s = JSON.parse(localStorage.getItem(dk('systemSettings')) || '{}');
-    return {
-      max_units:            parseInt(s.max_units)            || 24,
-      units_per_assignment: parseInt(s.units_per_assignment) || 2,
-      cp_sat_time_limit:    parseFloat(s.cp_sat_time_limit)  || 60.0,
-    };
-  } catch {
-    return { max_units: 24, units_per_assignment: 2, cp_sat_time_limit: 60.0 };
-  }
+  return window.atlasSolver.read(DEPT);
 }
 
-function saveSystemSettings(settings) {
-  try { localStorage.setItem(dk('systemSettings'), JSON.stringify(settings)); } catch { /* ignore */ }
-}
-
-function initSystemSettings() {
-  const s = getSystemSettings();
-  const inp = id => document.getElementById(id);
-  if (inp('sysMaxUnits'))           inp('sysMaxUnits').value           = s.max_units;
-  if (inp('sysUnitsPerAssignment')) inp('sysUnitsPerAssignment').value = s.units_per_assignment;
-  if (inp('sysCpSatTimeLimit'))     inp('sysCpSatTimeLimit').value     = s.cp_sat_time_limit;
-
-  document.getElementById('saveSystemSettings')?.addEventListener('click', () => {
-    const updated = {
-      max_units:            parseInt(inp('sysMaxUnits')?.value)           || 24,
-      units_per_assignment: parseInt(inp('sysUnitsPerAssignment')?.value) || 2,
-      cp_sat_time_limit:    parseFloat(inp('sysCpSatTimeLimit')?.value)   || 60.0,
-    };
-    saveSystemSettings(updated);
-    showToast('System settings saved.', 'success');
-  });
+function refreshSolverSummary() {
+  const el = document.getElementById('solverSummary');
+  if (el) el.textContent = window.atlasSolver.summary(getSystemSettings());
 }
 
 function initAcademicMode() {

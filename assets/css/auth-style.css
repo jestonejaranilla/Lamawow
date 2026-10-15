@@ -102,7 +102,7 @@ body.page-auth { display: block; height: auto; min-height: 100vh; min-height: 10
   font-size: 1.0625rem; font-weight: 600; color: #fff; background: var(--clr-primary-500); border: 0; border-radius: 999px;
   box-shadow: 0 8px 18px rgba(192, 68, 10, 0.25);
 }
-.auth-card .auth-btn:hover { background: var(--clr-primary-600); }
+.auth-card .auth-btn:hover { background: var(--btn-hover); }
 .auth-card .auth-btn:disabled { opacity: 0.6; cursor: wait; }
 .auth-card .auth-btn-google, .auth-modal .auth-btn-ghost {
   color: var(--text-primary); background: var(--bg-surface); border: 1.5px solid var(--border-default); box-shadow: none;

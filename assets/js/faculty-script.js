@@ -169,8 +169,6 @@
       menu.addEventListener('click', e => { e.stopPropagation(); menu.classList.toggle('open'); });
       document.addEventListener('click', () => menu.classList.remove('open'));
     }
-    document.querySelectorAll('[data-logout]').forEach(link =>
-      link.addEventListener('click', () => window.atlasLogout ? window.atlasLogout() : sessionStorage.clear()));
     switchPanel(window.atlasApp ? window.atlasApp.startPanel(document.querySelectorAll('.panel').length) : 0);
   }
 

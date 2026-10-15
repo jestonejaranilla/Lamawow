@@ -43,10 +43,10 @@ def login(page, dept):
 def run_engine(page, dept):
     page.evaluate(
         """d => { localStorage.setItem('academicMode::'+d, JSON.stringify({year:'2025-2026',semester:'1st Semester'}));
-            localStorage.setItem('systemSettings::'+d, JSON.stringify({max_units:24,units_per_assignment:2,cp_sat_time_limit:10})); }""",
+            localStorage.setItem('systemSettings::'+d, JSON.stringify({max_units:24,units_per_assignment:2,cp_sat_time_limit:10,
+                population:6,generations:3,mutation:0.15,crossover:0.8})); }""",
         dept)
-    page.evaluate("""() => { document.getElementById('populationSize').value = 6;
-        document.getElementById('numGenerations').value = 3; document.getElementById('runGA').click(); }""")
+    page.evaluate("document.getElementById('runGA').click()")
     page.wait_for_selector("#gaScheduleTable tbody tr td:nth-child(3)", state="attached", timeout=120_000)
     page.wait_for_function("!document.getElementById('runGA').disabled", timeout=120_000)
 

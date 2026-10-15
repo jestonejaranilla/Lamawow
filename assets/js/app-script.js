@@ -100,8 +100,7 @@
         ${svg(key, 'app-nav-ic')}<span>${label}</span>
         ${key === 'appearance' ? `<em class="app-nav-value" id="navTheme">${THEME_LABELS[app.get('theme')]}</em>` : ''}
         <svg class="app-chev" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-      </a>`).join('') + '<button type="button" class="app-btn app-btn-danger app-logout" id="appLogout">Log out</button>';
-    $('appLogout').addEventListener('click', logout);
+      </a>`).join('');
   }
 
   function renderBack() {
@@ -347,13 +346,48 @@
     paint();
   }
 
+  /* ---------- Solver settings (chairperson only; values live in atlasSolver) ---------- */
+  function initSolverSettings() {
+    const card = $('solver');
+    if (!card) return;
+    if (isFaculty || !window.atlasSolver) { card.remove(); return; }
+    const S = window.atlasSolver;
+    const ids = { max_units: 'sysMaxUnits', units_per_assignment: 'sysUnitsPerAssignment',
+      cp_sat_time_limit: 'sysCpSatTimeLimit', population: 'populationSize', generations: 'numGenerations',
+      mutation: 'mutationRate', crossover: 'crossoverRate' };
+    const showError = (k, msg) => {
+      $('err-' + ids[k]).textContent = msg || '';
+      $('err-' + ids[k]).hidden = !msg;
+      $(ids[k]).setAttribute('aria-invalid', msg ? 'true' : 'false');
+    };
+    const paint = values => Object.keys(ids).forEach(k => { $(ids[k]).value = values[k]; showError(k, ''); });
+    $('solverDept').textContent = DEPT;
+    paint(S.read(DEPT));
+    card.hidden = false;
+    $('btnSaveSolver').addEventListener('click', () => {
+      const raw = {};
+      Object.keys(ids).forEach(k => { raw[k] = $(ids[k]).value; });
+      const r = S.validate(raw);
+      Object.keys(ids).forEach(k => showError(k, r.errors[k]));
+      if (Object.keys(r.errors).length) return;
+      S.save(DEPT, r.values);
+      toast('Solver settings saved');
+    });
+    $('btnRestoreSolver').addEventListener('click', () => {
+      S.save(DEPT, S.DEFAULTS);
+      paint(S.DEFAULTS);
+      toast('Defaults restored');
+    });
+    if (window.location.hash === '#solver') card.scrollIntoView();
+  }
+
   /* ---------- Start ---------- */
   renderNav();
   renderBack();
   bindSwitches();
   bindSegments();
   bindTimes();
-  if (page === 'settings') initSettings();
+  if (page === 'settings') { initSettings(); initSolverSettings(); }
   if (page === 'notifications') initNotifications();
   if (page === 'account') initAccount();
   if (page === 'appearance') initAppearance();
