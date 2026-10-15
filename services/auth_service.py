@@ -117,8 +117,18 @@ def _load_profile(uid: str):
     client = get_service_client()
     if client is None:
         raise AuthError(503, "Authentication is not configured.")
-    res = (client.table("profiles").select("id,email,full_name,role,dept,faculty_id")
-           .eq("id", uid).limit(1).execute())
+    try:
+        res = (client.table("profiles").select("id,email,full_name,role,dept,faculty_id")
+               .eq("id", uid).limit(1).execute())
+    except AuthError:
+        raise
+    except Exception as exc:                # Supabase refused the server's own key, or is unreachable
+        import logging
+        logging.getLogger("atlas.auth").error(
+            "Profile lookup failed (%s). If this says 'Unregistered API key', SUPABASE_SERVICE_KEY or "
+            "SUPABASE_URL on this server does not match your Supabase project: %s", type(exc).__name__, exc)
+        raise AuthError(503, "The server could not reach its database. The administrator must check "
+                             "SUPABASE_URL and SUPABASE_SERVICE_KEY in the server settings.")
     rows = res.data or []
     return rows[0] if rows else None
 

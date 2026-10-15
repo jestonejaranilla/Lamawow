@@ -17,7 +17,8 @@ _service = None
 
 
 def _env(name: str) -> str:
-    return (os.environ.get(name) or "").strip()
+    # Render and .env files sometimes keep quotes or a trailing newline around pasted values.
+    return (os.environ.get(name) or "").strip().strip("\"'").strip()
 
 
 def is_configured() -> bool:
