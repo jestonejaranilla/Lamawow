@@ -7,6 +7,7 @@ import pathlib
 import re
 
 import pytest
+from fake_auth import FAKE_AUTH, FACULTY_PROFILE_JS, chair_profile_js, switch_dept_js
 
 CSS = (pathlib.Path(__file__).resolve().parent.parent / "assets" / "css" / "main-style.css").read_text(encoding="utf-8")
 
@@ -133,10 +134,12 @@ def test_charts_recolour_when_theme_changes():
             b = p.chromium.launch()
             page = b.new_page()
             page.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())
+            page.add_init_script(FAKE_AUTH)
             page.goto("http://localhost:5000/pages/login.html")
             page.evaluate("""() => { sessionStorage.clear(); sessionStorage.setItem('atlasRole','chairperson');
                 sessionStorage.setItem('atlasDept','IT'); sessionStorage.setItem('atlasUser','T');
                 sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph');
+                """ + chair_profile_js("'IT'") + """
                 localStorage.setItem('atlasApp', JSON.stringify({theme:'light'})); }""")
             page.goto("http://localhost:5000/pages/dashboard.html")
             page.wait_for_selector("#facultyTable tbody tr", state="attached")

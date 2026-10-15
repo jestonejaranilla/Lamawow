@@ -7,9 +7,41 @@ from config.settings import SUBJECT_TYPES
 from config.curriculum import available_departments, load_curriculum
 from routes.schedule_routes import schedule_bp
 from routes.analytics_routes import analytics_bp
+from routes.run_routes import runs_bp
+from routes.session_routes import session_bp
+from services.auth_service import ANY_ROLE, AuthError, auth_enabled, error_response, gate, require_user, scope_dept
+
+try:                                    # local development: read .env (Render sets real environment variables)
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 app = Flask(__name__)
-CORS(app)
+
+# CORS. The site is served by this same Flask app, so normal use is same-origin and needs no CORS at all.
+# ATLAS_CORS_ORIGINS (comma separated, "*" allowed) sets the allowed origins explicitly. Without it:
+# auth off (local dev) allows everything; auth on allows only the local dev ports.
+_LOCAL_ORIGINS = ["http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:5500",
+                  "http://127.0.0.1:5500", "http://localhost:3000", "http://127.0.0.1:3000"]
+
+
+def cors_origins():
+    raw = (os.environ.get("ATLAS_CORS_ORIGINS") or "").strip()
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    return _LOCAL_ORIGINS if auth_enabled() else "*"
+
+
+CORS(app, origins=cors_origins(), allow_headers=["Authorization", "Content-Type"],
+     methods=["GET", "POST", "DELETE", "OPTIONS"])
+
+app.before_request(gate)                # every endpoint except the public ones needs a valid token
+
+
+@app.errorhandler(AuthError)
+def _auth_error(e):
+    return error_response(e)
 
 # All runtime state (progress, results, analytics, class sizes, rooms, soft
 # constraints, faculty) lives per department in services/schedule_service.py.
@@ -17,6 +49,8 @@ CORS(app)
 # ── Register blueprints ───────────────────────────────────────────────────────
 app.register_blueprint(schedule_bp)
 app.register_blueprint(analytics_bp)
+app.register_blueprint(runs_bp)
+app.register_blueprint(session_bp)
 
 
 # ── Frontend (served by Flask so one command runs the whole demo) ─────────────
@@ -43,9 +77,10 @@ def static_files(folder, filename):
 
 
 @app.route("/subject-types", methods=["GET"])
+@require_user(ANY_ROLE)
 def get_subject_types():
     """Allowed specialization tags: the department's own list when ?dept= is given."""
-    dept = request.args.get("dept")
+    dept = scope_dept(request.args.get("dept") or None)
     types = SUBJECT_TYPES
     if dept:
         if dept not in available_departments():

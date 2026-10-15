@@ -144,3 +144,10 @@ body[data-role="faculty"] [data-only="chairperson"], body[data-role="chairperson
   .auth-input { background: var(--card-bg); }
   .auth-card .auth-role-card { background: var(--card-bg); }
 }
+/* privacy notice (login page) */
+.auth-privacy { margin-top: var(--space-5); padding: 14px 16px; border-radius: 16px; background: var(--bg-surface-2); border: 1px solid var(--border-default); font-size: 0.8125rem; line-height: 1.5; color: var(--text-secondary); }
+.auth-privacy h2 { margin: 0 0 var(--space-2); font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+.auth-privacy p { margin: 0 0 var(--space-2); }
+.auth-privacy p:last-child { margin-bottom: 0; }
+.auth-privacy strong { color: var(--text-primary); }
+.auth-divider[hidden], .auth-btn-google[hidden] { display: none; }

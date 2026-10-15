@@ -109,6 +109,11 @@ def _set_progress(dept: str, run_id: str = None, **kwargs) -> None:
         st.progress.update(kwargs)
 
 
+def attach_saved_run(dept: str, run_id: str, saved_run_id: str) -> None:
+    """Remember the database id of the saved copy of run `run_id` (shown in /progress)."""
+    _set_progress(dept, run_id, saved_run_id=saved_run_id)
+
+
 # ── Static lookup (per department) ────────────────────────────────────────────
 
 def build_static_lookup(dept: str) -> dict:
@@ -583,6 +588,7 @@ def start_scheduling(
     class_sizes: dict = None,
     wait: bool = False,
     run_settings: dict = None,
+    on_finish=None,
 ) -> dict:
     """
     Validate inputs, build the department's meetings, start the background job.
@@ -591,6 +597,8 @@ def start_scheduling(
     `run_settings` ({units_per_assignment, non_classroom_units, cp_sat_time_limit}) applies to
     this run only; nothing global is changed.
     wait=True runs the job in the caller's thread (tests).
+    `on_finish(dept, run_id)` is called after the job ends (done or error); it cannot change the result
+    and its errors are only printed.
     """
     st = _state(dept)
     with st.lock:
@@ -626,6 +634,12 @@ def start_scheduling(
     def job(*a):
         with _settings_cfg.run_settings(**(run_settings or {})):
             run_scheduling_job(*a)
+        if on_finish:
+            try:
+                on_finish(dept, run_id)
+            except Exception:
+                import traceback
+                traceback.print_exc()
 
     if wait:
         job(*args)

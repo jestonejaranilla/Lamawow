@@ -16,6 +16,7 @@ from werkzeug.serving import make_server
 
 import config.settings as cfg
 from app import app
+from fake_auth import FAKE_AUTH, FACULTY_PROFILE_JS, chair_profile_js, switch_dept_js
 
 DEPTS = {"IT": "Information Technology", "CS": "Computer Science", "MB": "Marine Biology",
          "ES": "Environmental Science", "MedB": "Medical Biology"}
@@ -47,11 +48,13 @@ def open_dashboard(browser, dept):
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "Failed to load resource" not in m.text else None)
+    page.add_init_script(FAKE_AUTH)
     page.goto(f"{BASE}/pages/login.html")
     page.evaluate(
         """d => { sessionStorage.clear();
             sessionStorage.setItem('atlasRole','chairperson'); sessionStorage.setItem('atlasDept', d);
-            sessionStorage.setItem('atlasUser','Tester'); sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph'); }""",
+            sessionStorage.setItem('atlasUser','Tester'); sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph');
+            """ + chair_profile_js('d') + """ }""",
         dept)
     page.goto(f"{BASE}/pages/dashboard.html")
     page.wait_for_selector("#facultyTable tbody tr", state="attached")
@@ -192,7 +195,7 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
     assert stored(page, "IT") == it
 
     # CS keeps its own values
-    page.evaluate("sessionStorage.setItem('atlasDept', 'CS')")
+    page.evaluate(switch_dept_js('CS'))
     page.goto(SETTINGS_URL)
     assert page.input_value("#populationSize") == "50" and stored(page, "CS") is None
     fill(page, {"population": 9})
@@ -200,7 +203,7 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
     assert stored(page, "CS")["population"] == 9 and stored(page, "IT")["population"] == 7
 
     # the run request uses the IT values (read at click time, no reload after the change)
-    page.evaluate("sessionStorage.setItem('atlasDept', 'IT')")
+    page.evaluate(switch_dept_js('IT'))
     page.goto(BASE + "/pages/dashboard.html")
     page.wait_for_selector("#facultyTable tbody tr", state="attached")
     assert page.inner_text("#solverSummary") == "12 s limit, 7 population, 2 generations"
@@ -237,10 +240,12 @@ def test_faculty_account_does_not_get_the_solver_card(browser):
     ctx = browser.new_context()
     ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())
     page = ctx.new_page()
+    page.add_init_script(FAKE_AUTH)
     page.goto(f"{BASE}/pages/login.html")
     page.evaluate("""() => { sessionStorage.clear(); sessionStorage.setItem('atlasRole','faculty');
         sessionStorage.setItem('atlasDept','IT'); sessionStorage.setItem('atlasUser','Prof. Maria Santos');
-        sessionStorage.setItem('atlasFaculty','Prof. Maria Santos'); sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph'); }""")
+        sessionStorage.setItem('atlasFaculty','Prof. Maria Santos'); sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph');
+        """ + FACULTY_PROFILE_JS + """ }""")
     page.goto(SETTINGS_URL + "#solver")
     page.wait_for_selector("main .app-card")
     assert page.locator("#solver").count() == 0

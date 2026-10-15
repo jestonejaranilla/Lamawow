@@ -18,6 +18,8 @@
   /* page served by Flask on :5000 -> same origin; other localhost / 127.0.0.1 ports -> the local
      backend; anything else (Render static site, custom domain) -> the Render backend. */
   function resolveApiBase(loc) {
+    var cfg = (typeof window !== 'undefined' && window.ATLAS_CONFIG) || null;
+    if (cfg && cfg.API_BASE) return String(cfg.API_BASE).replace(/\/+$/, '');
     var host = loc && loc.hostname;
     if (host === 'localhost' || host === '127.0.0.1') {
       var port = String(loc.port || '');

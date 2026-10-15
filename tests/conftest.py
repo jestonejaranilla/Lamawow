@@ -3,6 +3,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# The existing suite runs with auth off and no database. New auth tests turn auth on with monkeypatch.
+# Empty values stop a developer's real .env from being used (load_dotenv never overrides set variables).
+os.environ.setdefault("ATLAS_AUTH", "off")
+for _k in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_KEY", "SUPABASE_JWT_SECRET",
+           "SUPABASE_JWKS_URL", "ATLAS_CORS_ORIGINS"):
+    os.environ[_k] = ""
+os.environ.pop("RENDER", None)
+
 
 """
 Shared test fixtures and the ONE faculty-pool builder used by every test.

@@ -23,7 +23,6 @@
   const dk = base => base + '::' + DEPT;
   const hasDept = Boolean(session.dept);
   let deptName = DEPT;            // replaced by the `name` of the department's file
-  const PSU_EMAIL = /^[a-zA-Z0-9._%+-]+@psu\.palawan\.edu\.ph$/i;
   const isDesktop = () => window.matchMedia('(min-width: 901px)').matches;
   const $ = id => document.getElementById(id);
 
@@ -71,8 +70,8 @@
     toast('Data downloaded');
   }
 
-  function logout() {
-    if (window.atlasLogout) window.atlasLogout(); else sessionStorage.clear();
+  async function logout() {
+    try { if (window.atlasLogout) await window.atlasLogout(); else sessionStorage.clear(); } catch { /* go to login anyway */ }
     window.location.href = LOGIN;
   }
 
@@ -264,16 +263,16 @@
 
   /* ---------- Account ---------- */
   function initAccount() {
-    const profile = app.readJSON('atlasProfile', {});
-    const isEmail = value => value.includes('@');
-    const name = isFaculty ? session.faculty : (profile.name || (isEmail(session.user) ? '' : session.user));
-    const email = isFaculty ? session.email : (profile.email || (isEmail(session.user) ? session.user : ''));
+    /* Name, email, role and department come from the profiles table (display cache); they are read only here. */
+    const name = isFaculty ? session.faculty : session.user;
+    const email = session.email;
 
     const nameInput = $('acctInputName');
     const emailInput = $('acctInputEmail');
     nameInput.value = name;
     emailInput.value = email;
-    if (isFaculty) nameInput.disabled = true;
+    nameInput.readOnly = true;
+    emailInput.readOnly = true;
 
     function paint() {
       const shown = nameInput.value.trim() || emailInput.value.trim() || 'User';
@@ -291,31 +290,6 @@
         .catch(() => { /* keep the code */ });
     }
     $('acctRole').textContent = isFaculty ? 'Faculty' : 'Department chairperson';
-
-    $('btnSaveProfile').addEventListener('click', () => {
-      const error = $('acctError');
-      const newName = nameInput.value.trim();
-      const newEmail = emailInput.value.trim();
-      if (!newName && !newEmail) { error.textContent = 'Enter your name or email.'; error.hidden = false; return; }
-      if (newEmail && !PSU_EMAIL.test(newEmail)) {
-        error.textContent = 'Use your PSU corporate email (name@psu.palawan.edu.ph).';
-        error.hidden = false;
-        return;
-      }
-      error.hidden = true;
-      if (isFaculty) {
-        const profiles = app.readJSON('facultyProfiles', {});
-        profiles[session.faculty] = { email: newEmail, dept: session.dept };
-        writeLocal('facultyProfiles', profiles);
-        sessionStorage.setItem('atlasEmail', newEmail);
-      } else {
-        writeLocal('atlasProfile', { name: newName, email: newEmail });
-        sessionStorage.setItem('atlasUser', newName || newEmail);
-        sessionStorage.setItem('atlasEmail', newEmail);
-      }
-      paint();
-      toast('Profile saved');
-    });
 
     $('btnExport').addEventListener('click', exportAll);
     $('btnClearAll').addEventListener('click', () => {

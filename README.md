@@ -66,9 +66,9 @@ This is a capstone thesis project built between April and July 2026.
 
 - The scheduling engine, analytics, chairperson dashboard, and faculty dashboard are built and running on a Flask backend with a vanilla JavaScript frontend.
 
-- Data is held in memory and in files. There is no persistent database yet. A Postgres backend is planned once the scheduling logic is fully validated.
+- Finished runs are saved to Supabase (Postgres) as drafts, and the chairperson can save, approve or delete them. Faculty and scheduling working data still live in the browser and in memory until the next database step.
 
-- Login does not perform real authentication yet. It starts a browser session and routes the user by role.
+- Sign in uses Supabase Auth (email and password). Roles and departments come from the `profiles` table and the Flask API checks them on every request. "Sign in with Google" is built but hidden until a Google provider is set up.
 
 - No department chairperson has adopted or piloted the system. Only evaluation against actual chairperson use can show whether it beats the manual process on fairness, efficiency, and assignment quality.
 
@@ -222,7 +222,7 @@ The chairperson reviews assignments in the timetable grid and analytics panels, 
 
 **Faculty side**
 
-- Faculty sign in by choosing their name from the faculty list saved in the browser
+- Faculty sign in with their own PSU account, which is linked to one faculty record (`profiles.faculty_id`)
 
 - Personal schedule grouped by day, with Today, In progress, and Done markers
 
@@ -262,7 +262,7 @@ The system is organized around five functional processes derived from the Data F
 
 
 
-**P1 - Authentication:** Establishes a session and routes the user by role (chairperson or faculty).
+**P1 - Authentication:** Supabase Auth signs the user in; the profile (role, department) decides the dashboard, and every API call carries the access token.
 
 
 
@@ -402,7 +402,7 @@ models/                       Data classes (faculty, subject, room, schedule). N
 
 pages/
 
-  login.html                  Role (chairperson or faculty), sign in / sign up
+  login.html                  Email and password sign in (Supabase Auth), privacy notice
 
   dashboard.html              Chairperson app: Dashboard, Optimization, Reports,
 
@@ -456,7 +456,10 @@ assets/
 
   js/faculty-script.js        Faculty logic: schedule from cache, live clock, reminders, settings
 
-  js/login-script.js          Login and sign up for both roles
+  js/login-script.js          Sign in, profile check, routing by role
+  js/config.js                Public browser config (Supabase URL, anon key, API base)
+  js/supabase-client.js       The shared Supabase client (window.atlasSupabase)
+  vendor/supabase.js          supabase-js 2.58.0 (UMD build, no CDN)
 
   js/app-core.js              Device preferences (theme, text size, alerts), loaded first on every page
 
@@ -536,7 +539,27 @@ Open `http://localhost:5000` in your browser.
 
 
 
-> Demo build: runs locally, data stays in the browser.
+> Local development: set `ATLAS_AUTH=off` in `.env` to skip token checks on the Flask side. The pages still sign in through Supabase, so fill `assets/js/config.js` first.
+
+### Authentication (Supabase Auth)
+
+1. Run `db/schema.sql` and `db/seed.sql`, create the test accounts and insert their profiles (see `db/README.md`).
+2. In `assets/js/config.js` set `SUPABASE_URL` and `SUPABASE_ANON_KEY`. The anon (publishable) key is public by design. The service key and the JWT secret go only in `.env` and in Render, never in the browser.
+3. Open `pages/login.html` and sign in. A chairperson lands on `pages/dashboard.html`, a faculty member on `faculty/dashboard.html`.
+
+How it works:
+
+- Every page except the landing page and the login page checks the real Supabase session first, loads the user's row from `profiles`, and confirms the page matches the role. Otherwise it goes to the login page. A faculty account that opens the chairperson dashboard by URL is sent to the faculty dashboard.
+- `sessionStorage` (`atlasRole`, `atlasDept`, `atlasUser`, `atlasEmail`, `atlasFaculty`) is only a display cache, refilled from the profile on every page start. Editing it changes nothing, because the server decides from the verified token.
+- `atlasFetch` (in `app-core.js`) sends `Authorization: Bearer <access token>` on every API call, retries once with a refreshed token on a 401, and signs the user out if it is still 401.
+- Log out exists only in `app/account.html`. It audits the logout, calls `supabase.auth.signOut()` and clears the session cache and the Supabase keys. Department working data in `localStorage` is kept.
+- Accounts are created by an administrator. There is no self sign up, and the browser cannot choose or change a role or department. Administrator accounts have no dashboard here.
+
+### Privacy notice (also shown on the login page and in About)
+
+- **We collect:** name, email, role, department, faculty scheduling data (specializations, unit limits, availability, preferences, leave dates), saved schedules, and an audit log (ids and counts only).
+- **We never collect:** student names, IDs or grades, passwords (Supabase Auth handles sign in), or IP tracking. Hosting providers may keep standard server logs.
+- **Who can see it:** a chairperson sees only their own department; faculty see their own preferences and leave and the approved schedule of their department; developers (admin) can see everything for maintenance.
 
 
 
@@ -565,7 +588,10 @@ Chart.js is kept in `assets/vendor/`, so the dashboard needs no CDN. On Render t
 ```bash
 python -m pytest tests -q -m "not slow"   # quick suite, about 20 seconds
 python -m pytest tests -q                 # full suite, about 11 minutes
+python -m pytest tests/test_part15.py -q  # Supabase sign in: static checks plus a Node run of app-core.js (needs Node)
 ```
+
+The Playwright tests open the dashboards with a fake Supabase (`tests/fake_auth.py`), so they need no real project.
 
 Tests marked `slow` run the solver for whole departments or open a real browser (Playwright: `pip install playwright pytest && python -m playwright install chromium`). `/run-ga` clamps its inputs (generations 1 to 200, population 4 to 100, mutation and crossover 0 to 1, solver time limit up to `CP_SAT_MAX_TIME_LIMIT_SECONDS`), answers 400 for non-numbers, and applies `units_per_assignment`, `non_classroom_units` and `cp_sat_time_limit` to that run only.
 
@@ -581,7 +607,7 @@ To install the app on a phone, serve the site over HTTPS and use the browser's "
 
 
 
-1. Finish the database layer (Postgres).
+1. Finish the database layer: faculty data, rooms, class sizes and approved schedules read from Supabase instead of the browser.
 
 2. Respondent data collection, plus usability and AI-output-quality evaluation.
 
@@ -631,7 +657,7 @@ Five departments are scheduled separately: IT, CS, MB (Marine Biology), ES (Envi
 
 **Role-based behaviour.** Every request carries `dept` (query string for GET, JSON field for POST): `/run-ga`, `/progress`, `/soft-constraints`, `/rooms`, `/class-sizes`, `/analytics*`. A missing or unknown `dept` is a 400. `GET /curricula` lists the departments and `GET /curriculum/<dept>` returns a file (404 when unknown). Once a department is chosen the backend uses only its subjects, blocks, class sizes and rooms. Progress, last result, analytics, warnings, soft constraints, class sizes and room edits are stored per department, each with its own lock, so two departments can run at the same time without touching each other. `/run-ga` returns a `run_id`, echoed by `/progress`.
 
-The browser follows the same rule. The department chosen at login (`atlasDept`) decides the curriculum file, tags, rooms, defaults and every saved key: all browser data is stored as `<name>::<dept>` (for example `lastGAResult::CS`), results and reports of one department are never shown in another, and a log out or a different login empties everything held in memory. The faculty login lists only the names saved for the department picked in the same step. **Starting data.** IT starts with a pool of 10 faculty (`default_faculty` in `IT.json`, Mon to Thu, 24 units, hard cap 30); the other four departments start with 8 editable placeholder faculty (Prof A to H). The active period starts as 2026-2027, 1st Semester, until the chairperson sets one. Class sizes and, for MB, ES and MedB, room capacities are sample data (`class_sizes_placeholder`, `capacity_placeholder`): the dashboard says so, and they must be replaced with real figures before the output is used.
+The browser follows the same rule. The department of the signed-in profile (cached in `atlasDept` for display) decides the curriculum file, tags, rooms, defaults and every saved key: all browser data is stored as `<name>::<dept>` (for example `lastGAResult::CS`), results and reports of one department are never shown in another, and a log out or a different login empties everything held in memory. The faculty login lists only the names saved for the department picked in the same step. **Starting data.** IT starts with a pool of 10 faculty (`default_faculty` in `IT.json`, Mon to Thu, 24 units, hard cap 30); the other four departments start with 8 editable placeholder faculty (Prof A to H). The active period starts as 2026-2027, 1st Semester, until the chairperson sets one. Class sizes and, for MB, ES and MedB, room capacities are sample data (`class_sizes_placeholder`, `capacity_placeholder`): the dashboard says so, and they must be replaced with real figures before the output is used.
 
 
 
@@ -639,4 +665,4 @@ The browser follows the same rule. The department chosen at login (`atlasDept`) 
 
 
 
-**Limits.** Departments are scheduled separately: cross-department room clashes are not checked. Department selection at login is not authentication.
+**Limits.** Departments are scheduled separately: cross-department room clashes are not checked. The department comes from the signed-in user's profile and is checked by the server on every request; the browser cannot choose it.

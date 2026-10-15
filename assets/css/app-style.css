@@ -182,3 +182,4 @@ html[data-motion="reduce"] input[type="checkbox"].app-switch:checked::after { tr
 .app-error { margin: 0; font-size: 0.8125rem; color: #b91c1c; }
 .app-input[aria-invalid="true"] { border-color: #b91c1c; }
 @media (max-width: 700px) { .app-field-grid { grid-template-columns: 1fr; } }
+.app-note { margin: var(--space-3) 0 0; font-size: 0.875rem; line-height: 1.5; color: var(--text-muted); }

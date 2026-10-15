@@ -161,7 +161,7 @@ async function fetchRoomDefaults() {
   const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), 6000) : null;
   try {
-    const res = await fetch(`${API_BASE}/rooms?dept=${encodeURIComponent(DEPT)}`, ctl ? { signal: ctl.signal } : {});
+    const res = await window.atlasAuth.fetch(`${API_BASE}/rooms?dept=${encodeURIComponent(DEPT)}`, ctl ? { signal: ctl.signal } : {});
     const d = await res.json();
     if (!res.ok || d.dept !== DEPT || !Array.isArray(d.lecture_rooms)) throw new Error('bad /rooms response');
     return { lecture: d.lecture_rooms, lab: d.laboratory_rooms || [], capacity: d.room_capacity || {} };
@@ -1053,7 +1053,7 @@ async function triggerGARunAPI() {
     cp_sat_time_limit:    sysCfg.cp_sat_time_limit,
   };
 
-  const response = await fetch(`${API_BASE}/run-ga`, {
+  const response = await window.atlasAuth.fetch(`${API_BASE}/run-ga`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -1087,7 +1087,7 @@ function initRunGA() {
       progressInterval = setInterval(async () => {
         try {
           if (!currentRun) return;
-          const res = await fetch(`${API_BASE}/progress?dept=${encodeURIComponent(DEPT)}&run_id=${encodeURIComponent(currentRun.run_id)}`);
+          const res = await window.atlasAuth.fetch(`${API_BASE}/progress?dept=${encodeURIComponent(DEPT)}&run_id=${encodeURIComponent(currentRun.run_id)}`);
           const status = await res.json();
           // Ignore any answer that belongs to another department or another run.
           if (!currentRun || status.dept !== DEPT || status.run_id !== currentRun.run_id) return;
@@ -2523,7 +2523,7 @@ async function loadRuntimeRooms() {
 
 async function syncRoomsToBackend() {
   try {
-    await fetch(`${API_BASE}/rooms`, {
+    await window.atlasAuth.fetch(`${API_BASE}/rooms`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2719,7 +2719,7 @@ function initClassSizesManagement() {
     saveClassSizes(sizes);
     showToast('Class sizes saved.', 'success');
     try {
-      await fetch(`${API_BASE}/class-sizes`, {
+      await window.atlasAuth.fetch(`${API_BASE}/class-sizes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dept: DEPT, ...sizes })
@@ -2913,7 +2913,7 @@ function initSoftConstraints() {
     saveSoftConstraintsToStorage(softConstraintsCache);
     showToast(`Preferences saved for ${name}.`, 'success');
     try {
-      await fetch(`${API_BASE}/soft-constraints`, {
+      await window.atlasAuth.fetch(`${API_BASE}/soft-constraints`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dept: DEPT, faculty: name, constraints })

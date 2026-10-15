@@ -4,3 +4,6 @@ ortools==9.15.6755
 requests==2.33.1
 Werkzeug==3.1.7
 gunicorn==23.0.0
+supabase==2.32.0
+PyJWT[crypto]==2.15.1
+python-dotenv==1.2.4

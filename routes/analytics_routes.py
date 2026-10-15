@@ -10,6 +10,7 @@ from services.schedule_service import (
     get_progress, get_soft_constraints, get_static_lookup, get_faculty, get_class_sizes, get_rooms,
 )
 from services.analytics_service import compute_analytics
+from services.auth_service import STAFF, require_user
 
 analytics_bp = Blueprint("analytics", __name__)
 
@@ -29,6 +30,7 @@ def _ok(data=None, metrics=None, warnings=None):
 
 
 @analytics_bp.route("/analytics", methods=["GET"])
+@require_user(STAFF)
 def get_analytics():
     """Return analytics for the most recent completed schedule."""
     dept = request_dept()
@@ -56,6 +58,7 @@ def get_analytics():
 
 
 @analytics_bp.route("/analytics/workload", methods=["GET"])
+@require_user(STAFF)
 def get_workload():
     """Workload distribution subset."""
     p = get_progress(request_dept())
@@ -67,6 +70,7 @@ def get_workload():
 
 
 @analytics_bp.route("/analytics/specialization", methods=["GET"])
+@require_user(STAFF)
 def get_specialization():
     p = get_progress(request_dept())
     analytics = p.get("analytics", {})
@@ -74,6 +78,7 @@ def get_specialization():
 
 
 @analytics_bp.route("/analytics/rooms", methods=["GET"])
+@require_user(STAFF)
 def get_room_analytics():
     p = get_progress(request_dept())
     analytics = p.get("analytics", {})
@@ -81,6 +86,7 @@ def get_room_analytics():
 
 
 @analytics_bp.route("/analytics/satisfaction", methods=["GET"])
+@require_user(STAFF)
 def get_satisfaction():
     p = get_progress(request_dept())
     analytics = p.get("analytics", {})

@@ -11,6 +11,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/vendor/supabase.js"></script>
+  <script src="../assets/js/supabase-client.js"></script>
   <script src="../assets/js/app-core.js"></script>
   <link rel="stylesheet" href="../assets/css/main-style.css">
   <link rel="stylesheet" href="../assets/css/app-style.css">
@@ -45,7 +48,8 @@
         <details class="about-item"><summary>Who made it</summary><div class="about-body"><p>Arthur V. Baldosano Jr., sole full-stack developer and researcher: requirements, system design, the Flask backend, the scheduling engine and this interface.</p></div></details>
         <details class="about-item"><summary>Status</summary><div class="about-body"><ul><li>Proposal prototype defense completed. Final thesis defense ahead.</li><li>Data is held in memory and files. A Postgres database is planned.</li><li>Not yet piloted by a department chairperson.</li></ul></div></details>
         <details class="about-item"><summary>Technology</summary><div class="about-body"><p>Python, Flask, Google OR-Tools CP-SAT, a custom genetic algorithm, vanilla JavaScript, Chart.js. Installable as a web app.</p></div></details>
-        <details class="about-item"><summary>Your data</summary><div class="about-body"><p>Schedules and settings stay in this browser. Only the optimization request goes to the server. Sign in does not perform real authentication yet.</p></div></details>
+        <details class="about-item"><summary>Your data</summary><div class="about-body"><p>You sign in with your PSU account through Supabase Auth. Your role and department come from your profile, and the server checks them on every request. Finished runs are saved to the database as drafts until the chairperson saves or approves them. Some working data and settings also stay in this browser.</p></div></details>
+        <details class="about-item"><summary>Privacy notice</summary><div class="about-body"><p><strong>We collect:</strong></p><ul><li>Your name, email, role and department.</li><li>Faculty scheduling data: specializations, unit limits, availability, preferences and leave dates.</li><li>Saved schedules.</li><li>An audit log of who did what and when (ids and counts only, never schedule content or personal data).</li></ul><p><strong>We never collect:</strong></p><ul><li>Student names, student IDs or grades.</li><li>Your password. Supabase Auth handles sign in and we never see it.</li><li>IP tracking. Our hosting providers may keep standard server logs.</li></ul><p><strong>Who can see it:</strong></p><ul><li>A chairperson sees only their own department.</li><li>Faculty see their own preferences and leave, and the approved schedule of their department.</li><li>Developers (admin) can see everything for maintenance.</li></ul></div></details>
       </section>
     </main>
   </div>

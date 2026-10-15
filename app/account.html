@@ -11,6 +11,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/vendor/supabase.js"></script>
+  <script src="../assets/js/supabase-client.js"></script>
+  <script src="../assets/js/display.js"></script>
   <script src="../assets/js/app-core.js"></script>
   <link rel="stylesheet" href="../assets/css/main-style.css">
   <link rel="stylesheet" href="../assets/css/app-style.css">
@@ -40,24 +44,21 @@
         <h2>Profile</h2>
         <div class="app-field">
           <label for="acctInputName">Name</label>
-          <input type="text" class="app-input" id="acctInputName" autocomplete="name" autocapitalize="words">
+          <input type="text" class="app-input" id="acctInputName" autocomplete="name" autocapitalize="words" readonly>
         </div>
         <div class="app-field">
           <label for="acctInputEmail">Corporate email</label>
-          <input type="text" class="app-input" id="acctInputEmail" inputmode="email" autocomplete="username" autocapitalize="none" placeholder="name@psu.palawan.edu.ph">
+          <input type="text" class="app-input" id="acctInputEmail" inputmode="email" autocomplete="username" autocapitalize="none" placeholder="name@psu.palawan.edu.ph" readonly>
         </div>
         <div class="app-row"><div class="app-row-text"><strong>Department</strong></div><span class="app-value" id="acctDept"></span></div>
         <div class="app-row"><div class="app-row-text"><strong>Role</strong></div><span class="app-value" id="acctRole"></span></div>
-        <div class="app-error" id="acctError" hidden></div>
-        <div class="app-actions">
-          <button type="button" class="app-btn app-btn-primary" id="btnSaveProfile">Save changes</button>
-        </div>
+        <p class="app-note">Name, email, role and department come from your profile and are managed by your administrator.</p>
       </section>
 
       <section class="app-card">
         <h2>Security</h2>
         <div class="app-row app-row-disabled">
-          <div class="app-row-text"><strong>Password</strong><span>Available once sign in uses a database</span></div>
+          <div class="app-row-text"><strong>Password</strong><span>Password changes are not available yet</span></div>
         </div>
       </section>
 

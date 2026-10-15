@@ -516,6 +516,9 @@
     $('fsProfileFaculty').value = session.name;
     $('fsProfileEmail').value = session.email;
     $('fsProfileDept').textContent = session.dept ? deptName + ' Department' : 'Not set';
+    $('fsProfileFaculty').disabled = true;      // identity comes from the profiles table
+    $('fsProfileEmail').readOnly = true;
+    $('fsSaveProfile').hidden = true;
   }
 
   function renderDataInfo() {

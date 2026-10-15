@@ -15,6 +15,7 @@ from werkzeug.serving import make_server
 
 import config.settings as cfg
 from app import app
+from fake_auth import FAKE_AUTH, FACULTY_PROFILE_JS, chair_profile_js, switch_dept_js
 
 BASE = "http://localhost:5000"
 
@@ -30,11 +31,13 @@ SECTION = re.compile(r"\b(IT|CS|MB|ES|MedB)\d[Bb]\d\b")
 
 
 def login(page, dept):
+    page.add_init_script(FAKE_AUTH)
     page.goto(f"{BASE}/pages/login.html")
     page.evaluate(
         """d => { sessionStorage.clear();
             sessionStorage.setItem('atlasRole','chairperson'); sessionStorage.setItem('atlasDept', d);
-            sessionStorage.setItem('atlasUser','Tester'); sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph'); }""",
+            sessionStorage.setItem('atlasUser','Tester'); sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph');
+            """ + chair_profile_js('d') + """ }""",
         dept)
     page.goto(f"{BASE}/pages/dashboard.html")
     page.wait_for_selector("#facultyTable tbody tr", state="attached")

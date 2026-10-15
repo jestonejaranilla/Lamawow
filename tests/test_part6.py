@@ -84,7 +84,7 @@ def test_elective_only_course_counts_as_match_in_any_department():
 def test_login_script_never_reads_an_unsuffixed_data_key():
     js = read("assets/js/login-script.js")
     assert not re.search(r"""readJSON\(\s*['"]facultyData['"]""", js)
-    assert "'facultyData::' + dept" in js
+    assert "facultyData" not in js and "localStorage" not in js      # Part 15: sign in reads no browser data at all
 
 
 def test_dashboard_uses_no_cdn_and_chart_is_served():

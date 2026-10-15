@@ -195,3 +195,208 @@
     if (query.addEventListener) query.addEventListener('change', onChange);
   }
 })();
+
+/* ============================================================
+   Supabase Auth: session check, role gate, API calls with a Bearer token, logout.
+   sessionStorage atlasRole / atlasDept / atlasUser / atlasEmail / atlasFaculty are only a DISPLAY cache,
+   refilled from the profiles table on every page start. They are never trusted: the Flask API decides
+   from the verified token, and every protected page re-checks the real Supabase session first.
+   ============================================================ */
+(function atlasAuthModule() {
+  'use strict';
+  var CACHE_KEYS = ['atlasRole', 'atlasDept', 'atlasUser', 'atlasEmail', 'atlasFaculty'];
+  var scriptSrc = (document.currentScript && document.currentScript.src) || location.href;
+  var LOGIN_URL = new URL('../../pages/login.html', scriptSrc).href;
+  var DASH = {
+    chairperson: new URL('../../pages/dashboard.html', scriptSrc).href,
+    faculty: new URL('../../faculty/dashboard.html', scriptSrc).href
+  };
+  var cfg = window.ATLAS_CONFIG || {};
+  var loggingOut = false;
+
+  function sb() { return window.atlasSupabase || null; }
+
+  function pageKind() {
+    var p = location.pathname.replace(/\\/g, '/');
+    if (/\/pages\/login\.html$/.test(p)) return 'login';
+    if (/\/pages\/dashboard\.html$/.test(p)) return 'chairperson';
+    if (/\/faculty\/[^/]*$/.test(p)) return 'faculty';
+    if (/\/app\/[^/]*$/.test(p)) return 'any';
+    return 'public';
+  }
+
+  function apiBase() {
+    if (cfg.API_BASE) return String(cfg.API_BASE).replace(/\/+$/, '');
+    if (window.AtlasDisplay && window.AtlasDisplay.resolveApiBase) return window.AtlasDisplay.resolveApiBase(location);
+    return location.origin;
+  }
+
+  function clearLocalAuth() {
+    try { sessionStorage.clear(); } catch (e) { /* storage unavailable */ }
+    try {
+      var drop = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && (k.indexOf('sb-') === 0 || k === 'atlasRememberedEmail')) drop.push(k);
+      }
+      drop.forEach(function (k) { localStorage.removeItem(k); });
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  function redirect(reason) {
+    location.replace(LOGIN_URL + (reason ? '?reason=' + encodeURIComponent(reason) : ''));
+  }
+
+  async function signOutAndRedirect(reason) {
+    try { if (sb()) await sb().auth.signOut(); } catch (e) { /* already signed out */ }
+    clearLocalAuth();
+    redirect(reason);
+  }
+
+  /* The real session and profile. Resolves {user} or {error}:
+     config, nosession, offline, noprofile, nodept, nofaculty, admin */
+  async function loadUser() {
+    var client = sb();
+    if (!client) return { error: 'config' };
+    var s = await client.auth.getSession();
+    var session = s && s.data && s.data.session;
+    if (!session) return { error: 'nosession' };
+    var q = await client.from('profiles').select('id,email,full_name,role,dept,faculty_id')
+      .eq('id', session.user.id).maybeSingle();
+    if (q.error) return { error: 'offline' };
+    var p = q.data;
+    if (!p) return { error: 'noprofile' };
+    if (p.role === 'admin') return { error: 'admin' };
+    if (p.role !== 'chairperson' && p.role !== 'faculty') return { error: 'noprofile' };
+    if (!p.dept) return { error: 'nodept' };
+    var facultyName = '';
+    if (p.role === 'faculty') {
+      if (!p.faculty_id) return { error: 'nofaculty' };
+      var f = await client.from('faculty').select('name').eq('id', p.faculty_id).maybeSingle();
+      if (f.error) return { error: 'offline' };
+      if (!f.data) return { error: 'nofaculty' };
+      facultyName = f.data.name;
+    }
+    return {
+      user: {
+        id: session.user.id, role: p.role, dept: p.dept, facultyName: facultyName,
+        email: p.email || session.user.email || '', name: p.full_name || p.email || ''
+      }
+    };
+  }
+
+  /* Fill the display cache from the profile. True when something changed. */
+  function applyCache(u) {
+    var want = {
+      atlasRole: u.role, atlasDept: u.dept, atlasUser: u.name, atlasEmail: u.email,
+      atlasFaculty: u.role === 'faculty' ? u.facultyName : ''
+    };
+    var changed = false;
+    CACHE_KEYS.forEach(function (k) {
+      var cur = sessionStorage.getItem(k) || '';
+      if (cur === want[k]) return;
+      changed = true;
+      if (want[k]) sessionStorage.setItem(k, want[k]); else sessionStorage.removeItem(k);
+    });
+    return changed;
+  }
+
+  /* ---------- the page-start check ---------- */
+  var kind = pageKind();
+  var guarded = kind === 'chairperson' || kind === 'faculty' || kind === 'any';
+  var auth = { user: null, kind: kind, LOGIN_URL: LOGIN_URL, DASH: DASH };
+
+  function never() { return new Promise(function () { /* the page is navigating away */ }); }
+
+  if (!guarded) {
+    auth.ready = Promise.resolve(null);
+  } else {
+    document.documentElement.style.visibility = 'hidden';        // nothing shows before the check
+    auth.ready = (async function () {
+      var r;
+      try { r = await loadUser(); } catch (e) { r = { error: 'offline' }; }
+      if (r.error === 'offline' || r.error === 'config') { redirect(r.error); return never(); }
+      if (r.error === 'nosession') { clearLocalAuth(); redirect('expired'); return never(); }
+      if (r.error) { await signOutAndRedirect(r.error); return never(); }
+      var u = r.user;
+      if (kind !== 'any' && kind !== u.role) {                     // wrong page for this role
+        applyCache(u);
+        location.replace(DASH[u.role]);
+        return never();
+      }
+      var changed = applyCache(u);
+      if (changed && !sessionStorage.getItem('atlasAuthReload')) {  // page scripts already ran on a stale cache
+        sessionStorage.setItem('atlasAuthReload', '1');
+        location.reload();
+        return never();
+      }
+      sessionStorage.removeItem('atlasAuthReload');
+      auth.user = u;
+      document.documentElement.style.visibility = '';
+      return u;
+    })();
+    if (sb()) {
+      sb().auth.onAuthStateChange(function (event) {              // signed out in another tab
+        if (event === 'SIGNED_OUT' && !loggingOut) { clearLocalAuth(); redirect('signedout'); }
+      });
+    }
+  }
+
+  /* ---------- API calls ---------- */
+  async function accessToken(forceRefresh) {
+    var client = sb();
+    if (!client) return null;
+    if (forceRefresh) {
+      var r = await client.auth.refreshSession();
+      return r && r.data && r.data.session ? r.data.session.access_token : null;
+    }
+    var s = await client.auth.getSession();           // supabase-js refreshes an expiring token here
+    return s && s.data && s.data.session ? s.data.session.access_token : null;
+  }
+
+  /* The one fetch wrapper for the Flask API: waits for the page check, adds the Bearer token,
+     retries once with a fresh token on a 401, and signs out + goes to login if it is still 401. */
+  async function authFetch(url, opts) {
+    await auth.ready;
+    opts = opts || {};
+    function send(token) {
+      var h = new Headers(opts.headers || {});
+      if (token) h.set('Authorization', 'Bearer ' + token);
+      return fetch(url, Object.assign({}, opts, { headers: h }));
+    }
+    var res = await send(await accessToken(false));
+    if (res.status === 401) {
+      var fresh = await accessToken(true);
+      if (fresh) res = await send(fresh);
+      if (res.status === 401) await signOutAndRedirect('expired');
+    }
+    return res;
+  }
+
+  /* ---------- logout (the only caller is app/account.html) ---------- */
+  async function logout() {
+    loggingOut = true;
+    try { window.dispatchEvent(new CustomEvent('atlas:logout')); } catch (e) { /* ignore */ }
+    var client = sb();
+    if (client) {
+      try {
+        var t = await accessToken(false);
+        if (t) await fetch(apiBase() + '/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + t } });
+      } catch (e) { /* the audit row is best effort */ }
+      try { await client.auth.signOut(); } catch (e) { /* ignore */ }
+    }
+    clearLocalAuth();
+  }
+
+  auth.fetch = authFetch;
+  auth.accessToken = accessToken;
+  auth.loadUser = loadUser;
+  auth.applyCache = applyCache;
+  auth.clearLocalAuth = clearLocalAuth;
+  auth.apiBase = apiBase;
+  auth.logout = logout;
+  window.atlasAuth = auth;
+  window.atlasFetch = authFetch;
+  window.atlasLogout = logout;
+  if (window.atlasDept) window.atlasDept.logout = logout;
+})();

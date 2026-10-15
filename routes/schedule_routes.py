@@ -5,6 +5,8 @@ field of the JSON body (POST; the query parameter also works). A missing or
 unknown department is a 400, except GET /curriculum/<dept> which answers 404.
 """
 
+import time
+
 from flask import Blueprint, jsonify, request
 
 from config.settings import CP_SAT_MAX_TIME_LIMIT_SECONDS
@@ -14,8 +16,12 @@ from config.curriculum import (
 )
 from services.schedule_service import (
     start_scheduling, get_progress, get_soft_constraints, set_soft_constraint, check_dept,
-    get_class_sizes, update_class_sizes, update_rooms, get_rooms,
+    get_class_sizes, update_class_sizes, update_rooms, get_rooms, attach_saved_run,
 )
+
+from services.auth_service import STAFF, current_user, require_user, scope_dept
+from services.audit_service import audit
+from services import run_store
 
 schedule_bp = Blueprint("schedule", __name__)
 
@@ -35,10 +41,11 @@ def _err(msg: str, code: int = 400):
 
 def request_dept(body=None) -> str:
     """The department of this request (query string first, then JSON body)."""
-    d = request.args.get("dept")
-    if not d and isinstance(body, dict):
-        d = body.get("dept")
-    return check_dept(d)
+    q = request.args.get("dept") or None
+    b = body.get("dept") if isinstance(body, dict) else None
+    # Signed-in chairperson / faculty: always their own department; naming another one is a 403.
+    # Admin and local dev (ATLAS_AUTH=off): the department named in the request.
+    return check_dept(scope_dept(q, b or None))
 
 
 @schedule_bp.errorhandler(UnknownDepartment)
@@ -64,28 +71,34 @@ def _rooms_payload(dept, rs, saved=None):
 # ── /rooms - this department's rooms ──────────────────────────────────────────
 
 @schedule_bp.route("/rooms", methods=["GET"])
+@require_user(STAFF)
 def get_rooms_route():
     dept = request_dept()
     return jsonify(_rooms_payload(dept, get_rooms(dept)))
 
 
 @schedule_bp.route("/rooms", methods=["POST"])
+@require_user(STAFF)
 def update_rooms_route():
     data = request.get_json(silent=True) or {}
     dept = request_dept(data)
     rs = update_rooms(dept, data.get("lecture_rooms"), data.get("laboratory_rooms"),
                       data.get("room_capacity"))
+    audit(current_user(), "rooms_changed", "rooms", dept,
+          {"lecture_rooms": len(rs.lecture_rooms), "lab_rooms": len(rs.lab_rooms)})
     return _ok(_rooms_payload(dept, rs, saved=True))
 
 
 # ── /class-sizes ──────────────────────────────────────────────────────────────
 
 @schedule_bp.route("/class-sizes", methods=["GET"])
+@require_user(STAFF)
 def get_class_sizes_route():
     return jsonify(get_class_sizes(request_dept()))
 
 
 @schedule_bp.route("/class-sizes", methods=["POST"])
+@require_user(STAFF)
 def update_class_sizes_route():
     data = request.get_json(silent=True) or {}
     dept = request_dept(data)
@@ -94,6 +107,8 @@ def update_class_sizes_route():
         sizes = update_class_sizes(dept, incoming)
     except ValueError as e:
         return _err(str(e))
+    audit(current_user(), "class_sizes_changed", "class_sizes", dept,
+          {"blocks_sent": len(incoming), "blocks_total": len(sizes)})
     return _ok({"dept": dept, "class_sizes": sizes})
 
 
@@ -114,6 +129,7 @@ def _number(data, key, lo, hi, default, integer=False):
     return int(round(v)) if integer else float(v)
 
 @schedule_bp.route("/run-ga", methods=["POST"])
+@require_user(STAFF)
 def run_ga():
     data = request.get_json(silent=True) or {}
     dept = request_dept(data)
@@ -140,6 +156,30 @@ def run_ga():
     if data.get("room_capacity"):
         update_rooms(dept, room_capacity=data["room_capacity"])
 
+    user = current_user()
+    started = time.monotonic()
+
+    def finished(d, run_id):
+        """Runs after the job ends: audit it and save a successful run as a draft."""
+        p = get_progress(d)
+        if p.get("run_id") != run_id:
+            return                                  # a newer run owns this department now
+        done = p.get("phase") == "done"
+        audit(user, "run_finished", "run", run_id,
+              {"status": "done" if done else "error", "ms": int((time.monotonic() - started) * 1000),
+               "assigned": (p.get("coverage") or {}).get("assigned"),
+               "total": (p.get("coverage") or {}).get("total")}, dept=d)
+        if done and run_store.enabled():
+            try:
+                solver = {**ga_params, **{k: v for k, v in run_settings.items() if v is not None}}
+                saved_id = run_store.save_draft(d, (user or {}).get("id"), p, solver,
+                                                (time.monotonic() - started) * 1000,
+                                                data.get("academic_year"), data.get("active_semester"))
+                attach_saved_run(d, run_id, saved_id)
+            except Exception as e:                  # noqa: BLE001 - the run itself is fine, only saving failed
+                import logging
+                logging.getLogger("atlas.runs").warning("could not save run %s: %s", run_id, e)
+
     result = start_scheduling(
         dept=dept,
         faculty_raw=data.get("faculty", []),
@@ -149,10 +189,13 @@ def run_ga():
         run_settings=run_settings,
         soft_constraints_incoming=data.get("soft_constraints", {}),
         class_sizes=data.get("class_sizes", {}),
+        on_finish=finished,
     )
 
     if "error" in result:
         return _err(result["error"])
+    audit(user, "run_started", "run", result["run_id"],
+          {"groups": result.get("groups", 0), "faculty": len(data.get("faculty") or [])}, dept=dept)
     return jsonify({"status": "started", "dept": dept, "run_id": result["run_id"],
                     "sections": result.get("sections", 0), "groups": result.get("groups", 0)})
 
@@ -160,12 +203,14 @@ def run_ga():
 # ── /progress ─────────────────────────────────────────────────────────────────
 
 @schedule_bp.route("/progress", methods=["GET"])
+@require_user(STAFF)
 def progress():
     dept = request_dept()
     p = get_progress(dept)
     return jsonify({
         "dept":      dept,
         "run_id":    p["run_id"],
+        "saved_run_id": p.get("saved_run_id"),
         "current":   p["current"],
         "total":     p["total"],
         "running":   p["running"],
@@ -196,6 +241,7 @@ def get_curriculum(dept):
 # ── /soft-constraints (per department) ────────────────────────────────────────
 
 @schedule_bp.route("/soft-constraints", methods=["GET"])
+@require_user(STAFF)
 def get_sc():
     dept = request_dept()
     fac = request.args.get("faculty")
@@ -205,6 +251,7 @@ def get_sc():
 
 
 @schedule_bp.route("/soft-constraints", methods=["POST"])
+@require_user(STAFF)
 def set_sc():
     data = request.get_json(silent=True) or {}
     dept = request_dept(data)
@@ -213,5 +260,7 @@ def set_sc():
         return _err("faculty name required.")
     for k, v in data.get("constraints", {}).items():
         set_soft_constraint(dept, fac_name, k, v)
+    audit(current_user(), "soft_constraints_changed", "faculty_preferences", None,
+          {"fields": len(data.get("constraints", {}))}, dept=dept)
     return _ok({"dept": dept, "faculty": fac_name,
                 "constraints": get_soft_constraints(dept, fac_name)})
