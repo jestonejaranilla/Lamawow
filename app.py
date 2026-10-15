@@ -1,4 +1,5 @@
 import os
+import re
 
 from flask import Flask, abort, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -22,9 +23,14 @@ app = Flask(__name__)
 # CORS. The site is served by this same Flask app, so normal use is same-origin and needs no CORS at all.
 # ATLAS_CORS_ORIGINS (comma separated, "*" allowed) sets the allowed origins explicitly. Without it:
 # auth off (local dev) allows everything; auth on allows only the local dev ports.
-_LOCAL_ORIGINS = ["http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:5500",
-                  "http://127.0.0.1:5500", "http://localhost:5501", "http://127.0.0.1:5501",
-                  "http://localhost:3000", "http://127.0.0.1:3000"]
+_LOCAL_ORIGINS = [
+    # this computer (Flask :5000, VS Code Live Server :5500/:5501, any other dev port) and the school LAN / a phone on it
+    re.compile(r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"),
+    re.compile(r"^https?://(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$"),
+    "http://localhost:5000", "http://127.0.0.1:5000",
+    # the deployed site: static frontend on Render and the backend's own address
+    "https://atlas-psu.onrender.com", "https://atlas-drsg.onrender.com",
+]
 
 
 def cors_origins():

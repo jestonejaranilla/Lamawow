@@ -91,7 +91,7 @@ def test_api_base_three_cases():
       ]));""")
     assert got == ["http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:5000",
                    "http://127.0.0.1:5000", "http://localhost:5000",
-                   "https://atlas-psu.onrender.com", "https://atlas.example.edu.ph",
+                   "https://atlas-drsg.onrender.com", "https://atlas-drsg.onrender.com",
                    "http://127.0.0.1:5000", "http://192.168.5.67:5000", "http://192.168.5.67:5000"]
 
 

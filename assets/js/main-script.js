@@ -1171,7 +1171,10 @@ function initRunGA() {
       currentRun = null;
       loading.classList.add('hidden');
       runBtn.disabled = false;
-      alert('Failed to connect to backend engine: ' + e.message);
+      const unreachable = e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(String(e.message));
+      alert(unreachable
+        ? 'Cannot reach the ATLAS server at ' + API_BASE + '. Start it with "py app.py" (local) or wait about a minute if Render is waking up, then try again.'
+        : 'Failed to connect to backend engine: ' + e.message);
     }
   });
 }

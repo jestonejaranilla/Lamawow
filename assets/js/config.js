@@ -5,6 +5,6 @@
 window.ATLAS_CONFIG = {
   SUPABASE_URL: 'https://jijwmczbmpeuorzngakr.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_sumVOtOLMn9Vu8X1dsowDg_Qsr6vQY4',        // paste the anon / publishable key (starts with eyJ... or sb_publishable_...)
-  API_BASE: /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? '' : location.origin,                 // empty = automatic (same origin on :5000, the Render backend elsewhere)
+  API_BASE: '',                 // empty = automatic (display.js: same host on :5000 locally, the Render backend atlas-drsg for the static site). Set only to force one address.
   GOOGLE_ENABLED: false         // set to true after the Google provider is enabled in Supabase Auth
 };
