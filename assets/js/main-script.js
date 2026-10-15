@@ -18,9 +18,10 @@
 /* ============================================================
    1. CONSTANTS & STATE
    ============================================================ */
-const API_BASE = ['localhost', '127.0.0.1'].includes(location.hostname)
-  ? 'http://localhost:5000'
-  : 'https://atlas-drsg.onrender.com';
+/* Flask on :5000 -> same origin; other localhost ports -> http://localhost:5000; anything else
+   (Render static site, custom domain) -> the Render backend. Logic lives in display.js. */
+const AD = window.AtlasDisplay;
+const API_BASE = AD.resolveApiBase(location);
 
 /* Department chosen at login (sessionStorage 'atlasDept', default IT). Every per-department
    browser key is stored as <base>::<dept> through dk(); nothing reads an un-suffixed key. */
@@ -192,6 +193,20 @@ let lastSort = { key: 'slot', ascending: true };
 
 // Last known GA result for re-rendering
 let lastGAResult = [];
+let lastCoverage = null;   // {coverage: {assigned,total}, errors: [...]} of the last run (this department)
+
+/* Coverage summary ("30 of 30 block-courses assigned") and the list of coverage_errors */
+function renderCoverageSummary(cov) {
+  const box = document.getElementById('coverageSummary');
+  if (!box) return;
+  if (!cov || !cov.coverage || !cov.coverage.total) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+  const errs = cov.errors || [];
+  const full = errs.length === 0 && cov.coverage.assigned === cov.coverage.total;
+  box.className = 'coverage-summary ' + (full ? 'coverage-ok' : 'coverage-warn');
+  box.innerHTML = `<strong>Coverage:</strong> ${escapeHTML(AD.coverageText(cov.coverage))}` +
+    (errs.length ? `<details><summary>${errs.length} not covered</summary><ul>${
+      errs.map(e => `<li>${escapeHTML(AD.coverageErrorText(e))}</li>`).join('')}</ul></details>` : '');
+}
 
 /* ============================================================
    SECTION LABEL UTILITY
@@ -604,7 +619,7 @@ function renderTimetable(data) {
       class_type:   item.class_type || 'LECTURE',
       room:         item.room || '',
       slot_display: item.slot_display || item.slot,
-      section:      item.section || '',
+      section:      AD.rowLabel(item),
       year:         item.year || ''
     });
   });
@@ -697,8 +712,9 @@ function updateReportsPanel(data) {
       const [slotDay, ...slotRest] = displaySlot.split(':');
       const slotTime = slotRest.join(':').trim();
       const ctClass  = (item.class_type || 'LECTURE').toLowerCase();
-      const sectionTag = item.section
-        ? `<span class="section-badge">${escapeHTML(item.section)}</span>`
+      const noRoom = AD.isNoClassroom(item);
+      const sectionTag = AD.rowLabel(item)
+        ? `<span class="section-badge">${escapeHTML(AD.rowLabel(item))}</span>`
         : (item.year ? `<span class="subject-year-badge">${escapeHTML(item.year.replace(' Year','Y'))}</span>` : '');
       const students = item.student_count > 0 ? `<span class="summary-students">${item.student_count} students</span>` : '';
 
@@ -707,15 +723,15 @@ function updateReportsPanel(data) {
           <td>
             <div class="summary-subj-name">${escapeHTML(item.subject)}</div>
             <div class="summary-subj-meta">
-              <span class="class-type-tag ${ctClass}">${escapeHTML(item.class_type || 'LECTURE')}</span>
+              <span class="class-type-tag ${ctClass}">${escapeHTML(AD.classTypeText(item))}</span>
               ${sectionTag}
             </div>
           </td>
           <td>
-            ${displaySlot ? `<div class="summary-slot-day">${escapeHTML(slotDay.trim())}</div><div class="summary-slot-time">${escapeHTML(slotTime)}</div>` : '<span class="text-muted">-</span>'}
+            ${noRoom ? '<span class="text-muted">-</span>' : displaySlot ? `<div class="summary-slot-day">${escapeHTML(slotDay.trim())}</div><div class="summary-slot-time">${escapeHTML(slotTime)}</div>` : '<span class="text-muted">-</span>'}
           </td>
           <td>
-            <div class="summary-room">${item.room ? escapeHTML(item.room) : '<span class="text-muted">-</span>'}</div>
+            <div class="summary-room">${noRoom ? escapeHTML(AD.NO_CLASSROOM_TEXT) : item.room ? escapeHTML(item.room) : '<span class="text-muted">-</span>'}</div>
             <div class="summary-room-meta">${students}${buildCapacityBadge(item)}</div>
           </td>
         </tr>`;
@@ -900,17 +916,18 @@ function renderTable(data) {
     const displaySlot = item.slot_display || item.slot || 'N/A';
     const tr = document.createElement('tr');
     tr.dataset.day = day;
-    const sectionHTML = item.section
-      ? `<span class="section-badge">${escapeHTML(item.section)}</span>`
+    const noRoom = AD.isNoClassroom(item);
+    const sectionHTML = AD.rowLabel(item)
+      ? `<span class="section-badge">${escapeHTML(AD.rowLabel(item))}</span>`
       : (item.year ? getSectionBadgeHTML(item.year) : '<span class="text-muted">N/A</span>');
     tr.innerHTML = `
       <td>${escapeHTML(item.faculty)}</td>
       <td>${escapeHTML(item.subject)}</td>
       <td class="section-cell">${sectionHTML}</td>
       <td>${escapeHTML(item.type)}</td>
-      <td><span class="class-type-tag ${(item.class_type||'LECTURE').toLowerCase()}">${escapeHTML(item.class_type || 'LECTURE')}</span></td>
-      <td>${escapeHTML(displaySlot)}</td>
-      <td>${item.room ? `<span class="room-badge"> ${escapeHTML(item.room)}</span>` : '<span class="text-muted">N/A</span>'}</td>
+      <td><span class="class-type-tag ${(item.class_type||'LECTURE').toLowerCase()}">${escapeHTML(AD.classTypeText(item))}</span></td>
+      <td>${noRoom ? '<span class="text-muted">-</span>' : escapeHTML(displaySlot)}</td>
+      <td>${noRoom ? `<span class="text-muted">${escapeHTML(AD.NO_CLASSROOM_TEXT)}</span>` : item.room ? `<span class="room-badge"> ${escapeHTML(item.room)}</span>` : '<span class="text-muted">N/A</span>'}</td>
       <td>${item.student_count > 0 ? `<span class="student-count-tag">${item.student_count}</span>` : '<span class="text-muted">-</span>'}</td>
       <td>${buildCapacityBadge(item)}</td>
     `;
@@ -1114,6 +1131,9 @@ function initRunGA() {
             }
 
             try { localStorage.setItem(dk('lastGAResult'), JSON.stringify(lastGAResult)); } catch { /* ignore */ }
+            lastCoverage = { coverage: status.coverage || {assigned: 0, total: 0}, errors: status.coverage_errors || [] };
+            try { localStorage.setItem(dk('coverageData'), JSON.stringify(lastCoverage)); } catch { /* ignore */ }
+            renderCoverageSummary(lastCoverage);
             const metricsSuffix = status.metrics && status.metrics.solve_time_sec
               ? ` (CP-SAT: ${status.metrics.solve_time_sec}s, GA: ${status.metrics.ga_time_sec || 0}s)`
               : '';
@@ -1122,7 +1142,7 @@ function initRunGA() {
             if (status.coverage_errors && status.coverage_errors.length > 0) {
               console.warn('[ATLAS] Coverage errors:', status.coverage_errors);
               const cov = status.coverage || {};
-              showToast(`${status.coverage_errors.length} class group(s) not covered (${cov.assigned}/${cov.total}). See console for details.`, 'warning');
+              showToast(`${status.coverage_errors.length} class group(s) not covered (${cov.assigned}/${cov.total}). See the coverage list.`, 'warning');
             }
             announceOptimization(displayResult.length, status.analytics);
           }
@@ -1773,8 +1793,9 @@ function renderDashboardAssignments(data) {
       const ctClass = (item.class_type || 'LECTURE').toLowerCase();
       const displaySlot = item.slot_display || item.slot || '';
       const dayAbbr = (item.slot || '').split(':')[0].trim();
-      const sectionHTML = item.section
-        ? `<span class="section-badge fac-assign-section">${escapeHTML(item.section)}</span>`
+      const noRoom = AD.isNoClassroom(item);
+      const sectionHTML = AD.rowLabel(item)
+        ? `<span class="section-badge fac-assign-section">${escapeHTML(AD.rowLabel(item))}</span>`
         : '';
       const stuTag   = item.student_count > 0 ? `<span class="student-count-tag">${item.student_count}</span>` : '';
       const capBadge = buildCapacityBadge(item);
@@ -1784,10 +1805,10 @@ function renderDashboardAssignments(data) {
           <span class="fac-assign-item-inner">
             <span class="fac-assign-subject-name" title="${escapeAttr(item.subject)}">${escapeHTML(item.subject)}</span>
             <span class="fac-assign-meta">
-              <span class="class-type-tag ${ctClass}">${escapeHTML(item.class_type || 'LECTURE')}</span>
+              <span class="class-type-tag ${ctClass}">${escapeHTML(AD.classTypeText(item))}</span>
               ${sectionHTML}
-              ${displaySlot ? `<span class="fac-assign-slot slot-day-${escapeHTML(dayAbbr)}">${escapeHTML(displaySlot)}</span>` : ''}
-              ${item.room ? `<span class="fac-assign-room">${escapeHTML(item.room)}</span>` : ''}
+              ${noRoom ? '' : displaySlot ? `<span class="fac-assign-slot slot-day-${escapeHTML(dayAbbr)}">${escapeHTML(displaySlot)}</span>` : ''}
+              ${noRoom ? `<span class="fac-assign-room">${escapeHTML(AD.NO_CLASSROOM_TEXT)}</span>` : item.room ? `<span class="fac-assign-room">${escapeHTML(item.room)}</span>` : ''}
               ${stuTag}
               ${capBadge}
             </span>
@@ -1847,11 +1868,11 @@ function initExports() {
         `"${(item.faculty||'').replace(/"/g,'""')}"`,
         `"${(item.subject||'').replace(/"/g,'""')}"`,
         `"${(item.year||'').replace(/"/g,'""')}"`,
-        `"${(item.section||'').replace(/"/g,'""')}"`,
+        `"${AD.rowLabel(item).replace(/"/g,'""')}"`,
         `"${(item.type||'').replace(/"/g,'""')}"`,
         `"${(item.class_type||'LECTURE').replace(/"/g,'""')}"`,
-        `"${(item.slot_display||item.slot||'').replace(/"/g,'""')}"`,
-        `"${(item.room||'').replace(/"/g,'""')}"`,
+        `"${(AD.isNoClassroom(item) ? '' : (item.slot_display||item.slot||'')).replace(/"/g,'""')}"`,
+        `"${(AD.isNoClassroom(item) ? AD.NO_CLASSROOM_TEXT : (item.room||'')).replace(/"/g,'""')}"`,
         `"${(item.semester||mode?.semester||'').replace(/"/g,'""')}"`
       ].join(','));
 
@@ -1924,10 +1945,10 @@ function generatePrintReport() {
     <tr>
       <td class="num">${i + 1}</td>
       <td class="when"><strong>${escapeHTML(slotDay.trim())}</strong><div>${escapeHTML(slotRest.join(':').trim())}</div></td>
-      <td>${escapeHTML(item.subject)}<div class="sub-type">${escapeHTML(item.type)}</div></td>
+      <td>${escapeHTML(item.subject)}<div class="sub-type">${escapeHTML([AD.rowLabel(item), item.type].filter(Boolean).join(' · '))}</div></td>
       <td>${escapeHTML(item.faculty || 'Unassigned')}</td>
-      <td class="nowrap">${escapeHTML(item.room || 'N/A')}</td>
-      <td>${(item.class_type || 'LECTURE') === 'LAB' ? 'Laboratory' : 'Lecture'}</td>
+      <td class="${AD.isNoClassroom(item) ? '' : 'nowrap'}">${escapeHTML(AD.isNoClassroom(item) ? AD.NO_CLASSROOM_TEXT : (item.room || 'N/A'))}</td>
+      <td>${AD.isNoClassroom(item) ? 'No classroom' : (item.class_type || 'LECTURE') === 'LAB' ? 'Laboratory' : 'Lecture'}</td>
     </tr>`;
   }).join('');
 
@@ -2022,6 +2043,9 @@ function generatePrintReport() {
         <tr><td class="k">Department</td><td>${escapeHTML(deptFull)}</td></tr>
         <tr><td class="k">Academic period</td><td>${escapeHTML(semesterLabel)}</td></tr>
         <tr><td class="k">Faculty members</td><td>${Object.keys(byFaculty).length}</td></tr>
+        <tr><td class="k">Coverage</td><td>${escapeHTML(lastCoverage && lastCoverage.coverage ? AD.coverageText(lastCoverage.coverage) : 'n/a')}${
+          lastCoverage && lastCoverage.errors && lastCoverage.errors.length
+            ? '<br>Not covered: ' + escapeHTML(lastCoverage.errors.map(AD.coverageErrorText).join('; ')) : ''}</td></tr>
         <tr><td class="k">Prepared by</td><td>${escapeHTML(user)}</td></tr>
         <tr><td class="k">Date generated</td><td>${dateStr}, ${timeStr}</td></tr>
       </table>
@@ -2234,6 +2258,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     localStorage.removeItem(dk('subjectsData'));
     localStorage.removeItem(dk('classSizesData'));
     localStorage.removeItem(dk('lastGAResult'));
+    localStorage.removeItem(dk('coverageData'));
     localStorage.setItem(dk('atlasDataVersion'), DATA_VERSION);
   }
 
@@ -2303,6 +2328,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         updateReportsPanel(displayResult);
       }
     }
+    const savedCov = localStorage.getItem(dk('coverageData'));
+    if (savedCov && lastGAResult && lastGAResult.length) { lastCoverage = JSON.parse(savedCov); renderCoverageSummary(lastCoverage); }
   } catch { lastGAResult = []; }
 
   // Restore analytics cache and re-populate capacity panels
@@ -3073,6 +3100,8 @@ function resetDepartmentState() {
   progressInterval = null;
   currentRun = null;
   lastGAResult = [];
+  lastCoverage = null;
+  renderCoverageSummary(null);
   softConstraintsCache = {};
   window.__atlasAnalytics = null;
   ATLAS_CURRICULUM = null;

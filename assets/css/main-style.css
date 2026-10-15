@@ -4275,3 +4275,10 @@ html[data-motion="reduce"] *, html[data-motion="reduce"] *::before, html[data-mo
 .dept-notice { margin: 0 0 12px; padding: 8px 12px; font-size: 0.8rem; color: var(--text-muted, #6e6358); background: var(--surface-2, rgba(217, 146, 43, 0.12)); border-left: 3px solid #d9922b; border-radius: 6px; }
 .dept-notice[hidden] { display: none; }
 .course-flag { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 6px; font-size: 0.7rem; font-weight: 700; color: #fff; background: #d9922b; border-radius: 50%; cursor: help; vertical-align: middle; }
+/* Coverage summary (Part 5) */
+.coverage-summary { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; border: 1px solid var(--border, #d0d5dd); }
+.coverage-summary.hidden { display: none; }
+.coverage-summary.coverage-ok { border-color: #2e9e5b; }
+.coverage-summary.coverage-warn { border-color: #d98a00; }
+.coverage-summary details { margin-top: 6px; }
+.coverage-summary ul { margin: 6px 0 0 18px; padding: 0; }

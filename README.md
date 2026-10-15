@@ -508,10 +508,19 @@ Key constants in `config/settings.py`:
 
 
 
+**Python 3.10 or newer** (tested on 3.13).
+
 ```bash
 
+# 1. create a virtual environment
+python -m venv .venv
+
+# activate it: Windows  .venv\Scripts\activate   |   macOS / Linux  source .venv/bin/activate
+
+# 2. install the requirements
 pip install -r requirements.txt
 
+# 3. run the server (backend and frontend together)
 python app.py
 
 ```
@@ -519,6 +528,10 @@ python app.py
 
 
 Open `http://localhost:5000` in your browser.
+
+
+
+> Demo build: runs locally, data stays in the browser.
 
 
 

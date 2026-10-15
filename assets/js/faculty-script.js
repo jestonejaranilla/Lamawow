@@ -94,7 +94,7 @@
       subject: item.subject || '',
       classType: (item.class_type || 'LECTURE').toUpperCase(),
       room: item.room || '',
-      section: item.section || '',
+      section: window.AtlasDisplay.rowLabel(item),
       day,
       startH,
       endH,
@@ -118,6 +118,14 @@
     return items.map(normalize).filter(Boolean).sort((a, b) => a.start - b.start);
   }
 
+  /* Courses taught without a classroom (NON_CLASSROOM): a professor, no slot, no room. */
+  function loadNoClassroom() {
+    const items = readJSON(localStorage, dk('lastGAResult'), []);
+    return (Array.isArray(items) ? items : [])
+      .filter(i => i && window.AtlasDisplay.isNoClassroom(i))
+      .map(i => ({ faculty: i.faculty || '', subject: i.subject || '', section: window.AtlasDisplay.rowLabel(i) }));
+  }
+
   function loadFacultyNames() {
     const names = readJSON(localStorage, dk('facultyData'), []).map(f => f && f.name).filter(Boolean);
     if (!names.includes(session.name)) names.push(session.name);
@@ -130,11 +138,12 @@
   }
 
   /* ---------- State ---------- */
-  const state = { schedule: [], mine: [], names: [], day: null };
+  const state = { schedule: [], mine: [], noRoom: [], names: [], day: null };
 
   function reloadData() {
     state.schedule = loadSchedule();
     state.mine = state.schedule.filter(c => c.faculty === session.name);
+    state.noRoom = loadNoClassroom().filter(c => c.faculty === session.name);
     state.names = loadFacultyNames();
   }
 
@@ -237,12 +246,23 @@
 
   function renderMine(now) {
     const host = $('fsMineList');
-    if (!state.mine.length) {
+    if (!state.mine.length && !state.noRoom.length) {
       host.innerHTML = emptyState(state.schedule.length
         ? 'No classes assigned to you' : NO_DATA);
       return;
     }
     const today = todayIndex(now);
+    const noRoomHtml = state.day !== null || !state.noRoom.length ? '' : `
+        <section class="fs-day">
+          <h3>No classroom</h3>
+          ${state.noRoom.map(c => `
+            <div class="fs-class"><div class="fs-class-body">
+              <div class="fs-class-subject">${escapeHTML(c.subject)}</div>
+              <div class="fs-class-tags">
+                ${c.section ? `<span class="section-badge">${escapeHTML(c.section)}</span>` : ''}
+                <span class="fs-room">${escapeHTML(window.AtlasDisplay.NO_CLASSROOM_TEXT)}</span>
+              </div></div></div>`).join('')}
+        </section>`;
     const html = DAYS.map((day, d) => {
       if (state.day !== null && state.day !== d) return '';
       const items = state.mine.filter(c => c.day === d);
@@ -253,7 +273,7 @@
           ${items.map(c => classCard(c, now)).join('')}
         </section>`;
     }).join('');
-    host.innerHTML = html || emptyState(state.day === null ? 'No classes assigned to you' : 'No classes on ' + DAY_NAMES[state.day]);
+    host.innerHTML = (html + noRoomHtml) || emptyState(state.day === null ? 'No classes assigned to you' : 'No classes on ' + DAY_NAMES[state.day]);
   }
 
   /* day picker: Mon-Sat of the current week plus "All" */
@@ -583,7 +603,7 @@
 
   /* Logout or another department: empty what is held in memory and what is on screen. */
   window.addEventListener('atlas:logout', () => {
-    state.schedule = []; state.mine = []; state.names = [];
+    state.schedule = []; state.mine = []; state.noRoom = []; state.names = [];
     deptName = '';
     ['fsBannerName', 'fsGreeting', 'navUserLabel', 'fsProfileDept', 'fsDataInfo'].forEach(id => { if ($(id)) $(id).textContent = ''; });
     try { renderAll(new Date()); } catch { /* view already gone */ }

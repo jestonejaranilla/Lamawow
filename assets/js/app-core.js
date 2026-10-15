@@ -122,7 +122,7 @@
   const DEPT_BASE_KEYS = [
     'facultyData', 'subjectsData', 'classSizesData', 'academicMode', 'systemSettings',
     'lastGAResult', 'atlasAnalyticsCache', 'softConstraintsData', 'roomsData',
-    'atlasCurriculumCache', 'atlasDataVersion'
+    'atlasCurriculumCache', 'atlasDataVersion', 'coverageData'
   ];
 
   function currentDept() {

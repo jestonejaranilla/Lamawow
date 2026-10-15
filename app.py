@@ -1,4 +1,6 @@
-from flask import Flask, jsonify, request
+import os
+
+from flask import Flask, abort, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from config.settings import SUBJECT_TYPES
@@ -15,6 +17,29 @@ CORS(app)
 # ── Register blueprints ───────────────────────────────────────────────────────
 app.register_blueprint(schedule_bp)
 app.register_blueprint(analytics_bp)
+
+
+# ── Frontend (served by Flask so one command runs the whole demo) ─────────────
+# Only these folders and files are public; the Python code, tests, .env and the
+# README are never served. send_from_directory rejects paths that leave the folder.
+ROOT = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIRS = ("pages", "faculty", "assets", "app", "data")
+
+
+@app.route("/", methods=["GET"])
+@app.route("/index.html", methods=["GET"])
+def index_page():
+    return send_from_directory(ROOT, "index.html")
+
+
+@app.route("/manifest.json", methods=["GET"])
+def manifest_file():
+    return send_from_directory(ROOT, "manifest.json")
+
+
+@app.route("/<any(%s):folder>/<path:filename>" % ",".join(STATIC_DIRS), methods=["GET"])
+def static_files(folder, filename):
+    return send_from_directory(os.path.join(ROOT, folder), filename)
 
 
 @app.route("/subject-types", methods=["GET"])
