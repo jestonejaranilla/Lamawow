@@ -224,6 +224,53 @@ drop trigger if exists trg_audit_meta on public.audit_log;
 create trigger trg_audit_meta before insert on public.audit_log
   for each row execute function public.audit_log_check_meta();
 
+-- ------------------------------------------------- schedule_runs guard (approved runs)
+
+-- For a signed-in chairperson or faculty user (auth.uid() is not null) an approved run is frozen:
+--   a. it cannot be deleted;
+--   b. its result, analytics, metrics, coverage, solver_settings, dept, academic_year, semester and
+--      created_by cannot be changed;
+--   c. nothing can be inserted or updated INTO status 'approved' except inside
+--      approve_run(), which sets atlas.approving = '1' for its own transaction.
+-- The service role and the SQL editor have no auth.uid(), so they are not affected, and an admin
+-- (public.current_role() = 'admin') may fix an approved run.
+-- Chairpersons can still save, load and delete draft and saved runs of their own department.
+create or replace function public.schedule_runs_guard() returns trigger
+language plpgsql set search_path = '' as $$
+declare approving boolean := coalesce(current_setting('atlas.approving', true), '') = '1';
+begin
+  if auth.uid() is null or public.current_role() = 'admin' then
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
+  end if;
+
+  if tg_op = 'DELETE' then
+    if old.status = 'approved' then
+      raise exception 'an approved run cannot be deleted' using errcode = '42501';
+    end if;
+    return old;
+  end if;
+
+  if tg_op = 'UPDATE' and old.status = 'approved' then
+    if (new.result, new.analytics, new.metrics, new.coverage, new.solver_settings,
+        new.dept, new.academic_year, new.semester, new.created_by)
+       is distinct from
+       (old.result, old.analytics, old.metrics, old.coverage, old.solver_settings,
+        old.dept, old.academic_year, old.semester, old.created_by) then
+      raise exception 'an approved run cannot be edited' using errcode = '42501';
+    end if;
+  end if;
+
+  if new.status = 'approved' and not approving
+     and (tg_op = 'INSERT' or old.status is distinct from 'approved') then
+    raise exception 'a run can only be approved with approve_run()' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+drop trigger if exists trg_runs_guard on public.schedule_runs;
+create trigger trg_runs_guard before insert or update or delete on public.schedule_runs
+  for each row execute function public.schedule_runs_guard();
+
 -- -------------------------------------------------------------------- RPCs
 
 -- Approve a run: the previous approved run of the same dept/year/semester
@@ -240,6 +287,7 @@ begin
     raise exception 'run not found or not in your department' using errcode = '42501';
   end if;
   perform pg_advisory_xact_lock(hashtext(r.dept || '|' || r.academic_year || '|' || r.semester));
+  perform set_config('atlas.approving', '1', true);          -- lets trg_runs_guard accept the status change below
   update public.schedule_runs set status = 'saved'
    where dept = r.dept and academic_year = r.academic_year and semester = r.semester
      and status = 'approved' and id <> r.id;
@@ -247,6 +295,7 @@ begin
   insert into public.audit_log(user_id, email, dept, action, entity, entity_id)
   select auth.uid(), p.email, p.dept, 'approve_run', 'schedule_run', r.id::text
     from public.profiles p where p.id = auth.uid();
+  perform set_config('atlas.approving', '0', true);          -- never leaves the switch on for later statements
   return r;
 end $$;
 

@@ -4,6 +4,7 @@
 -- Everything runs in one transaction that ends with ROLLBACK, so no data is kept.
 -- Any failed check raises an exception and stops the script. Success prints "PASS ..." notices
 -- and ends with "ALL RLS TESTS PASSED". Optional admin tests run only if adminatlas@... exists.
+-- Part 15b: also proves that approved runs are frozen for chairpersons (trg_runs_guard) and open to admin.
 
 begin;
 
@@ -145,6 +146,7 @@ begin
   delete from public.audit_log where dept = 'IT';
   get diagnostics n = row_count;
   if n <> 0 then raise exception 'FAIL: chair deleted % audit rows', n; end if;
+  insert into public.audit_log(user_id, dept, action) values (current_setting('t.it_chair')::uuid, 'IT', 'own_row');
   begin
     insert into public.audit_log(user_id, dept, action, meta)
       values (current_setting('t.it_chair')::uuid, 'IT', 'x', '{"email":"a@b.c"}');
@@ -152,7 +154,7 @@ begin
   exception when raise_exception then
     if sqlerrm like 'FAIL%' then raise; end if;
   end;
-  raise notice 'PASS audit log is read-only for chair, meta is guarded';
+  raise notice 'PASS chair appends own audit rows, cannot edit or delete them, meta is guarded';
 
   reset role;
 end $$;
@@ -269,6 +271,159 @@ begin
   raise notice 'PASS approve_run swaps the approved run in one step, own dept only';
 end $$;
 
+-- ===================================================== Part 15b: approved runs are frozen (IT chairperson)
+-- State here: 'rls-test IT draft' is approved, 'rls-test IT approved' was moved to saved by approve_run above.
+do $$
+declare
+  n int; ap_id uuid; old_id uuid; new_id uuid; col text;
+begin
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+  select id into ap_id  from public.schedule_runs where label = 'rls-test IT draft'    and status = 'approved';
+  select id into old_id from public.schedule_runs where label = 'rls-test IT approved' and status = 'saved';
+  if ap_id is null or old_id is null then raise exception 'FAIL: setup for the approved-run tests is missing'; end if;
+
+  perform pg_temp.act_as(current_setting('t.it_chair'));
+
+  -- a. an approved run cannot be deleted
+  begin
+    delete from public.schedule_runs where id = ap_id;
+    raise exception 'FAIL: chair deleted an approved run';
+  exception when insufficient_privilege then
+    if sqlerrm not like '%approved run cannot be deleted%' then
+      raise exception 'FAIL: delete was refused for the wrong reason: %', sqlerrm; end if;
+  end;
+
+  -- b. its content columns cannot be edited
+  foreach col in array array['result','analytics','metrics','coverage','solver_settings'] loop
+    begin
+      execute format('update public.schedule_runs set %I = %L::jsonb where id = %L', col, '{"hacked":true}', ap_id);
+      raise exception 'FAIL: chair edited % of an approved run', col;
+    exception when insufficient_privilege then
+      if sqlerrm not like '%approved run cannot be edited%' then
+        raise exception 'FAIL: edit of % was refused for the wrong reason: %', col, sqlerrm; end if;
+    end;
+  end loop;
+  foreach col in array array['dept','academic_year','semester'] loop
+    begin
+      execute format('update public.schedule_runs set %I = %L where id = %L', col,
+                     case col when 'dept' then 'CS' when 'academic_year' then '2100-2101' else '2nd Semester' end, ap_id);
+      raise exception 'FAIL: chair edited % of an approved run', col;
+    exception when insufficient_privilege then
+      if sqlerrm not like '%approved run cannot be edited%' then
+        raise exception 'FAIL: edit of % was refused for the wrong reason: %', col, sqlerrm; end if;
+    end;
+  end loop;
+  begin
+    update public.schedule_runs set created_by = current_setting('t.cs_chair')::uuid where id = ap_id;
+    raise exception 'FAIL: chair edited created_by of an approved run';
+  exception when insufficient_privilege then
+    if sqlerrm not like '%approved run cannot be edited%' then
+      raise exception 'FAIL: created_by edit was refused for the wrong reason: %', sqlerrm; end if;
+  end;
+  raise notice 'PASS an approved run cannot be deleted or edited by its chairperson';
+
+  -- c. status approved only through approve_run()
+  begin
+    update public.schedule_runs set status = 'approved' where id = old_id;
+    raise exception 'FAIL: chair set status approved with a direct update';
+  exception when insufficient_privilege then
+    if sqlerrm not like '%approve_run()%' then
+      raise exception 'FAIL: direct approve was refused for the wrong reason: %', sqlerrm; end if;
+  end;
+  begin
+    insert into public.schedule_runs(dept, academic_year, semester, status)
+      values ('IT', '2099-2100', '2nd Semester', 'approved');
+    raise exception 'FAIL: chair inserted an approved run';
+  exception when insufficient_privilege then
+    if sqlerrm not like '%approve_run()%' then
+      raise exception 'FAIL: insert as approved was refused for the wrong reason: %', sqlerrm; end if;
+  end;
+  raise notice 'PASS status approved can only be set by approve_run()';
+
+  -- the chairperson can still save, load, edit and delete draft and saved runs of the own department
+  insert into public.schedule_runs(dept, academic_year, semester, label)
+    values ('IT', '2099-2100', '1st Semester', 'rls-test chair draft') returning id into new_id;
+  update public.schedule_runs set status = 'saved', label = 'rls-test chair saved' where id = new_id;
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: chair could not save a draft'; end if;
+  update public.schedule_runs set result = '[]'::jsonb where id = new_id;
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: chair could not edit a saved run'; end if;
+  select count(*) into n from public.schedule_runs where id = new_id and status = 'saved';
+  if n <> 1 then raise exception 'FAIL: chair could not load the saved run'; end if;
+  delete from public.schedule_runs where id = new_id;
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: chair could not delete a saved run'; end if;
+  raise notice 'PASS chair still saves, loads, edits and deletes draft and saved runs';
+
+  -- approve_run still works: approve the earlier run again, the current approved one becomes saved
+  perform public.approve_run(old_id);
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+  select count(*) into n from public.schedule_runs
+   where dept = 'IT' and academic_year = '2099-2100' and semester = '1st Semester' and status = 'approved';
+  if n <> 1 then raise exception 'FAIL: expected exactly one approved IT run, found %', n; end if;
+  if (select status from public.schedule_runs where id = old_id) <> 'approved' then
+    raise exception 'FAIL: approve_run did not approve the run'; end if;
+  if (select status from public.schedule_runs where id = ap_id) <> 'saved' then
+    raise exception 'FAIL: the previous approved run did not become saved'; end if;
+  select count(*) into n from public.audit_log where action = 'approve_run' and entity_id = old_id::text;
+  if n <> 1 then raise exception 'FAIL: approve_run wrote % audit rows, expected 1', n; end if;
+  raise notice 'PASS approve_run still works and the previous approved run becomes saved';
+
+  -- the approving switch is off again after approve_run, so a direct update is still refused
+  perform pg_temp.act_as(current_setting('t.it_chair'));
+  begin
+    update public.schedule_runs set status = 'approved' where id = ap_id;
+    raise exception 'FAIL: the approving switch stayed on after approve_run';
+  exception when insufficient_privilege then null; end;
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+  raise notice 'PASS the approving switch does not leak out of approve_run';
+
+  -- no signed-in user (service role, SQL editor): the guard does not apply
+  update public.schedule_runs set result = '[]'::jsonb where id = old_id;
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: the service role could not edit an approved run'; end if;
+  delete from public.schedule_runs where label = 'rls-test CS approved';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: the service role could not delete an approved run'; end if;
+  raise notice 'PASS the guard does not apply to the service role';
+end $$;
+
+-- ===================================================== Part 15b: admin may fix approved runs
+do $$
+declare n int; run_id uuid; tmp_id uuid;
+begin
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+  if current_setting('t.admin') = '' then
+    raise notice 'SKIP admin approved-run tests (no adminatlas@psu.palawan.edu.ph profile)';
+    return;
+  end if;
+  select id into run_id from public.schedule_runs
+   where dept = 'IT' and academic_year = '2099-2100' and semester = '1st Semester' and status = 'approved';
+  if run_id is null then raise exception 'FAIL: setup for the admin approved-run tests is missing'; end if;
+
+  perform pg_temp.act_as(current_setting('t.admin'));
+  update public.schedule_runs set result = '[]'::jsonb, metrics = '{"fixed":true}'::jsonb where id = run_id;
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: admin could not edit an approved run'; end if;
+  update public.schedule_runs set status = 'saved' where id = run_id;
+  update public.schedule_runs set status = 'approved' where id = run_id;
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: admin could not change the status of an approved run'; end if;
+  insert into public.schedule_runs(dept, academic_year, semester, label, status)
+    values ('CS', '2099-2100', '1st Semester', 'rls-test admin approved', 'approved') returning id into tmp_id;
+  delete from public.schedule_runs where id = tmp_id;
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: admin could not delete an approved run'; end if;
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+  raise notice 'PASS admin can edit, re-approve and delete approved runs';
+end $$;
+
 -- ===================================================== purge_audit_log + anon
 do $$
 declare n bigint; admin_id text := current_setting('t.admin');
@@ -310,3 +465,7 @@ end $$;
 do $$ begin raise notice 'ALL RLS TESTS PASSED'; end $$;
 
 rollback;
+
+-- Only reached when every check above passed (a failed check stops the script with an error).
+-- The SQL editor shows only the last result grid, so this row is the visible proof.
+select 'ALL RLS TESTS PASSED' as result;

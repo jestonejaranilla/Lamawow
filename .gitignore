@@ -103,3 +103,4 @@ tempCodeRunnerFile.py
 cython_debug/
 .abstra/
 .pypirc
+user-credentials.txt

@@ -81,6 +81,11 @@ Roles and departments are never set by the signed-in user. Only an admin, the SQ
 ### RPCs
 
 - `approve_run(run_id uuid)`: chairperson of the run's department only. In one transaction it moves the previous `approved` run of the same dept, year and semester to `saved`, then approves the new one. The partial unique index `schedule_runs_one_approved` also guarantees at most one approved run per (dept, academic_year, semester). It writes an `approve_run` row to `audit_log`.
+- **Approved runs are frozen for chairpersons** (trigger `trg_runs_guard` on `schedule_runs`, Part 15b). A signed-in chairperson or faculty user cannot:
+  - delete an `approved` run;
+  - change its `result`, `analytics`, `metrics`, `coverage`, `solver_settings`, `dept`, `academic_year`, `semester` or `created_by`;
+  - insert or update a run into `approved`, except through `approve_run`, which sets `atlas.approving` for its own transaction only.
+  Draft and saved runs of the own department can still be saved, loaded, edited and deleted. Admin, the service role and the SQL editor are not restricted by the guard.
 - `purge_audit_log(older_than interval)`: admin only. Returns the number of rows deleted. Example: `select public.purge_audit_log(interval '12 months');`
 
 ## Audit log

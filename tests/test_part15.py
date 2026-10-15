@@ -53,6 +53,38 @@ def test_pages_load_config_vendor_client_then_app_core(rel):
     assert order == sorted(order), rel
 
 
+def _script_srcs():
+    """(html file, src) for every <script src> in pages, faculty and app, plus the root index.html."""
+    files = sorted(list(ROOT.glob("pages/*.html")) + list(ROOT.glob("faculty/*.html"))
+                   + list(ROOT.glob("app/*.html")) + [ROOT / "index.html"])
+    for f in files:
+        for m in re.finditer(r"<script[^>]+\bsrc=[\"']([^\"']+)[\"']", f.read_text(encoding="utf-8")):
+            yield f, m.group(1)
+
+
+def test_every_script_src_exists_on_disk():
+    """A misplaced or misnamed script file is caught here, not by a blank page in the browser."""
+    seen = set()
+    for page, src in _script_srcs():
+        if re.match(r"^(https?:)?//", src):
+            continue                                              # external scripts are covered by the no-CDN tests
+        target = (page.parent / src.split("?")[0].split("#")[0]).resolve()
+        assert target.is_file(), "%s loads %s which does not exist" % (page.relative_to(ROOT), src)
+        assert ROOT in target.parents, "%s loads %s from outside the project" % (page.relative_to(ROOT), src)
+        seen.add(target.relative_to(ROOT).as_posix())
+    # the Part 15 files must be wired in somewhere, at the exact path the pages use
+    for rel in ("assets/js/supabase-client.js", "assets/js/config.js", "assets/vendor/supabase.js", "assets/js/app-core.js"):
+        assert (ROOT / rel).is_file(), rel
+        assert rel in seen, "no page loads " + rel
+
+
+@pytest.mark.parametrize("rel", GUARDED + ["pages/login.html"])
+def test_each_auth_page_loads_the_supabase_client_from_the_right_path(rel):
+    html = read(rel)
+    assert re.search(r"<script[^>]+src=[\"']\.\./assets/js/supabase-client\.js[\"']", html), rel
+    assert (ROOT / rel).parent.joinpath("../assets/js/supabase-client.js").resolve().is_file()
+
+
 # ── login page ────────────────────────────────────────────────────────────────
 
 def test_login_page_has_no_demo_chooser_and_no_role_or_department_picker():
