@@ -37,6 +37,7 @@ def test_it_default_pool_shape():
         assert "default_faculty" not in load_curriculum(other)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("sem", ["1st Semester", "2nd Semester"])
 def test_it_default_pool_full_coverage_and_realistic_load(sem, monkeypatch):
     monkeypatch.setattr(cfg, "CP_SAT_TIME_LIMIT_SECONDS", 8.0)
@@ -99,3 +100,95 @@ def test_default_period_and_data_version():
     js = read("assets/js/main-script.js")
     assert "{ year: '2026-2027', semester: '1st Semester' }" in js
     assert "INITIAL_FACULTY" not in js
+
+
+# ── Part 7 ────────────────────────────────────────────────────────────────────
+import time
+
+
+def _post(client, **over):
+    body = {"dept": "IT", "faculty": [{"name": "x"}], "subjects": [{"name": "x"}]}
+    body.update(over)
+    return client.post("/run-ga", json=body)
+
+
+@pytest.fixture
+def captured(monkeypatch):
+    import routes.schedule_routes as rt
+    seen = {}
+
+    def fake(**kw):
+        seen.update(kw)
+        return {"run_id": "t"}
+    monkeypatch.setattr(rt, "start_scheduling", fake)
+    return seen
+
+
+def test_run_ga_clamps_inputs(captured):
+    r = _post(app.test_client(), generations=9999, population=1, mutation=5, crossover=-2,
+              cp_sat_time_limit=600, units_per_assignment=2, non_classroom_units=2)
+    assert r.status_code == 200
+    assert captured["ga_params"] == {"generations": 200, "population": 4, "mutation": 1.0, "crossover": 0.0}
+    assert captured["run_settings"]["cp_sat_time_limit"] == cfg.CP_SAT_MAX_TIME_LIMIT_SECONDS
+    r = _post(app.test_client(), generations=0, population=500)
+    assert captured["ga_params"]["generations"] == 1 and captured["ga_params"]["population"] == 100
+
+
+@pytest.mark.parametrize("key", ["generations", "population", "mutation", "crossover", "cp_sat_time_limit",
+                                 "units_per_assignment", "non_classroom_units"])
+@pytest.mark.parametrize("bad", ["abc", "10", True, [1], {"a": 1}])
+def test_run_ga_rejects_non_numbers(captured, key, bad):
+    r = _post(app.test_client(), **{key: bad})
+    assert r.status_code == 400 and r.get_json()["success"] is False and "number" in r.get_json()["error"]
+    assert captured == {}                      # nothing was started
+
+
+def test_run_ga_leaves_global_settings_alone(captured):
+    before = (cfg.UNITS_PER_ASSIGNMENT, cfg.NON_CLASSROOM_UNITS, cfg.CP_SAT_TIME_LIMIT_SECONDS)
+    _post(app.test_client(), units_per_assignment=5, non_classroom_units=4, cp_sat_time_limit=3)
+    assert (cfg.UNITS_PER_ASSIGNMENT, cfg.NON_CLASSROOM_UNITS, cfg.CP_SAT_TIME_LIMIT_SECONDS) == before
+    assert captured["run_settings"] == {"units_per_assignment": 5, "non_classroom_units": 4, "cp_sat_time_limit": 3.0}
+
+
+@pytest.mark.slow
+def test_it_and_cs_run_together_with_different_settings():
+    from tests.conftest import dept_faculty
+
+    def start(d, rs):
+        ss.reset_state(d)
+        subj = [{"group_id": g["group_id"]} for g in ss.build_groups(d, "1st Semester", ss.get_class_sizes(d))[0]]
+        return ss.start_scheduling(d, dept_faculty(d), subj, "1st Semester", {"generations": 2, "population": 4},
+                                   {}, None, run_settings=rs)
+
+    before = (cfg.UNITS_PER_ASSIGNMENT, cfg.NON_CLASSROOM_UNITS, cfg.CP_SAT_TIME_LIMIT_SECONDS)
+    assert "run_id" in start("IT", {"units_per_assignment": 3, "non_classroom_units": 3, "cp_sat_time_limit": 12})
+    assert "run_id" in start("CS", {"units_per_assignment": 2, "non_classroom_units": 2, "cp_sat_time_limit": 8})
+    t0 = time.time()
+    while any(ss.get_progress(d)["running"] for d in ("IT", "CS")) and time.time() - t0 < 120:
+        time.sleep(0.5)
+    for d, units in (("IT", 3), ("CS", 2)):
+        p = ss.get_progress(d)
+        assert not p["running"] and p["result"]
+        rows = sum(1 for r in p["result"] if r["faculty"])
+        # every professor row of this run counted `units` units, whatever the other department used
+        assert p["analytics"]["workload_distribution"]["mean_load"] == round(units * rows / 10, 1), d
+    assert (cfg.UNITS_PER_ASSIGNMENT, cfg.NON_CLASSROOM_UNITS, cfg.CP_SAT_TIME_LIMIT_SECONDS) == before
+
+
+@pytest.mark.parametrize("dept", ["MB", "ES", "MedB"])
+def test_science_rooms_are_48_recommended_60_max_and_still_flagged_placeholder(dept):
+    from config import curriculum as cur
+    rs = cur.rooms_for(dept)
+    assert rs.placeholder is True
+    assert rs.capacity and all(v["recommended"] == 48 and v["max"] == 60 for v in rs.capacity.values())
+
+
+def test_repo_housekeeping():
+    assert read(".gitattributes").strip() == "* text=auto eol=lf"
+    assert "ortools==9.15.6755" in read("requirements.txt")
+    assert not os.path.exists(os.path.join(ROOT, "{solver,services,models,routes,config}"))
+    for rel in ("pages/dashboard.html", "faculty/dashboard.html"):
+        urls = re.findall(r"""(?:src|href)=["'](https?://[^"']+)""", read(rel))
+        assert all("fonts.googleapis.com" in u or "fonts.gstatic.com" in u for u in urls), urls
+    for f in ("avatar.svg", "ga-evolution.svg"):
+        assert os.path.exists(os.path.join(ROOT, "assets", "images", f))

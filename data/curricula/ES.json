@@ -66,106 +66,106 @@
   "rooms": {
     "lecture": {
       "CSLR 1": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "CSLR 2": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "CSLR 3": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "CSLR 4": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "CSLR 5": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "CSLR 6": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "CSLR 7": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "CSLR 8": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "CSLR 9": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "CSLR 10": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "GE Bldg 1": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "GE Bldg 2": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "GE Bldg 3": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "GE Bldg 4": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "GE Bldg 5": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "GE Bldg 6": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "GE Bldg 7": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "GE Bldg 8": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "GE Bldg 9": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       },
       "GE Bldg 10": {
-        "recommended": 40,
-        "max": 55
+        "recommended": 48,
+        "max": 60
       }
     },
     "lab": {
       "Physics Room 1": {
-        "recommended": 40,
-        "max": 50
+        "recommended": 48,
+        "max": 60
       },
       "Physics Room 2": {
-        "recommended": 40,
-        "max": 50
+        "recommended": 48,
+        "max": 60
       },
       "Physics Room 3": {
-        "recommended": 40,
-        "max": 50
+        "recommended": 48,
+        "max": 60
       },
       "Physics Room 4": {
-        "recommended": 40,
-        "max": 50
+        "recommended": 48,
+        "max": 60
       },
       "Physics Room 5": {
-        "recommended": 40,
-        "max": 50
+        "recommended": 48,
+        "max": 60
       }
     },
     "lab_rooms_also_lecture": true,

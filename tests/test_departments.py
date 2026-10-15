@@ -102,6 +102,7 @@ def _wait(client, depts, timeout=150):
     raise AssertionError("runs did not finish")
 
 
+@pytest.mark.slow
 def test_it_and_cs_at_the_same_time_in_two_threads(clients):
     c1, c2, c = clients(), clients(), clients()
     out = {}
@@ -141,6 +142,7 @@ def test_missing_or_unknown_dept_is_400(clients):
     assert c.post("/run-ga", json={"dept": "XX", "faculty": [{}], "subjects": [{}]}).status_code == 400
 
 
+@pytest.mark.slow
 def test_cs_then_it_then_mb_in_one_process_leaks_nothing(clients):
     c = clients()
     default_before = (list(cfg.LECTURE_ROOMS), list(cfg.LABORATORY_ROOMS), dict(cfg.ROOM_CAPACITY))

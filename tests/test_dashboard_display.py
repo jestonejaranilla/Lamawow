@@ -10,6 +10,7 @@ import threading
 
 import pytest
 
+pytestmark = pytest.mark.slow
 pw = pytest.importorskip("playwright.sync_api")
 from werkzeug.serving import make_server
 

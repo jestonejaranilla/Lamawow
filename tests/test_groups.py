@@ -102,7 +102,7 @@ def test_lab_split_uses_the_departments_own_largest_lab_room():
         with use_rooms(rs):
             return max_room_capacity(rs.lab_rooms)
     assert largest("IT") == largest("CS") == 45
-    assert [largest(d) for d in ("MB", "ES", "MedB")] == [50, 50, 50]
+    assert [largest(d) for d in ("MB", "ES", "MedB")] == [60, 60, 60]
 
 
 @pytest.mark.parametrize("dept", DEPTS)
@@ -181,6 +181,7 @@ def run_job(dept, sem, fac, **kw):
     return ss.get_progress(dept), r
 
 
+@pytest.mark.slow
 def test_engine_run_returns_run_id_and_department_progress():
     p, r = run_job("CS", SEM1, dept_faculty("CS"))
     assert p["phase"] == "done" and p["dept"] == "CS" and p["run_id"] == r["run_id"]
@@ -197,6 +198,7 @@ def test_unknown_or_missing_department_is_rejected_by_the_service():
             ss.get_progress(bad)
 
 
+@pytest.mark.slow
 def test_uncoverable_group_is_reported_with_a_reason():
     fac = dept_faculty("IT")
     for f in fac:
@@ -209,6 +211,7 @@ def test_uncoverable_group_is_reported_with_a_reason():
     assert {e["reason"] for e in p["coverage_errors"]} == {"no qualified faculty"}
 
 
+@pytest.mark.slow
 def test_science_department_warns_that_capacities_are_placeholders():
     p, _ = run_job("ES", SEM2, dept_faculty("ES"))
     assert "Room capacities for this department are placeholders." in p["warnings"]
@@ -258,6 +261,7 @@ def wait_done(depts, timeout=120):
     raise AssertionError("runs did not finish")
 
 
+@pytest.mark.slow
 def test_two_departments_run_at_the_same_time_without_mixing():
     for d in ("IT", "CS"):
         r = ss.start_scheduling(d, dept_faculty(d), legacy_subjects(), SEM2,
@@ -279,6 +283,7 @@ def test_two_departments_run_at_the_same_time_without_mixing():
                    for w in p["warnings"] if "group" in str(w))
 
 
+@pytest.mark.slow
 def test_a_later_run_of_one_department_leaves_the_other_untouched():
     run_job("CS", SEM2, dept_faculty("CS"))
     before = ss.get_progress("CS")

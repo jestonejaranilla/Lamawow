@@ -7,6 +7,8 @@ unknown department is a 400, except GET /curriculum/<dept> which answers 404.
 
 from flask import Blueprint, jsonify, request
 
+from config.settings import CP_SAT_MAX_TIME_LIMIT_SECONDS
+
 from config.curriculum import (
     UnknownDepartment, list_departments, load_curriculum, available_departments,
 )
@@ -97,6 +99,20 @@ def update_class_sizes_route():
 
 # ── /run-ga (CP-SAT + GA for one department) ──────────────────────────────────
 
+class BadNumber(ValueError):
+    pass
+
+
+def _number(data, key, lo, hi, default, integer=False):
+    """Missing or null -> default. A non-number (text, bool, NaN) is a 400. A number is clamped to lo..hi."""
+    v = data.get(key)
+    if v is None:
+        return default
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or v in (float("inf"), float("-inf")):
+        raise BadNumber(f"'{key}' must be a number.")
+    v = min(max(v, lo), hi)
+    return int(round(v)) if integer else float(v)
+
 @schedule_bp.route("/run-ga", methods=["POST"])
 def run_ga():
     data = request.get_json(silent=True) or {}
@@ -104,17 +120,21 @@ def run_ga():
     if len(data) <= 1:
         return _err("Empty payload.")
 
-    # Runtime engine settings (global engine parameters, not department data)
-    units_per_assignment = data.get("units_per_assignment")
-    cp_sat_time_limit    = data.get("cp_sat_time_limit")
-    non_classroom_units  = data.get("non_classroom_units")
-    import config.settings as _cfg
-    if units_per_assignment:
-        _cfg.UNITS_PER_ASSIGNMENT = int(units_per_assignment)
-    if non_classroom_units:
-        _cfg.NON_CLASSROOM_UNITS = int(non_classroom_units)
-    if cp_sat_time_limit:
-        _cfg.CP_SAT_TIME_LIMIT_SECONDS = float(cp_sat_time_limit)
+    # Inputs are clamped; the engine settings below apply to this run only (nothing global is changed).
+    try:
+        ga_params = {
+            "generations": _number(data, "generations", 1, 200, 50, integer=True),
+            "population":  _number(data, "population", 4, 100, 20, integer=True),
+            "mutation":    _number(data, "mutation", 0, 1, 0.15),
+            "crossover":   _number(data, "crossover", 0, 1, 0.8),
+        }
+        run_settings = {
+            "units_per_assignment": _number(data, "units_per_assignment", 1, 10, None, integer=True),
+            "non_classroom_units":  _number(data, "non_classroom_units", 1, 10, None, integer=True),
+            "cp_sat_time_limit":    _number(data, "cp_sat_time_limit", 1, CP_SAT_MAX_TIME_LIMIT_SECONDS, None),
+        }
+    except BadNumber as e:
+        return _err(str(e))
 
     # Room-capacity edits sent with the run belong to this department only
     if data.get("room_capacity"):
@@ -125,12 +145,8 @@ def run_ga():
         faculty_raw=data.get("faculty", []),
         subjects_raw=data.get("subjects", []),
         active_semester=data.get("active_semester"),
-        ga_params={
-            "generations": data.get("generations", 50),
-            "population":  data.get("population",  20),
-            "mutation":    data.get("mutation",     0.15),
-            "crossover":   data.get("crossover",    0.8),
-        },
+        ga_params=ga_params,
+        run_settings=run_settings,
         soft_constraints_incoming=data.get("soft_constraints", {}),
         class_sizes=data.get("class_sizes", {}),
     )

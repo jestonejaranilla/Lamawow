@@ -306,7 +306,7 @@ The system is organized around five functional processes derived from the Data F
 
 - Python 3, Flask 3.1, flask-cors
 
-- Google OR-Tools CP-SAT (ortools >= 9.7)
+- Google OR-Tools CP-SAT (ortools 9.15.6755, pinned)
 
 - Custom Genetic Algorithm engine
 
@@ -546,7 +546,7 @@ Open `http://localhost:5000` in your browser.
 
 - `flask-cors==6.0.2`
 
-- `ortools>=9.7.2996`
+- `ortools==9.15.6755`
 
 - `requests==2.33.1`
 - `Werkzeug==3.1.7`
@@ -559,6 +559,15 @@ OR-Tools is strongly recommended. Without it, the built-in greedy solver runs as
 Chart.js is kept in `assets/vendor/`, so the dashboard needs no CDN. On Render the start command is `gunicorn app:app --timeout 120`.
 
 
+
+### Tests
+
+```bash
+python -m pytest tests -q -m "not slow"   # quick suite, about 20 seconds
+python -m pytest tests -q                 # full suite, about 11 minutes
+```
+
+Tests marked `slow` run the solver for whole departments or open a real browser (Playwright: `pip install playwright pytest && python -m playwright install chromium`). `/run-ga` clamps its inputs (generations 1 to 200, population 4 to 100, mutation and crossover 0 to 1, solver time limit up to `CP_SAT_MAX_TIME_LIMIT_SECONDS`), answers 400 for non-numbers, and applies `units_per_assignment`, `non_classroom_units` and `cp_sat_time_limit` to that run only.
 
 To install the app on a phone, serve the site over HTTPS and use the browser's "Add to Home screen" option.
 
@@ -626,7 +635,7 @@ The browser follows the same rule. The department chosen at login (`atlasDept`) 
 
 
 
-**Meetings and rooms.** A course gives `ceil(lec/2)` two-hour lecture meetings plus one lab meeting per lab unit (`LAB_MEETINGS_PER_LAB_UNIT`); unscheduled courses (Practicum, IT 20, IT 22) get one professor and one NON_CLASSROOM row. Labs larger than the department's largest lab room are split (IT and CS: 45; MB, ES, MedB: 50). In MB, ES and MedB the Physics rooms may also host a lecture, with a penalty so lectures prefer lecture rooms. A faculty member qualifies when any tag overlaps the course tags; a course tagged only `Elective` is open to anyone.
+**Meetings and rooms.** A course gives `ceil(lec/2)` two-hour lecture meetings plus one lab meeting per lab unit (`LAB_MEETINGS_PER_LAB_UNIT`); unscheduled courses (Practicum, IT 20, IT 22) get one professor and one NON_CLASSROOM row. Labs larger than the department's largest lab room are split (IT and CS: 45; MB, ES, MedB: 60). In MB, ES and MedB the Physics rooms may also host a lecture, with a penalty so lectures prefer lecture rooms. A faculty member qualifies when any tag overlaps the course tags; a course tagged only `Elective` is open to anyone.
 
 
 

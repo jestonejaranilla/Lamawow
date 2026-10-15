@@ -56,11 +56,11 @@ from solver.constraints import (
 # ── Settings helpers ──────────────────────────────────────────────────────────
 
 def _upa() -> int:
-    return int(getattr(_cfg, "UNITS_PER_ASSIGNMENT", 2))
+    return _cfg.units_per_assignment()
 
 
 def _time_limit() -> float:
-    asked = float(getattr(_cfg, "CP_SAT_TIME_LIMIT_SECONDS", 40.0))
+    asked = _cfg.cp_sat_time_limit()
     cap = float(getattr(_cfg, "CP_SAT_MAX_TIME_LIMIT_SECONDS", 40.0))
     return max(1.0, min(asked, cap, 44.0))
 

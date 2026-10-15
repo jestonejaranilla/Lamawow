@@ -582,11 +582,14 @@ def start_scheduling(
     soft_constraints_incoming: dict,
     class_sizes: dict = None,
     wait: bool = False,
+    run_settings: dict = None,
 ) -> dict:
     """
     Validate inputs, build the department's meetings, start the background job.
     Returns {status, run_id, dept, sections, groups} or {error}.
     `class_sizes` edits are merged over the department's stored sizes.
+    `run_settings` ({units_per_assignment, non_classroom_units, cp_sat_time_limit}) applies to
+    this run only; nothing global is changed.
     wait=True runs the job in the caller's thread (tests).
     """
     st = _state(dept)
@@ -620,10 +623,14 @@ def start_scheduling(
 
     args = (dept, run_id, faculty_raw, sections, static_lookup, ga_params, sizes,
             prep["groups"], prep["errors"], prep["warnings"], rooms)
+    def job(*a):
+        with _settings_cfg.run_settings(**(run_settings or {})):
+            run_scheduling_job(*a)
+
     if wait:
-        run_scheduling_job(*args)
+        job(*args)
     else:
-        threading.Thread(target=run_scheduling_job, args=args, daemon=True).start()
+        threading.Thread(target=job, args=args, daemon=True).start()
 
     return {"status": "started", "run_id": run_id, "dept": dept,
             "sections": len(sections), "groups": len(prep["groups"])}

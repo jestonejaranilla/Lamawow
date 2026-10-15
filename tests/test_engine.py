@@ -19,6 +19,7 @@ from config.rooms import use_rooms
 
 cfg.CP_SAT_TIME_LIMIT_SECONDS = 15.0       # tests only; the solver never runs past 40 s
 SCIENCE = {"MB", "ES", "MedB"}
+pytestmark = pytest.mark.slow
 IT_CS_ROOMS = set(cur.rooms_for("IT").all_rooms)
 SCI_ROOMS = set(cur.rooms_for("MB").all_rooms)
 PHYSICS = {f"Physics Room {i}" for i in range(1, 6)}
@@ -185,6 +186,17 @@ def test_full_coverage_required_returns_errors_and_no_partial_schedule(monkeypat
     pr = ss.get_progress("CS")
     assert pr["result"] == [] and pr["coverage_errors"]
     assert {"CS3B1|CS 13", "CS3B2|CS 13"} <= {e["group_id"] for e in pr["coverage_errors"]}
+
+
+SCIENCE_PAIRS = [(d, s) for d, s in PAIRS if d in SCIENCE]
+
+
+@pytest.mark.parametrize("dept,sem", SCIENCE_PAIRS, ids=[f"{d}-{s[:3]}" for d, s in SCIENCE_PAIRS])
+def test_no_meeting_over_recommended_in_science_departments(dept, sem):
+    q = pipeline(dept, sem)
+    cap = q["rooms"].capacity
+    over = [r for r in q["ga"] if r["class_type"] != NON_CLASSROOM and r["student_count"] > cap[r["room"]]["recommended"]]
+    assert over == []
 
 
 # final table

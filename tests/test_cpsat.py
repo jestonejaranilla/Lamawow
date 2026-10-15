@@ -20,6 +20,7 @@ cfg.CP_SAT_TIME_LIMIT_SECONDS = 15.0      # tests only; the solver never runs pa
 LAB_GROUPS = {("IT", 1): 34, ("IT", 2): 30, ("CS", 1): 32, ("CS", 2): 27, ("MB", 1): 47, ("MB", 2): 28,
               ("ES", 1): 26, ("ES", 2): 19, ("MedB", 1): 31, ("MedB", 2): 24}
 SCIENCE = {"MB", "ES", "MedB"}
+pytestmark = pytest.mark.slow
 IT_CS_ROOMS = set(cur.rooms_for("IT").all_rooms)
 SCI_ROOMS = set(cur.rooms_for("MB").all_rooms)
 
@@ -188,7 +189,7 @@ def test_validator_catches_each_hard_rule():
     lec = next(i for i, r in enumerate(rows) if r["class_type"] == "LECTURE")
     assert "ROOM_NOT_IN_DEPARTMENT" in kinds(lambda b: b[lec].update(room="CL1"))
     assert "ROOM_INCOMPATIBLE" in kinds(lambda b: b[lab].update(room="CSLR 1"))
-    assert "CAPACITY_EXCEEDED" in kinds(lambda b: b[lec].update(student_count=60))
+    assert "CAPACITY_EXCEEDED" in kinds(lambda b: b[lec].update(student_count=70))
     other = next(r["faculty"] for r in rows if r["faculty"] != rows[lec]["faculty"])
     assert "GROUP_MULTIPLE_PROFESSORS" in kinds(lambda b: b[lec].update(faculty=other))
     assert "UNCOVERED" in kinds(lambda b: b[lec].update(faculty="", room="Unassigned", slot=None))

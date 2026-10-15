@@ -110,6 +110,7 @@ def test_labels_coverage_and_no_classroom_text():
     assert got["err"].startswith("IT2B1 · IT 4 Networking: no conflict")
 
 
+@pytest.mark.slow
 def test_lab_group_labels_come_from_the_engine():
     """The rows the frontend shows carry section and -L1/-L2 lab labels for every department."""
     import config.settings as cfg

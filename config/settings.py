@@ -128,3 +128,39 @@ CP_WEIGHTS = {
 UNITS_PER_ASSIGNMENT = 2
 # Load units counted for one NON_CLASSROOM group (unscheduled courses such as IT 20, IT 22, Practicum).
 NON_CLASSROOM_UNITS = 2
+
+
+# ── Per-run overrides ─────────────────────────────────────────────────────────
+# /run-ga settings (units per assignment, non-classroom units, solver time limit)
+# apply to ONE run only. They live in a context variable, so a run in one
+# department never changes the values another department's run sees.
+import contextlib as _contextlib
+import contextvars as _contextvars
+
+_RUN = _contextvars.ContextVar("atlas_run_settings", default=None)
+
+
+def _run_value(key, default):
+    r = _RUN.get()
+    return default if not r or r.get(key) is None else r[key]
+
+
+def units_per_assignment() -> int:
+    return int(_run_value("units_per_assignment", UNITS_PER_ASSIGNMENT))
+
+
+def non_classroom_units() -> int:
+    return int(_run_value("non_classroom_units", NON_CLASSROOM_UNITS))
+
+
+def cp_sat_time_limit() -> float:
+    return float(_run_value("cp_sat_time_limit", CP_SAT_TIME_LIMIT_SECONDS))
+
+
+@_contextlib.contextmanager
+def run_settings(**overrides):
+    token = _RUN.set({k: v for k, v in overrides.items() if v is not None})
+    try:
+        yield
+    finally:
+        _RUN.reset(token)

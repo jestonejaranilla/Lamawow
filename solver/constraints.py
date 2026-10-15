@@ -69,7 +69,7 @@ def faculty_available_at(faculty: dict, slot_str: str) -> bool:
 # ── Load ──────────────────────────────────────────────────────────────────────
 
 def faculty_load_ok(current_units: int, faculty: dict, units: int = None) -> bool:
-    add = _settings.UNITS_PER_ASSIGNMENT if units is None else units
+    add = _settings.units_per_assignment() if units is None else units
     return current_units + add <= faculty.get("absolute_max_units", 30)
 
 
@@ -84,8 +84,8 @@ def is_non_classroom(assignment: dict) -> bool:
 def assignment_units(assignment: dict) -> int:
     """Load units one assignment row counts for its professor."""
     if is_non_classroom(assignment):
-        return int(getattr(_settings, "NON_CLASSROOM_UNITS", _settings.UNITS_PER_ASSIGNMENT))
-    return int(_settings.UNITS_PER_ASSIGNMENT)
+        return _settings.non_classroom_units()
+    return _settings.units_per_assignment()
 
 
 # ── Room Compatibility ────────────────────────────────────────────────────────
