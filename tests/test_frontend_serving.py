@@ -85,10 +85,14 @@ def test_api_base_three_cases():
         D.resolveApiBase(loc('localhost', '')),
         D.resolveApiBase(loc('atlas-psu.onrender.com', '', 'https:')),
         D.resolveApiBase(loc('atlas.example.edu.ph', '', 'https:')),
+        D.resolveApiBase(loc('127.0.0.1', '5501')),
+        D.resolveApiBase(loc('192.168.5.67', '5000')),
+        D.resolveApiBase(loc('192.168.5.67', '5501')),
       ]));""")
     assert got == ["http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:5000",
-                   "http://localhost:5000", "http://localhost:5000",
-                   "https://atlas-drsg.onrender.com", "https://atlas-drsg.onrender.com"]
+                   "http://127.0.0.1:5000", "http://localhost:5000",
+                   "https://atlas-psu.onrender.com", "https://atlas.example.edu.ph",
+                   "http://127.0.0.1:5000", "http://192.168.5.67:5000", "http://192.168.5.67:5000"]
 
 
 @pytest.mark.skipif(NODE is None, reason="node not installed")

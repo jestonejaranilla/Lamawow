@@ -15,18 +15,23 @@
   var NO_CLASSROOM = 'NON_CLASSROOM';
   var NO_CLASSROOM_TEXT = 'No classroom (professor assigned)';
 
-  /* page served by Flask on :5000 -> same origin; other localhost / 127.0.0.1 ports -> the local
-     backend; anything else (Render static site, custom domain) -> the Render backend. */
+  /* The API is always the Flask app that serves the pages, so the answer is "same host".
+     - page on Flask (:5000), Render, or a custom domain -> same origin, nothing else to configure;
+     - page on another port of this computer or LAN (VS Code Live Server :5500/:5501, a phone on
+       192.168.x.x) -> the same host name on :5000 (keeping the host name avoids the localhost / 127.0.0.1
+       and IPv6 mismatch that makes fetch() fail);
+     config.js API_BASE overrides all of this. */
   function resolveApiBase(loc) {
     var cfg = (typeof window !== 'undefined' && window.ATLAS_CONFIG) || null;
     if (cfg && cfg.API_BASE) return String(cfg.API_BASE).replace(/\/+$/, '');
-    var host = loc && loc.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-      var port = String(loc.port || '');
-      if (port === '5000') return loc.origin || (loc.protocol + '//' + loc.host);
-      return LOCAL_API;
-    }
-    return RENDER_API;
+    var host = (loc && loc.hostname) || '';
+    var proto = (loc && loc.protocol) || 'http:';
+    var port = String((loc && loc.port) || '');
+    var origin = (loc && loc.origin) || (proto + '//' + ((loc && loc.host) || host));
+    var onThisNetwork = host === 'localhost' || host === '127.0.0.1' ||
+      /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(host);
+    if (onThisNetwork) return port === '5000' ? origin : proto + '//' + host + ':5000';
+    return origin || RENDER_API;
   }
 
   /* IT1B1, CS2B3, MedB4B2; a split lab group is IT1B1-L1 / IT1B1-L2 (the backend sends it as lab_group). */
