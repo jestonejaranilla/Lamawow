@@ -9,6 +9,8 @@ Schema (see README, Departments):
   blocks:      {"1": ["B1", "B2"], ...}
   class_sizes: {"IT1B1": {"year", "block", "size"}, ...}
   specializations: allowed tags
+  default_faculty (optional, IT only): [{name, specialization, max_units,
+               absolute_max_units, availability}] the dashboard starts with
   rooms: {"lecture": "default" | {room: {recommended, max}},
           "lab":     "default" | {room: {recommended, max}},
           "lab_rooms_also_lecture": bool, "capacity_placeholder": bool}
@@ -70,6 +72,10 @@ def _validate(data: dict, path: str) -> dict:
             bad = [t for t in c["specialization"] if t not in allowed]
             if bad:
                 raise ValueError(f"{path}: course {c['code']} has tags not in 'specializations': {bad}")
+    for f in data.get("default_faculty", []):
+        bad = [t for t in f.get("specialization", []) if allowed and t not in allowed]
+        if bad:
+            raise ValueError(f"{path}: default_faculty {f.get('name')} has tags not in 'specializations': {bad}")
     for year, blocks in data["blocks"].items():
         for b in blocks:
             if f"{dept}{year}{b}" not in data["class_sizes"]:

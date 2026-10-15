@@ -19,7 +19,6 @@ from config.rooms import use_rooms
 
 cfg.CP_SAT_TIME_LIMIT_SECONDS = 15.0       # tests only; the solver never runs past 40 s
 SCIENCE = {"MB", "ES", "MedB"}
-KNOWN_INFEASIBLE = ("IT", SEM2)           # IT2B1 needs 21 slots, Mon to Thu has 20 (see conftest.py)
 IT_CS_ROOMS = set(cur.rooms_for("IT").all_rooms)
 SCI_ROOMS = set(cur.rooms_for("MB").all_rooms)
 PHYSICS = {f"Physics Room {i}" for i in range(1, 6)}
@@ -61,15 +60,8 @@ def p(request):
     return pipeline(*request.param)
 
 
-def _skip_if_infeasible(p):
-    if (p["dept"], p["sem"]) == KNOWN_INFEASIBLE:
-        print(f"\n[{p['dept']} {p['sem']}] INFEASIBLE, coverage_errors: {p['uncovered']}")
-        assert p["uncovered"] and all(g.startswith("IT2B1|") for g in p["uncovered"])
-        pytest.xfail("IT2B1 needs 21 meetings in 20 Mon-Thu slots (R4); no rule loosened")
-
-
 # 3. regression: counts table from the Part 2 UPDATE
-EXPECTED = {("IT", 1): (30, 31, 26, 38), ("IT", 2): (36, 45, 24, 36),
+EXPECTED = {("IT", 1): (30, 31, 26, 34), ("IT", 2): (36, 45, 24, 30),
             ("CS", 1): (38, 49, 26, 32), ("CS", 2): (34, 40, 24, 27),
             ("MB", 1): (42, 61, 47, 47), ("MB", 2): (32, 47, 28, 28),
             ("ES", 1): (27, 44, 26, 26), ("ES", 2): (23, 32, 19, 19),
@@ -84,16 +76,13 @@ def test_counts_table_still_holds(p):
 
 # 4. pipeline
 def test_full_coverage(p):
-    _skip_if_infeasible(p)
     assert p["uncovered"] == {}
     assert all(r["faculty"] for r in p["ga"])
     assert {r["group_id"] for r in p["ga"]} == {g["group_id"] for g in p["prep"]["groups"]}
 
 
 def test_validate_schedule_is_clean_after_ga(p):
-    infeasible = (p["dept"], p["sem"]) == KNOWN_INFEASIBLE      # uncovered groups are reported, the rest is clean
-    secs = None if infeasible else p["prep"]["sections"]
-    assert validate_schedule(p["ga"], p["fac"], p["lookup"], p["rooms"], p["sizes"], secs) == []
+    assert validate_schedule(p["ga"], p["fac"], p["lookup"], p["rooms"], p["sizes"], p["prep"]["sections"]) == []
 
 
 def test_one_professor_per_block_course(p):
@@ -209,3 +198,10 @@ def test_zz_print_summary_table():
         lines.append(f"{d:5} {s[:3]:4} {q['block_courses']:>13} {q['meetings']:>8} {q['lab_groups']:>8} {cov:>9} "
                      f"{max(q['loads'].values()):>8} {q['secs']:>7.1f}s")
     print("\n" + "\n".join(lines))
+    for d, s in PAIRS:                       # loads per professor and lab splits of every department and semester
+        q = pipeline(d, s)
+        ld = q["loads"]
+        mean = sum(ld.values()) / len(ld)
+        print(f"[{d} {s[:3]}] mean load {mean:.1f}, over 24: {sum(v > 24 for v in ld.values())}, "
+              f"split lab sub-groups: {q['metrics']['lab_split_groups']}, loads: "
+              + ", ".join(f"{n}={v}" for n, v in sorted(ld.items())))

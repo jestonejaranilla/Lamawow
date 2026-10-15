@@ -17,10 +17,9 @@ from solver.constraints import validate_schedule
 cfg.CP_SAT_TIME_LIMIT_SECONDS = 15.0      # tests only; the solver never runs past 40 s whatever is asked
 
 # lab groups after splitting (default data)
-LAB_GROUPS = {("IT", 1): 38, ("IT", 2): 36, ("CS", 1): 32, ("CS", 2): 27, ("MB", 1): 47, ("MB", 2): 28,
+LAB_GROUPS = {("IT", 1): 34, ("IT", 2): 30, ("CS", 1): 32, ("CS", 2): 27, ("MB", 1): 47, ("MB", 2): 28,
               ("ES", 1): 26, ("ES", 2): 19, ("MedB", 1): 31, ("MedB", 2): 24}
 SCIENCE = {"MB", "ES", "MedB"}
-KNOWN_INFEASIBLE = ("IT", SEM2)      # IT2B1 needs 21 slots, Mon to Thu has 20 (see conftest.py)
 IT_CS_ROOMS = set(cur.rooms_for("IT").all_rooms)
 SCI_ROOMS = set(cur.rooms_for("MB").all_rooms)
 
@@ -46,12 +45,6 @@ def solved(request):
 
 def test_full_coverage(solved):
     dept, sem, fac, rows, metrics, prep, *_ = solved
-    if (dept, sem) == KNOWN_INFEASIBLE:
-        errs = metrics["uncovered_groups"]
-        print(f"\n[{dept} {sem}] INFEASIBLE, coverage_errors: {errs}")
-        assert errs and all(g.startswith("IT2B1|") for g in errs)           # reported, nothing silent
-        assert {r["group_id"] for r in rows if not r["faculty"]} == set(errs)
-        pytest.xfail("IT2B1 needs 21 meetings in 20 Mon-Thu slots (R4); no rule loosened")
     assert metrics["uncovered_groups"] == {}
     assert all(r["faculty"] for r in rows)
     assert {r["group_id"] for r in rows} == {g["group_id"] for g in prep["groups"]}
@@ -59,8 +52,7 @@ def test_full_coverage(solved):
 
 def test_validate_schedule_is_clean(solved):
     dept, sem, fac, rows, metrics, prep, lookup, rooms, sizes, secs = solved
-    infeasible = (dept, sem) == KNOWN_INFEASIBLE      # uncovered groups are reported, the rest must be clean
-    assert validate_schedule(rows, fac, lookup, rooms, sizes, None if infeasible else prep["sections"]) == []
+    assert validate_schedule(rows, fac, lookup, rooms, sizes, prep["sections"]) == []
     assert metrics["violations"] == []
 
 

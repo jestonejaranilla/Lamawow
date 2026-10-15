@@ -62,7 +62,8 @@ function getFacultyMaxUnitsMap() {
   return map;
 }
 
-const DATA_VERSION = 'v6'; // bump to wipe stale localStorage on deploy
+const DATA_VERSION = 'v7'; // bump to wipe stale localStorage on deploy
+const DEFAULT_PERIOD = { year: '2026-2027', semester: '1st Semester' };   // active period until the chairperson sets one
 
 // Specialization tags of the active department: the file's `specializations` (see loadCurriculumData).
 let SPECIALIZATIONS = [];
@@ -104,21 +105,6 @@ const DEFAULT_ROOM_CAPACITY = {
 
 // Class sizes and blocks per year come from the department's file (see defaultClassSizes()).
 
-// Default faculty of the IT department. Other departments get placeholder faculty built from
-// their own tags (AtlasCurriculum.placeholderFaculty).
-const INITIAL_FACULTY = [
-  { name: 'Prof A',  specialization: ['Networks & Security'],    max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Prof B',  specialization: ['Systems'],                max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Prof C',  specialization: ['Programming'],            max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Prof D',  specialization: ['Mathematics'],            max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Prof E',  specialization: ['Networks & Security'],    max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Prof F',  specialization: ['Web & App Dev'],          max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Prof G',  specialization: ['Systems'],                max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Prof H',  specialization: ['Data Management'],        max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Prof I',  specialization: ['Applied Computing'],      max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] },
-  { name: 'Prof J',  specialization: ['Data Management'],        max_units: 24, absolute_max_units: 30, availability: ['Mon','Tue','Wed','Thu'] }
-];
-
 // Everything the department owns by default (subjects, blocks, class sizes, tags, rooms flags)
 // comes from data/curricula/<DEPT>.json, loaded at startup - see loadCurriculumData().
 let ATLAS_CURRICULUM = null;
@@ -152,9 +138,13 @@ function defaultClassSizes() {
   return ATLAS_CURRICULUM ? JSON.parse(JSON.stringify(ATLAS_CURRICULUM.class_sizes || {})) : {};
 }
 
+// A department file may carry its own starting pool (IT: `default_faculty`); the others get 8 placeholders.
 function defaultFaculty() {
-  if (DEPT === 'IT') return INITIAL_FACULTY;
-  return ATLAS_CURRICULUM ? AtlasCurriculum.placeholderFaculty(ATLAS_CURRICULUM, 8) : [];
+  if (!ATLAS_CURRICULUM) return [];
+  if (Array.isArray(ATLAS_CURRICULUM.default_faculty) && ATLAS_CURRICULUM.default_faculty.length) {
+    return ATLAS_CURRICULUM.default_faculty;
+  }
+  return AtlasCurriculum.placeholderFaculty(ATLAS_CURRICULUM, 8);
 }
 
 // The department's rooms when the backend cannot be reached: its file, then the IT/CS list.
@@ -269,6 +259,7 @@ function styleChartDefaults() {
 }
 
 function initCharts() {
+  if (typeof Chart === 'undefined') { console.warn('Chart.js is not loaded; charts are skipped.'); return; }
   styleChartDefaults();
   // Dashboard bar chart
   const ctxDash = document.getElementById('dashboardChart');
@@ -2261,6 +2252,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     localStorage.removeItem(dk('coverageData'));
     localStorage.setItem(dk('atlasDataVersion'), DATA_VERSION);
   }
+  if (!localStorage.getItem(dk('academicMode'))) localStorage.setItem(dk('academicMode'), JSON.stringify(DEFAULT_PERIOD));
 
   // The department's file decides the defaults: tags, subjects, blocks and class sizes
   await loadCurriculumData();
@@ -2291,6 +2283,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   } else {
     defaultFaculty().forEach(f => addFacultyRow(f));
   }
+  saveFaculty();      // the faculty login lists this department's names from this key
   updateAllSelectAllBtnStates();
 
   // Load subjects (defaults come from the department's curriculum file)

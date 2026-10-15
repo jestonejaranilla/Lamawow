@@ -50,7 +50,7 @@ The existing college tool only plots schedules after the fact: it does no automa
 
 
 
-This is a capstone thesis project, developed by one person between April and July 2026.
+This is a capstone thesis project built between April and July 2026.
 
 
 
@@ -116,13 +116,15 @@ Uses Google OR-Tools CP-SAT to generate a conflict-free base schedule. The model
 
 
 
+Two rules shape every schedule. **One professor per block-course:** a block-course is one course taught to one block (for example IT1B1 and CC 1); all of its lecture meetings, its lab meetings and every lab sub-group are taught by the same professor. **Full coverage is the goal:** every block-course of the active semester is assigned, or it is listed in `coverage_errors` with a reason. Full coverage is not promised for every input: it depends on the faculty pool (tags, days, load caps) and on the rooms and slots available, and a group that cannot be staffed is reported, never dropped.
+
 Hard constraints enforced:
 
 - Every group (block x course) is covered, or reported in `coverage_errors` with a reason ("no qualified faculty", "no available day", "load cap reached", "no lecture room fits N students", ...). Nothing is dropped silently.
 
 - Exactly one professor per group: all lecture meetings, the lab meeting and every lab sub-group share the same professor
 
-- Faculty qualification (IT Electives are open to any faculty; every other course needs a matching specialization tag)
+- Faculty qualification (a course whose only tag is `Elective`, or that has no tag, is open to any faculty; every other course needs at least one matching specialization tag)
 
 - Faculty day availability and no faculty double-booking
 
@@ -142,7 +144,7 @@ Objective: exact specialization match, the same professor for the same course ac
 
 
 
-If OR-Tools is not installed, a greedy group-level solver runs instead. It obeys the same hard rules (same room matching, same checks) but it is not optimal, and it may leave groups uncovered; those are reported exactly like the CP-SAT path.
+If OR-Tools is not installed, a greedy group-level solver runs instead. It places a group only when the placement passes the same checks (availability, one meeting per professor, block and room per slot, room capacity, load cap, one professor per group), so what it places is valid. It does not promise full coverage and it is not optimal: it can leave groups uncovered that CP-SAT would cover. Those are reported in `coverage_errors` like on the CP-SAT path.
 
 
 
@@ -150,7 +152,7 @@ If OR-Tools is not installed, a greedy group-level solver runs instead. It obeys
 
 
 
-Takes the valid CP-SAT schedule as input and improves slot and room assignments against faculty soft preferences. It never generates schedules from scratch and never violates hard constraints. Faculty assignments from Phase 1 are authoritative.
+Takes the valid CP-SAT schedule as input and improves slot and room assignments against faculty soft preferences. It never generates schedules from scratch and never changes who teaches what: only slots and rooms move. Every candidate is validated, and if the result has more rule violations than the CP-SAT schedule it started from, the CP-SAT schedule is returned unchanged.
 
 
 
@@ -368,7 +370,7 @@ solver/
 
   cp_sat_solver.py            Phase 1: CP-SAT model (OR-Tools) + greedy fallback with the same hard rules
 
-  ga_optimizer.py             Phase 2: preference optimizer (never violates hard constraints)
+  ga_optimizer.py             Phase 2: preference optimizer (moves slots and rooms only; falls back to the CP-SAT schedule if a rule would break)
 
   constraints.py              Qualification, availability, load, and room compatibility checks
 
@@ -494,7 +496,10 @@ Key constants in `config/settings.py`:
 
 | `UNITS_PER_ASSIGNMENT` | 2 | Teaching units counted per assigned slot |
 
-| `CP_SAT_TIME_LIMIT_SECONDS` | 40.0 | OR-Tools solver time limit (never above `CP_SAT_MAX_SECONDS`, 40) |
+| `CP_SAT_TIME_LIMIT_SECONDS` | 30.0 | OR-Tools solver time limit requested for a run (the request may override it) |
+| `CP_SAT_MAX_TIME_LIMIT_SECONDS` | 40.0 | Hard ceiling for the solver, always under 45 s |
+| `CP_WEIGHTS` | See settings.py | CP-SAT objective weights (coverage, exact specialization, same professor per course, load above `max_units`, load balance, room fit) |
+| `REQUIRE_FULL_COVERAGE` | False | True returns no assignments when any group cannot be covered |
 
 | `GA_WEIGHTS` | See settings.py | Soft preference scoring weights for the GA |
 
@@ -543,11 +548,15 @@ Open `http://localhost:5000` in your browser.
 
 - `ortools>=9.7.2996`
 
+- `requests==2.33.1`
 - `Werkzeug==3.1.7`
+- `gunicorn==23.0.0` (Render)
 
 
 
-OR-Tools is strongly recommended. Without it, the built-in greedy backtracking solver runs as a fallback with the same hard-constraint guarantees but slower performance on large inputs.
+OR-Tools is strongly recommended. Without it, the built-in greedy solver runs as a fallback: what it places is valid, but it does not guarantee full coverage or an optimal result.
+
+Chart.js is kept in `assets/vendor/`, so the dashboard needs no CDN. On Render the start command is `gunicorn app:app --timeout 120`.
 
 
 
@@ -612,6 +621,8 @@ Five departments are scheduled separately: IT, CS, MB (Marine Biology), ES (Envi
 
 
 **Role-based behaviour.** Every request carries `dept` (query string for GET, JSON field for POST): `/run-ga`, `/progress`, `/soft-constraints`, `/rooms`, `/class-sizes`, `/analytics*`. A missing or unknown `dept` is a 400. `GET /curricula` lists the departments and `GET /curriculum/<dept>` returns a file (404 when unknown). Once a department is chosen the backend uses only its subjects, blocks, class sizes and rooms. Progress, last result, analytics, warnings, soft constraints, class sizes and room edits are stored per department, each with its own lock, so two departments can run at the same time without touching each other. `/run-ga` returns a `run_id`, echoed by `/progress`.
+
+The browser follows the same rule. The department chosen at login (`atlasDept`) decides the curriculum file, tags, rooms, defaults and every saved key: all browser data is stored as `<name>::<dept>` (for example `lastGAResult::CS`), results and reports of one department are never shown in another, and a log out or a different login empties everything held in memory. The faculty login lists only the names saved for the department picked in the same step. **Starting data.** IT starts with a pool of 10 faculty (`default_faculty` in `IT.json`, Mon to Thu, 24 units, hard cap 30); the other four departments start with 8 editable placeholder faculty (Prof A to H). The active period starts as 2026-2027, 1st Semester, until the chairperson sets one. Class sizes and, for MB, ES and MedB, room capacities are sample data (`class_sizes_placeholder`, `capacity_placeholder`): the dashboard says so, and they must be replaced with real figures before the output is used.
 
 
 

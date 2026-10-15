@@ -115,12 +115,15 @@ CP_SAT_MAX_TIME_LIMIT_SECONDS = 40.0  # hard ceiling (always under 45 s), best s
 REQUIRE_FULL_COVERAGE = False
 
 # CP-SAT objective weights (integers)
+# The solver reads exactly these names (see cp_sat_solver._weights).
 CP_WEIGHTS = {
-    "uncovered_group":   1_000_000,  # coverage dominates everything else
+    "uncovered_group":   1_000_000,  # reward per meeting of a covered group; coverage dominates everything else
     "exact_spec":        40,         # per meeting, exact specialization match
     "course_professor":  30,         # per distinct professor teaching the same course
     "over_soft_cap":     25,         # per load unit above max_units (24)
-    "load_balance":      3,          # per load unit away from the mean load
+    "load_balance":      3,          # per load unit of the busiest professor
+    "lab_for_lecture":   20,         # per lecture placed in a laboratory room
+    "room_over":         1,          # per student above a room's recommended size
 }
 UNITS_PER_ASSIGNMENT = 2
 # Load units counted for one NON_CLASSROOM group (unscheduled courses such as IT 20, IT 22, Practicum).

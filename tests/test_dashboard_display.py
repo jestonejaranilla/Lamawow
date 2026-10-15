@@ -39,20 +39,9 @@ def browser(server):
         b.close()
 
 
-# The sandbox has no internet: the CDN libraries are replaced by tiny stubs (charts are not under test).
-CHART_STUB = """
-window.Chart = function () { this.data = {labels: [], datasets: [{data: []}]}; this.options = {};
-  this.update = function () {}; this.destroy = function () {}; this.resize = function () {}; this.render = function () {}; };
-Chart.defaults = {font: {}, color: '', borderColor: '', plugins: {legend: {labels: {}}, tooltip: {}}};
-Chart.register = function () {};
-"""
-
-
 def open_dashboard(browser, dept):
     ctx = browser.new_context()
-    ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: (
-        r.fulfill(body=CHART_STUB, content_type="application/javascript")
-        if "chart.js" in r.request.url or "jspdf" in r.request.url else r.abort()))
+    ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())   # nothing may load from the internet
     page = ctx.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
@@ -74,6 +63,9 @@ def test_dashboard_loads_for_every_department(browser, dept):
     assert DEPTS[dept] in page.inner_text("#deptBannerName")
     assert page.locator("#subjectsTable tbody tr").count() > 0
     assert page.locator("#classSizesTable tbody tr").count() > 0
+    assert page.evaluate("typeof Chart") == "function"        # Chart.js comes from assets/vendor, not a CDN
+    mode = page.evaluate("JSON.parse(localStorage.getItem('academicMode::%s'))" % dept)
+    assert mode == {"year": "2026-2027", "semester": "1st Semester"}   # default active period
     assert not errors, errors
     page.context.close()
 

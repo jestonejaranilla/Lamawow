@@ -1,16 +1,30 @@
 """
 ATLAS PSU - browser check: department isolation (IT -> CS -> IT).
 Needs: pip install playwright && python -m playwright install chromium
-Run from the project root with the backend and a static server up:
-    python app.py                       # http://localhost:5000
-    python -m http.server 8000          # serves the repo root
-    python -m pytest tests/e2e -q
+Run from the project root (port 5000 must be free: the test starts the app there):
+    python -m pytest tests/test_dept_isolation.py -q
 """
 import re
+import threading
+
 import pytest
 
 pw = pytest.importorskip("playwright.sync_api")
-BASE = "http://localhost:8000"
+from werkzeug.serving import make_server
+
+import config.settings as cfg
+from app import app
+
+BASE = "http://localhost:5000"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def server():
+    cfg.CP_SAT_TIME_LIMIT_SECONDS = 10.0
+    srv = make_server("127.0.0.1", 5000, app, threaded=True)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield
+    srv.shutdown()
 SECTION = re.compile(r"\b(IT|CS|MB|ES|MedB)\d[Bb]\d\b")
 
 
@@ -22,7 +36,7 @@ def login(page, dept):
             sessionStorage.setItem('atlasUser','Tester'); sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph'); }""",
         dept)
     page.goto(f"{BASE}/pages/dashboard.html")
-    page.wait_for_selector("#facultyTable tbody tr")
+    page.wait_for_selector("#facultyTable tbody tr", state="attached")
 
 
 def run_engine(page, dept):
@@ -30,10 +44,9 @@ def run_engine(page, dept):
         """d => { localStorage.setItem('academicMode::'+d, JSON.stringify({year:'2025-2026',semester:'1st Semester'}));
             localStorage.setItem('systemSettings::'+d, JSON.stringify({max_units:24,units_per_assignment:2,cp_sat_time_limit:10})); }""",
         dept)
-    page.fill("#populationSize", "10")
-    page.fill("#numGenerations", "5")
-    page.click("#runGA")
-    page.wait_for_selector("#gaScheduleTable tbody tr td:nth-child(3)", timeout=120_000)
+    page.evaluate("""() => { document.getElementById('populationSize').value = 6;
+        document.getElementById('numGenerations').value = 3; document.getElementById('runGA').click(); }""")
+    page.wait_for_selector("#gaScheduleTable tbody tr td:nth-child(3)", state="attached", timeout=120_000)
     page.wait_for_function("!document.getElementById('runGA').disabled", timeout=120_000)
 
 
@@ -44,7 +57,9 @@ def labels(page):
 def test_it_to_cs_to_it():
     with pw.sync_playwright() as p:
         browser = p.chromium.launch()
-        page = browser.new_page()
+        ctx = browser.new_context()
+        ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())
+        page = ctx.new_page()
         login(page, "IT")
         run_engine(page, "IT")
         assert labels(page) == {"IT"}

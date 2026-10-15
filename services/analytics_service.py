@@ -6,7 +6,7 @@ Pure computation - no Flask dependencies.
 
 import config.settings as _cfg_ana
 from solver.constraints import (
-    is_exact_spec_match, is_non_classroom, assignment_units,
+    is_exact_spec_match, is_open_assignment, is_non_classroom, assignment_units,
     get_room_capacity, room_exceeds_hard_max, room_capacity_penalty,
 )
 from solver.objective_functions import compute_satisfaction_metrics
@@ -93,7 +93,7 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
             mismatches += 1
             continue
         subj = a.get("subject", "")
-        if subj.startswith("IT Elective"):
+        if is_open_assignment(subj, static_lookup):      # Elective-only courses: any professor
             exact_matches += 1
             continue
         if is_exact_spec_match(fac, subj, static_lookup):

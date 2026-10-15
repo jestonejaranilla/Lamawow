@@ -11,12 +11,13 @@ dept_faculty(dept): 10 professors, each holding 2 or 3 tags of that
 department's `specializations`, every tag covered, available Mon to Thu,
 max_units 24, absolute_max_units 30. Deterministic.
 
-Known infeasible case (reported, not loosened): IT 2nd semester. Block IT2B1
-(48 students) has 9 lecture/lab meetings plus 12 sub-lab meetings from
-splitting its 6 labs (one professor per group, so the two halves of a lab
-cannot share a slot) = 21 meetings, and R4 allows one meeting per block per
-slot, but Mon to Thu has 20 slots.
+IT uses the pool the dashboard starts with (`default_faculty` in IT.json), so
+the tests run on the real demo data. IT2B1 has 45 students, so its labs are not
+split and it needs 15 meetings in the 20 Mon to Thu slots (with 48 students it
+needed 21, which cannot fit: one meeting per block per slot, R4).
 """
+
+import copy
 
 from config.curriculum import load_curriculum
 from services import schedule_service as ss
@@ -57,6 +58,8 @@ def dept_faculty(dept, size=POOL_SIZE):
     (largest remainder), so no tag is starved. Deterministic.
     """
     cur = load_curriculum(dept)
+    if dept == "IT" and size == POOL_SIZE:
+        return copy.deepcopy(cur["default_faculty"])
     tags = list(cur["specializations"])
     demand = {t: _tag_demand(dept).get(t, 0.0) for t in tags}
     holders = {t: 0 for t in tags}

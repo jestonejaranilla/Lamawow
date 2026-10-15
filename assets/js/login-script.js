@@ -53,8 +53,10 @@
     writeJSON('atlasProfiles', profiles);
   }
 
-  function facultyNames() {
-    const names = readJSON('facultyData', []).map(f => f && f.name).filter(Boolean);
+  /* Faculty names of ONE department (key facultyData::<dept>). No department chosen, no names. */
+  function facultyNames(dept) {
+    if (!dept) return [];
+    const names = readJSON('facultyData::' + dept, []).map(f => f && f.name).filter(Boolean);
     return Array.from(new Set(names)).sort();
   }
 
@@ -142,8 +144,10 @@
       DEPARTMENTS.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
   });
 
+  /* The name list follows the department picked in the same step (suDept for suFaculty, cpDept for cpFaculty). */
   document.querySelectorAll('.js-faculty').forEach(select => {
-    const names = facultyNames();
+    const deptSelect = $(select.id.replace(/Faculty$/, 'Dept'));
+    const manualWrap = select.closest('.auth-field').querySelector('.auth-manual');
     const add = (value, text, extra) => {
       const option = document.createElement('option');
       option.value = value;
@@ -151,16 +155,22 @@
       Object.assign(option, extra);
       select.appendChild(option);
     };
-    add('', 'Select your name', { disabled: true, selected: true });
-    names.forEach(name => add(name, name));
-    add(OTHER, 'My name is not listed');
-    const manualWrap = select.closest('.auth-field').querySelector('.auth-manual');
+    function fill() {
+      const names = facultyNames(deptSelect && deptSelect.value);
+      select.innerHTML = '';
+      add('', 'Select your name', { disabled: true, selected: true });
+      names.forEach(name => add(name, name));
+      add(OTHER, 'My name is not listed');
+      if (!names.length) { select.value = OTHER; manualWrap.hidden = false; }
+      else manualWrap.hidden = true;
+    }
     select.addEventListener('change', () => {
       const other = select.value === OTHER;
       manualWrap.hidden = !other;
       if (other) manualWrap.querySelector('input').focus();
     });
-    if (!names.length) { select.value = OTHER; manualWrap.hidden = false; }
+    if (deptSelect) deptSelect.addEventListener('change', fill);
+    fill();
   });
 
   document.querySelectorAll('.pw-toggle').forEach(button =>

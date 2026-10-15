@@ -31,7 +31,7 @@ Hard rules in the model:
 Objective: exact specialization, same professor for the same course across
 blocks, balanced load, little overload.
 
-Time limit: never above CP_SAT_MAX_SECONDS (< 45 s). The best solution found
+Time limit: never above CP_SAT_MAX_TIME_LIMIT_SECONDS (< 45 s). The best solution found
 is returned.
 
 Fallback (OR-Tools missing): a greedy group-level solver that obeys the same
@@ -61,12 +61,12 @@ def _upa() -> int:
 
 def _time_limit() -> float:
     asked = float(getattr(_cfg, "CP_SAT_TIME_LIMIT_SECONDS", 40.0))
-    cap = float(getattr(_cfg, "CP_SAT_MAX_SECONDS", 40.0))
+    cap = float(getattr(_cfg, "CP_SAT_MAX_TIME_LIMIT_SECONDS", 40.0))
     return max(1.0, min(asked, cap, 44.0))
 
 
 def _weights() -> dict:
-    return dict(getattr(_cfg, "CP_SAT_WEIGHTS", {}))
+    return dict(getattr(_cfg, "CP_WEIGHTS", {}))
 
 
 # ── Slot helpers ──────────────────────────────────────────────────────────────
@@ -382,11 +382,11 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
     obj = []
     for g in live:
         n = max(1, len(g["meetings"]))
-        obj.append(W.get("cover", 100000) * n * cover[g["gid"]])
+        obj.append(W.get("uncovered_group", 1_000_000) * n * cover[g["gid"]])
         if not is_open_assignment(g["title"], static_lookup):
             for f in g["fac"]:
                 if is_exact_spec_match(faculty_list[f], g["title"], static_lookup):
-                    obj.append(W.get("exact_spec", 10) * n * z[(g["gid"], f)])
+                    obj.append(W.get("exact_spec", 40) * n * z[(g["gid"], f)])
     by_course: dict = {}
     for g in live:
         by_course.setdefault(g["code"] or g["title"], []).append(g)
@@ -398,10 +398,10 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
             for g in gs:
                 if (g["gid"], f) in z:
                     model.AddImplication(z[(g["gid"], f)], u)
-            obj.append(-W.get("same_prof", 12) * u)
+            obj.append(-W.get("course_professor", 30) * u)
     for ov in over:
-        obj.append(-W.get("over_load", 10) * ov)
-    obj.append(-W.get("balance", 2) * top)
+        obj.append(-W.get("over_soft_cap", 25) * ov)
+    obj.append(-W.get("load_balance", 3) * top)
     obj.extend(-c for c in room_cost)
     model.Maximize(sum(obj))
 

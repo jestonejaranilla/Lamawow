@@ -18,7 +18,7 @@ from config.rooms import use_rooms
 
 # (block-courses, lecture meetings, lab meetings, lab groups after splitting)
 EXPECTED = {
-    ("IT", 1): (30, 31, 26, 38),   ("IT", 2): (36, 45, 24, 36),
+    ("IT", 1): (30, 31, 26, 34),   ("IT", 2): (36, 45, 24, 30),
     ("CS", 1): (38, 49, 26, 32),   ("CS", 2): (34, 40, 24, 27),
     ("MB", 1): (42, 61, 47, 47),   ("MB", 2): (32, 47, 28, 28),
     ("ES", 1): (27, 44, 26, 26),   ("ES", 2): (23, 32, 19, 19),

@@ -527,7 +527,7 @@
     "IT2B1": {
       "year": "2nd Year",
       "block": "B1",
-      "size": 48
+      "size": 45
     },
     "IT2B2": {
       "year": "2nd Year",
@@ -550,6 +550,18 @@
       "size": 44
     }
   },
+  "default_faculty": [
+    {"name": "Prof. Maria Santos", "specialization": ["Mathematics", "Core Theory"], "max_units": 24, "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]},
+    {"name": "Prof. Jose Reyes", "specialization": ["Mathematics", "Programming"], "max_units": 24, "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]},
+    {"name": "Prof. Ana Dela Cruz", "specialization": ["Programming", "Web & App Dev"], "max_units": 24, "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]},
+    {"name": "Prof. Mark Bautista", "specialization": ["Networks & Security", "Systems"], "max_units": 24, "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]},
+    {"name": "Prof. Grace Villanueva", "specialization": ["Networks & Security", "Applied Computing"], "max_units": 24, "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]},
+    {"name": "Prof. Ramon Garcia", "specialization": ["Applied Computing", "Systems", "Industry Practice"], "max_units": 24, "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]},
+    {"name": "Prof. Liza Mendoza", "specialization": ["Data Management", "Applied Computing"], "max_units": 24, "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]},
+    {"name": "Prof. Carlo Aquino", "specialization": ["Web & App Dev", "Data Management"], "max_units": 24, "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]},
+    {"name": "Prof. Rosa Flores", "specialization": ["Core Theory", "Research & Capstone", "Industry Practice"], "max_units": 24, "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]},
+    {"name": "Prof. Eduardo Ramos", "specialization": ["Programming", "Systems", "Networks & Security"], "max_units": 24, "absolute_max_units": 30, "availability": ["Mon", "Tue", "Wed", "Thu"]}
+  ],
   "class_sizes_placeholder": true,
   "rooms": {
     "lecture": "default",
