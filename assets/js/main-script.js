@@ -1058,7 +1058,12 @@ async function triggerGARunAPI() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  const data = await response.json();
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch (e) { /* not JSON */ }
+  if (!response.ok && !data.status) {
+    throw new Error(data.error || ('Server answered ' + response.status + (raw ? '' : ' with an empty reply') + '. Check the Render logs.'));
+  }
   if (!data.status) throw new Error(data.error || 'GA start failed');
   if (data.dept !== DEPT) throw new Error('The engine answered for another department.');
   currentRun = { dept: DEPT, run_id: data.run_id };
