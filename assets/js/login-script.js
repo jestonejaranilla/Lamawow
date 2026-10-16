@@ -125,7 +125,9 @@
         ]);
       } catch { /* the audit row is best effort */ }
     }
-    if (result.user.role !== 'faculty' && sessionStorage.getItem(PERIOD_FLAG) !== '1') await askPeriod(result.user);
+    /* The period question belongs to a real sign in. Re-opening the app with a session that is still valid goes
+       straight to the dashboard (and is not a new login in the audit log). */
+    if (announce && result.user.role !== 'faculty' && sessionStorage.getItem(PERIOD_FLAG) !== '1') await askPeriod(result.user);
     window.location.replace(auth.DASH[result.user.role]);
     return true;
   }
@@ -196,7 +198,8 @@
     if (reason && MESSAGES[reason]) showAlert(MESSAGES[reason], NEUTRAL.includes(reason));
     if (!client) { if (!reason) showAlert(MESSAGES.config); return; }
     if (!reason) {                                        // already signed in (or back from Google): go straight in
-      try { await routeSignedIn(true); } catch { /* stay on the form */ }
+      const backFromGoogle = /[?#&](code|access_token)=/.test(window.location.search + window.location.hash);
+      try { await routeSignedIn(backFromGoogle); } catch { /* stay on the form */ }
     }
   });
 })();
