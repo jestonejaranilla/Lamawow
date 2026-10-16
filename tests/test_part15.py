@@ -132,7 +132,7 @@ def test_app_core_checks_the_session_and_wraps_fetch():
 def test_every_api_call_in_the_dashboard_goes_through_the_wrapper():
     js = read("assets/js/main-script.js")
     assert not re.search(r"(?<![\w.])fetch\(`\$\{API_BASE\}", js)
-    assert js.count("window.atlasAuth.fetch(`${API_BASE}") == 6
+    assert js.count("window.atlasAuth.fetch(`${API_BASE}") == 7      # the 7th is runsApi (Part 17)
 
 
 def test_logout_calls_sign_out_and_stays_only_in_account_page():

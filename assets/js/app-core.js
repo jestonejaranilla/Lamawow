@@ -114,15 +114,15 @@
     dept: sessionStorage.getItem('atlasDept') || ''
   });
 
-  /* ---------- Department scope (role-based by department) ----------
-     The department picked at login lives in sessionStorage 'atlasDept'.
-     Every per-department browser key is stored as <base>::<dept>, so the five
-     departments never read or overwrite each other's data. */
+  /* ---------- Department scope ----------
+     The department comes from the signed-in user's profile and lives in sessionStorage 'atlasDept' (display cache).
+     Since Part 16 the department's data lives in Supabase (assets/js/data-store.js). The base names below are the
+     OLD browser data keys (<base>::<dept>); nothing writes them any more and the auth module deletes them. */
   const DEPT_CODES = ['IT', 'CS', 'MB', 'ES', 'MedB'];
   const DEPT_BASE_KEYS = [
     'facultyData', 'subjectsData', 'classSizesData', 'academicMode', 'systemSettings',
     'lastGAResult', 'atlasAnalyticsCache', 'softConstraintsData', 'roomsData',
-    'atlasCurriculumCache', 'atlasDataVersion', 'coverageData'
+    'atlasCurriculumCache', 'atlasDataVersion', 'coverageData', 'atlasDeptMigrated', 'facultyProfiles'
   ];
 
   function currentDept() {
@@ -132,21 +132,6 @@
 
   function dk(base, dept) { return base + '::' + (dept || currentDept()); }
 
-  /* One-time migration: legacy un-suffixed keys become the IT keys (originals stay).
-     After this, no code reads an un-suffixed key. */
-  function migrateLegacyKeys() {
-    try {
-      if (localStorage.getItem('atlasDeptMigrated') === '1') return;
-      DEPT_BASE_KEYS.forEach(base => {
-        const legacy = localStorage.getItem(base);
-        if (legacy !== null && localStorage.getItem(dk(base, 'IT')) === null) {
-          localStorage.setItem(dk(base, 'IT'), legacy);
-        }
-      });
-      localStorage.setItem('atlasDeptMigrated', '1');
-    } catch { /* storage unavailable */ }
-  }
-  migrateLegacyKeys();
 
   /* Logout: pages listen for 'atlas:logout' and empty everything they hold in memory. */
   function logout() {
@@ -231,15 +216,50 @@
     return location.origin;
   }
 
-  function clearLocalAuth() {
-    try { sessionStorage.clear(); } catch (e) { /* storage unavailable */ }
+  /* Browser keys that held working data (<base> or <base>::<dept>), the data-store cache, and the Supabase session.
+     Device settings (atlasApp: theme, text size) are never touched. */
+  var WORKING_BASES = ['facultyData', 'subjectsData', 'classSizesData', 'academicMode', 'systemSettings',
+    'lastGAResult', 'atlasAnalyticsCache', 'softConstraintsData', 'roomsData', 'atlasCurriculumCache',
+    'atlasDataVersion', 'coverageData', 'atlasDeptMigrated', 'facultyProfiles'];
+  var OWNER_KEY = 'atlasCacheOwner';
+
+  function isWorkingKey(k) {
+    var base = k.split('::')[0];
+    return WORKING_BASES.indexOf(base) >= 0;
+  }
+
+  /* what: 'legacy' = the old per-department data keys only; 'cache' = those plus the data-store cache and the owner mark;
+     'all' = those plus the Supabase session keys. */
+  function purgeLocal(what) {
     try {
       var drop = [];
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
-        if (k && (k.indexOf('sb-') === 0 || k === 'atlasRememberedEmail')) drop.push(k);
+        if (!k) continue;
+        if (isWorkingKey(k)) drop.push(k);
+        else if (what !== 'legacy' && (k.indexOf('atlasCache:') === 0 || k === OWNER_KEY)) drop.push(k);
+        else if (what === 'all' && (k.indexOf('sb-') === 0 || k === 'atlasRememberedEmail')) drop.push(k);
       }
       drop.forEach(function (k) { localStorage.removeItem(k); });
+    } catch (e) { /* storage unavailable */ }
+  }
+  purgeLocal('legacy');                     // old per-department data keys are never used again
+
+  function clearLocalAuth() {
+    try { sessionStorage.clear(); } catch (e) { /* storage unavailable */ }
+    try { if (window.atlasData && window.atlasData.clear) window.atlasData.clear(); } catch (e) { /* ignore */ }
+    purgeLocal('all');
+  }
+
+  /* A different person on this computer starts with nothing from the previous one. */
+  function claimBrowserFor(userId) {
+    try {
+      var owner = localStorage.getItem(OWNER_KEY);
+      if (owner && owner !== userId) {
+        purgeLocal('cache');
+        try { window.dispatchEvent(new CustomEvent('atlas:userchanged')); } catch (e) { /* ignore */ }
+      }
+      localStorage.setItem(OWNER_KEY, userId);
     } catch (e) { /* storage unavailable */ }
   }
 
@@ -279,7 +299,7 @@
     }
     return {
       user: {
-        id: session.user.id, role: p.role, dept: p.dept, facultyName: facultyName,
+        id: session.user.id, role: p.role, dept: p.dept, facultyName: facultyName, facultyId: p.faculty_id || null,
         email: p.email || session.user.email || '', name: p.full_name || p.email || ''
       }
     };
@@ -331,6 +351,7 @@
         return never();
       }
       sessionStorage.removeItem('atlasAuthReload');
+      claimBrowserFor(u.id);
       auth.user = u;
       document.documentElement.style.visibility = '';
       return u;
@@ -393,6 +414,7 @@
   auth.loadUser = loadUser;
   auth.applyCache = applyCache;
   auth.clearLocalAuth = clearLocalAuth;
+  auth.purgeLocal = purgeLocal;
   auth.apiBase = apiBase;
   auth.logout = logout;
   window.atlasAuth = auth;

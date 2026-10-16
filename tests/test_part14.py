@@ -306,7 +306,7 @@ def test_finished_run_is_saved_as_draft_and_audited(client, db, monkeypatch):
     assert row["status"] == "draft" and row["dept"] == "IT" and row["created_by"] == IT_CHAIR
     assert row["academic_year"] == "2026-2027" and row["semester"] == "1st Semester"
     assert row["result"][0]["course"] == "SECRET-COURSE" and row["analytics"] == {"jain": 0.9}
-    assert row["metrics"] == {"solver_used": "cp_sat"} and isinstance(row["duration_ms"], int)
+    assert row["metrics"] == {"solver_used": "cp_sat", "balance_score": 100.0} and isinstance(row["duration_ms"], int)   # Part 17 adds the balance score
     assert row["solver_settings"]["generations"] == 5 and row["solver_settings"]["cp_sat_time_limit"] == 7
     assert row["coverage"]["summary"] == {"assigned": 3, "total": 3}
     prog = client.get("/progress", headers=H(IT_CHAIR)).get_json()

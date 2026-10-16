@@ -140,16 +140,37 @@ const check = (name, ok, detail) => results.push({ name, ok: Boolean(ok), detail
   r = await w.win.atlasFetch(BASE + '/rooms?dept=CS');
   check('a 403 (wrong department) is returned to the page and does not sign out', r.status === 403 && w.signedOut === 0, w.signedOut);
 
-  w = world({ path: '/app/account.html', profile: chair('IT'), local: { 'sb-abc-auth-token': '{}', atlasRememberedEmail: 'a', 'facultyData::IT': '[]' },
-    cache: { atlasRole: 'chairperson', atlasDept: 'IT', atlasUser: 'IT Chairperson', atlasEmail: 'chair@psu.palawan.edu.ph' } });
+  const chairCache = { atlasRole: 'chairperson', atlasDept: 'IT', atlasUser: 'IT Chairperson', atlasEmail: 'chair@psu.palawan.edu.ph' };
+  w = world({ path: '/app/account.html', profile: chair('IT'), cache: chairCache,
+    local: { 'sb-abc-auth-token': '{}', atlasRememberedEmail: 'a', atlasApp: '{"theme":"dark","textSize":"large"}',
+             'facultyData::IT': '[]', 'lastGAResult::CS': '[]', atlasDeptMigrated: '1', facultyProfiles: '{}' } });
   await w.win.atlasAuth.ready;
+  check('page start deletes the old per-department data keys and the migration flag',
+    ['facultyData::IT', 'lastGAResult::CS', 'atlasDeptMigrated', 'facultyProfiles'].every(k => w.ls.getItem(k) === null), w.ls._m);
+  check('page start keeps the device settings', w.ls.getItem('atlasApp') !== null);
+  w.ls.setItem('lastGAResult::IT', '[]'); w.ls.setItem('coverageData::IT', '{}'); w.ls.setItem('atlasAnalyticsCache::IT', '{}');
+  w.ls.setItem('systemSettings::IT', '{}'); w.ls.setItem('roomsData::IT', '{}'); w.ls.setItem('softConstraintsData::IT', '{}');
+  w.ls.setItem('atlasCache:u1:IT:chair', '{}');
   let loggedOut = false; w.win.addEventListener('atlas:logout', () => { loggedOut = true; });
   await w.win.atlasLogout();
   const post = w.calls.find(c => c.url.endsWith('/auth/logout'));
   check('logout: audit call, signOut, session cache and sb- keys cleared, event fired',
     post && post.method === 'POST' && post.auth === 'Bearer tok1' && w.signedOut === 1 && w.ss.length === 0 &&
     w.ls.getItem('sb-abc-auth-token') === null && w.ls.getItem('atlasRememberedEmail') === null && loggedOut, [w.calls, w.ls._m]);
-  check('logout keeps the department working data in localStorage', w.ls.getItem('facultyData::IT') === '[]', w.ls._m);
+  check('logout clears every per-department working key and the data cache',
+    ['lastGAResult::IT', 'coverageData::IT', 'atlasAnalyticsCache::IT', 'systemSettings::IT', 'roomsData::IT', 'softConstraintsData::IT',
+     'atlasCache:u1:IT:chair', 'atlasCacheOwner'].every(k => w.ls.getItem(k) === null), w.ls._m);
+  check('logout keeps only the device settings (theme, text size)', w.ls.getItem('atlasApp') !== null);
+
+  w = world({ path: '/pages/dashboard.html', profile: chair('IT'), cache: chairCache,
+    local: { atlasCacheOwner: 'someone-else', 'atlasCache:someone-else:IT:chair': '{}', atlasApp: '{}' } });
+  await w.win.atlasAuth.ready;
+  check('a different user on the same computer starts with an empty data cache',
+    w.ls.getItem('atlasCache:someone-else:IT:chair') === null && w.ls.getItem('atlasCacheOwner') === 'u1' && w.ls.getItem('atlasApp') !== null, w.ls._m);
+  w = world({ path: '/pages/dashboard.html', profile: chair('IT'), cache: chairCache,
+    local: { atlasCacheOwner: 'u1', 'atlasCache:u1:IT:chair': '{}' } });
+  await w.win.atlasAuth.ready;
+  check('the same user keeps their short-lived cache', w.ls.getItem('atlasCache:u1:IT:chair') !== null, w.ls._m);
 
   w = world({ path: '/pages/dashboard.html', profile: chair('IT'), cache: { atlasRole: 'chairperson', atlasDept: 'IT', atlasUser: 'IT Chairperson', atlasEmail: 'chair@psu.palawan.edu.ph' } });
   await w.win.atlasAuth.ready; w.authCb('SIGNED_OUT'); 

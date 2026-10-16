@@ -19,9 +19,11 @@
   <script src="../assets/vendor/supabase.js"></script>
   <script src="../assets/js/supabase-client.js"></script>
   <script src="../assets/js/app-core.js"></script>
+  <script src="../assets/js/data-store.js"></script>
   <link rel="stylesheet" href="../assets/css/main-style.css">
   <script src="../assets/js/solver-settings.js" defer></script>
   <script src="../assets/js/display.js" defer></script>
+  <script src="../assets/js/saved-runs.js" defer></script>
   <script src="../assets/js/curriculum.js" defer></script>
   <script src="../assets/js/main-script.js" defer></script>
 </head>
@@ -226,6 +228,11 @@
               </div>
             </div>
 
+            <div id="saveRunBar" class="save-run-bar hidden">
+              <label for="saveRunLabel">Label</label>
+              <input type="text" id="saveRunLabel" maxlength="120" autocomplete="off">
+              <button type="button" class="btn" id="saveRunBtn">Save this run</button>
+            </div>
             <div id="coverageSummary" class="coverage-summary hidden" role="status"></div>
             <div id="gaTableWrapper">
               <table id="gaScheduleTable">
@@ -245,6 +252,22 @@
                 <tbody></tbody>
               </table>
             </div>
+          </div>
+        </div>
+
+        <div class="saved-runs-card" id="savedRunsCard">
+          <div class="saved-runs-head">
+            <h3>Saved runs</h3>
+            <span class="status-chip" id="savedRunsCount">0 runs</span>
+          </div>
+          <p class="empty-state-msg" id="savedRunsEmpty">No saved runs yet. Run Optimization, then use "Save this run".</p>
+          <div class="saved-runs-scroll">
+            <table id="savedRunsTable" hidden>
+              <thead>
+                <tr><th>Label</th><th>Date and time</th><th>Ran by</th><th>Coverage</th><th>Balance score</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="savedRunsBody"></tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -378,6 +401,11 @@
 
         <p class="dept-notice" id="sampleNoticeFaculty" hidden>Class sizes and room capacities are sample data. Edit them before scheduling.</p>
 
+        <div class="dept-notice" id="facultyEmptyNotice" hidden>
+          No faculty are saved for this department yet.
+          <button type="button" class="btn" id="loadSampleFaculty" style="margin-left:10px;">Load sample faculty</button>
+        </div>
+
         <h3 class="section-heading">Faculty Management</h3>
         <div class="faculty-scroll-wrap">
           <table id="facultyTable">
@@ -465,22 +493,9 @@
 
           <div class="sc-leave-section">
             <div class="modal-form-group">
-              <label>Date Unavailability (specific dates to avoid)</label>
-              <div id="unavailDatesContainer" class="date-list-container"></div>
-              <button type="button" class="btn btn-secondary" id="addUnavailDate" style="margin-top:8px;padding:0.3rem 0.75rem;font-size:0.8rem;">+ Add Date</button>
-            </div>
-
-            <div class="modal-form-group">
-              <label>Leave Dates (date range)</label>
+              <label>Leave dates (date range, no reason is stored; one day off = same start and end)</label>
               <div id="leaveDatesContainer" class="date-list-container"></div>
               <button type="button" class="btn btn-secondary" id="addLeaveDate" style="margin-top:8px;padding:0.3rem 0.75rem;font-size:0.8rem;">+ Add Leave Period</button>
-            </div>
-
-            <div class="modal-form-group">
-              <label class="sc-checkbox-label">
-                <input type="checkbox" id="scMaternityLeave">
-                <span>Maternity Leave</span>
-              </label>
             </div>
           </div>
 

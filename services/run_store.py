@@ -53,6 +53,21 @@ def _period(dept: str, academic_year, active_semester):
     return year or "unspecified", semester or "unspecified"
 
 
+def balance_score(result):
+    """Evenness of the teaching load as a 0-100 number (Jain's fairness index over the faculty that have classes).
+    Stored in metrics so the Saved runs list can show it without loading the large result. None when nothing is assigned."""
+    loads = {}
+    for item in result or []:
+        name = item.get("faculty") if isinstance(item, dict) else None
+        if name:
+            loads[name] = loads.get(name, 0) + 1
+    if not loads:
+        return None
+    total = sum(loads.values())
+    squares = sum(v * v for v in loads.values())
+    return round(100.0 * total * total / (len(loads) * squares), 1)
+
+
 def save_draft(dept, user_id, progress, solver_settings, duration_ms, academic_year, active_semester) -> str:
     """Insert the finished run as a draft. Returns the new run's uuid."""
     year, semester = _period(dept, academic_year, active_semester)
@@ -60,7 +75,7 @@ def save_draft(dept, user_id, progress, solver_settings, duration_ms, academic_y
         "dept": dept, "academic_year": year, "semester": semester, "status": "draft",
         "created_by": user_id,
         "solver_settings": _json_safe(solver_settings),
-        "metrics": _json_safe(progress.get("metrics") or {}),
+        "metrics": _json_safe({**(progress.get("metrics") or {}), "balance_score": balance_score(progress.get("result"))}),
         "coverage": _json_safe({"summary": progress.get("coverage") or {},
                                 "errors": progress.get("coverage_errors") or []}),
         "duration_ms": int(duration_ms),

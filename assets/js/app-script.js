@@ -20,7 +20,6 @@
   const DASHBOARD = isFaculty ? '../faculty/dashboard.html' : '../pages/dashboard.html';
   /* Department scope: only keys of the department chosen at login are read, exported or cleared. */
   const DEPT = (window.atlasDept && window.atlasDept.current()) || 'IT';
-  const dk = base => base + '::' + DEPT;
   const hasDept = Boolean(session.dept);
   let deptName = DEPT;            // replaced by the `name` of the department's file
   const isDesktop = () => window.matchMedia('(min-width: 901px)').matches;
@@ -54,17 +53,17 @@
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
+  /* The department's data (from the database, already filtered to this department) plus this device's settings. */
   function exportAll() {
-    const data = {};
-    const suffix = '::' + DEPT;
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      // this department's keys and device-level settings only; never another department's data
-      if (!key) continue;
-      const mine = key.endsWith(suffix) || key.startsWith('facultySettings::' + DEPT + ':');
-      const legacy = (window.atlasDept && window.atlasDept.BASE_KEYS.includes(key)) || key.startsWith('facultySettings:') && !key.startsWith('facultySettings::');
-      if ((key.includes('::') && !mine) || legacy) continue;
-      try { data[key] = JSON.parse(localStorage.getItem(key)); } catch { data[key] = localStorage.getItem(key); }
+    const data = { device: app.all() };
+    const store = window.atlasData;
+    if (store && store.dept() === DEPT && !isFaculty) {
+      data.department = DEPT;
+      data.faculty = store.faculty.list();
+      data.classSizes = store.classSizes.get();
+      data.rooms = store.rooms.get();
+      data.period = store.settings.period();
+      data.solver = store.settings.solver();
     }
     download('atlas-psu-data.json', data);
     toast('Data downloaded');
@@ -161,26 +160,35 @@
     if (!select.value) select.value = '0';
     select.addEventListener('change', () => { app.set('startPage', select.value); toast('Saved'); });
 
-    function renderStats() {
-      const schedule = app.readJSON(dk('lastGAResult'), []);
-      const faculty = app.readJSON(dk('facultyData'), []);
-      const subjects = app.readJSON(dk('subjectsData'), []);
+    /* Counts come from the database copy loaded by data-store.js (chairperson); a faculty member sees their own run. */
+    async function renderStats() {
+      const store = window.atlasData;
+      let classes = 0, facultyCount = 0, rooms = 0;
+      try {
+        await store.init();
+        facultyCount = store.faculty.list().length;
+        if (isFaculty) {
+          const run = store.self.run();
+          classes = run && Array.isArray(run.result) ? run.result.length : 0;
+        } else {
+          const run = await store.runs.latest();
+          classes = run && Array.isArray(run.result) ? run.result.length : 0;
+          const r = store.rooms.get();
+          rooms = r ? r.lecture.length + r.lab.length : 0;
+        }
+      } catch { /* the cards stay at zero when the database cannot be reached */ }
       $('dataStats').innerHTML = [
-        [Array.isArray(schedule) ? schedule.length : 0, 'Classes'],
-        [Array.isArray(faculty) ? faculty.length : 0, 'Faculty'],
-        [Array.isArray(subjects) ? subjects.length : 0, 'Subjects']
+        [classes, 'Classes'],
+        [facultyCount, 'Faculty'],
+        [rooms, 'Rooms']
       ].map(([n, label]) => `<div class="app-stat"><strong>${n}</strong><span>${label}</span></div>`).join('');
     }
     renderStats();
 
     $('btnExport').addEventListener('click', exportAll);
-    $('btnClearSchedule').addEventListener('click', () => {
-      if (!window.confirm('Clear the saved schedule on this device? Faculty will no longer see it.')) return;
-      localStorage.removeItem(dk('lastGAResult'));
-      localStorage.removeItem(dk('atlasAnalyticsCache'));
-      renderStats();
-      toast('Saved schedule cleared');
-    });
+    // Schedules live in saved runs in the database, not on this device, so there is nothing to clear here.
+    const clearBtn = $('btnClearSchedule');
+    if (clearBtn) { clearBtn.hidden = true; clearBtn.disabled = true; }
     $('btnResetSettings').addEventListener('click', () => {
       if (!window.confirm('Reset all application settings to their defaults?')) return;
       app.reset();
@@ -344,13 +352,11 @@
       const r = S.validate(raw);
       Object.keys(ids).forEach(k => showError(k, r.errors[k]));
       if (Object.keys(r.errors).length) return;
-      S.save(DEPT, r.values);
-      toast('Solver settings saved');
+      S.save(DEPT, r.values).then(res => { if (res.ok) toast('Solver settings saved'); });
     });
     $('btnRestoreSolver').addEventListener('click', () => {
-      S.save(DEPT, S.DEFAULTS);
+      S.save(DEPT, S.DEFAULTS).then(res => { if (res.ok) toast('Defaults restored'); });
       paint(S.DEFAULTS);
-      toast('Defaults restored');
     });
     if (window.location.hash === '#solver') card.scrollIntoView();
   }
@@ -361,7 +367,12 @@
   bindSwitches();
   bindSegments();
   bindTimes();
-  if (page === 'settings') { initSettings(); initSolverSettings(); }
+  if (page === 'settings') {
+    initSettings();
+    // the solver card reads the database copy, so it waits for the data to be loaded
+    if (!isFaculty && window.atlasData) window.atlasData.init().then(initSolverSettings, () => { const c = $('solver'); if (c) c.remove(); });
+    else initSolverSettings();
+  }
   if (page === 'notifications') initNotifications();
   if (page === 'account') initAccount();
   if (page === 'appearance') initAppearance();

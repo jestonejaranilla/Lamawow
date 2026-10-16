@@ -12,6 +12,7 @@
   <script src="../assets/vendor/supabase.js"></script>
   <script src="../assets/js/supabase-client.js"></script>
   <script src="../assets/js/app-core.js"></script>
+  <script src="../assets/js/data-store.js"></script>
   <link rel="stylesheet" href="../assets/css/main-style.css">
   <link rel="stylesheet" href="../assets/css/faculty-style.css">
   <script src="../assets/js/display.js" defer></script>
@@ -170,6 +171,40 @@
           </div>
           <div class="fs-error" id="fsProfileError" hidden></div>
           <button type="button" class="btn" id="fsSaveProfile">Save Profile</button>
+        </div>
+
+        <div class="fs-card" id="fsPrefsCard">
+          <h3>My Preferences and Leave</h3>
+          <p class="fs-help">Saved to the database. Only you and your department chairperson can see them.</p>
+          <div class="fs-form">
+            <div class="fs-field">
+              <label for="fsPrefPeriod">Preferred time of day</label>
+              <select id="fsPrefPeriod">
+                <option value="">No preference</option>
+                <option value="morning">Morning</option>
+                <option value="afternoon">Afternoon</option>
+                <option value="evening">Evening</option>
+              </select>
+            </div>
+            <div class="fs-field"><label for="fsPrefRoom">Preferred room</label><input type="text" id="fsPrefRoom" maxlength="40"></div>
+            <div class="fs-field"><label for="fsPrefBuilding">Preferred building</label><input type="text" id="fsPrefBuilding" maxlength="40"></div>
+            <div class="fs-field"><label for="fsPrefFloor">Preferred floor</label><input type="text" id="fsPrefFloor" maxlength="10"></div>
+          </div>
+          <div class="fs-field">
+            <label>Days I would rather not teach</label>
+            <div id="fsAvoidDays" class="avail-checkboxes">
+              <label><input type="checkbox" value="Mon"> Mon</label><label><input type="checkbox" value="Tue"> Tue</label>
+              <label><input type="checkbox" value="Wed"> Wed</label><label><input type="checkbox" value="Thu"> Thu</label>
+              <label><input type="checkbox" value="Fri"> Fri</label><label><input type="checkbox" value="Sat"> Sat</label>
+            </div>
+          </div>
+          <div class="fs-field">
+            <label>Leave dates (start and end; one day off = the same date twice)</label>
+            <div id="fsLeaveList"></div>
+            <button type="button" class="btn btn-outline" id="fsAddLeave">+ Add leave period</button>
+          </div>
+          <div class="fs-error" id="fsPrefsError" hidden></div>
+          <button type="button" class="btn" id="fsSavePrefs">Save Preferences and Leave</button>
         </div>
 
         <div class="fs-card">

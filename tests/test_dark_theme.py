@@ -139,7 +139,7 @@ def test_charts_recolour_when_theme_changes():
             page.evaluate("""() => { sessionStorage.clear(); sessionStorage.setItem('atlasRole','chairperson');
                 sessionStorage.setItem('atlasDept','IT'); sessionStorage.setItem('atlasUser','T');
                 sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph');
-                """ + chair_profile_js("'IT'") + """
+                """ + chair_profile_js("'IT'") + "window.__testDb.seedFaculty('IT', 3);" + """
                 localStorage.setItem('atlasApp', JSON.stringify({theme:'light'})); }""")
             page.goto("http://localhost:5000/pages/dashboard.html")
             page.wait_for_selector("#facultyTable tbody tr", state="attached")

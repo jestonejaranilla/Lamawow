@@ -41,6 +41,16 @@ def browser(server):
         b.close()
 
 
+def ensure_faculty(page):
+    """A department with no faculty in the database offers "Load sample faculty"; take the offer (the real feature)."""
+    page.wait_for_function("document.querySelector('#facultyTable tbody tr') || "
+                           "(document.getElementById('facultyEmptyNotice') && !document.getElementById('facultyEmptyNotice').hidden)")
+    if page.locator("#facultyEmptyNotice").is_visible():
+        page.click("#loadSampleFaculty")
+    page.wait_for_selector("#facultyTable tbody tr", state="attached")
+    page.wait_for_function("window.atlasData.pendingSaves() === 0")
+
+
 def open_dashboard(browser, dept):
     ctx = browser.new_context()
     ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())   # nothing may load from the internet
@@ -57,7 +67,7 @@ def open_dashboard(browser, dept):
             """ + chair_profile_js('d') + """ }""",
         dept)
     page.goto(f"{BASE}/pages/dashboard.html")
-    page.wait_for_selector("#facultyTable tbody tr", state="attached")
+    ensure_faculty(page)
     return page, errors
 
 
@@ -69,8 +79,9 @@ def test_dashboard_loads_for_every_department(browser, dept):
     assert page.locator("#subjectsTable tbody tr").count() > 0
     assert page.locator("#classSizesTable tbody tr").count() > 0
     assert page.evaluate("typeof Chart") == "function"        # Chart.js comes from assets/vendor, not a CDN
-    mode = page.evaluate("JSON.parse(localStorage.getItem('academicMode::%s'))" % dept)
-    assert mode == {"year": "2026-2027", "semester": "1st Semester"}   # default active period
+    mode = page.evaluate("atlasData.settings.period()")
+    assert mode == {"year": "2026-2027", "semester": "1st Semester"}   # default active period (nothing saved yet)
+    assert page.evaluate("Object.keys(localStorage).filter(k => k.includes('::'))") == []   # no per-department browser data
     assert not errors, errors
     page.context.close()
 
@@ -79,10 +90,12 @@ def test_dashboard_loads_for_every_department(browser, dept):
 def test_results_show_labels_and_coverage(browser, dept):
     page, errors = open_dashboard(browser, dept)
     page.evaluate(
-        """d => { localStorage.setItem('academicMode::'+d, JSON.stringify({year:'2025-2026',semester:'1st Semester'}));
-            localStorage.setItem('systemSettings::'+d, JSON.stringify({max_units:24,units_per_assignment:2,cp_sat_time_limit:10,
-                population:6,generations:3,mutation:0.15,crossover:0.8})); }""",
+        """d => window.__testDb.upsert('dept_settings', {dept: d, academic_year: '2025-2026', semester: '1st Semester',
+            solver: {max_units:24,units_per_assignment:2,cp_sat_time_limit:10,population:6,generations:3,mutation:0.15,crossover:0.8},
+            lab_also_lecture: false}, ['dept'])""",
         dept)
+    page.reload()                       # the period and solver settings are read from the (fake) database at page start
+    ensure_faculty(page)
     page.evaluate("document.getElementById('runGA').click()")
     page.wait_for_selector("#gaScheduleTable tbody tr td:nth-child(3)", state="attached", timeout=120_000)
     page.wait_for_function("!document.getElementById('runGA').disabled", timeout=120_000)
@@ -93,7 +106,7 @@ def test_results_show_labels_and_coverage(browser, dept):
 
     summary = page.inner_text("#coverageSummary")
     assert re.search(r"\d+ of \d+ block-courses assigned", summary), summary
-    assert page.evaluate("localStorage.getItem('coverageData::%s')" % dept)
+    assert page.evaluate("Object.keys(localStorage).filter(k => k.includes('::'))") == []
     assert re.search(rf"{dept}\dB\d", page.inner_text("#facultyTimetableContainer"))
     assert not errors, errors
 
@@ -138,9 +151,10 @@ def test_panel_layout_and_preferences_round_trip(browser, dept):
     page.evaluate("""n => { const s = document.getElementById('scFacultySelect'); s.value = n;
         const p = document.getElementById('scPreferredPeriod'); p.selectedIndex = 1;
         document.getElementById('scSaveBtn').click(); }""", name)
-    page.wait_for_function("k => localStorage.getItem(k)", arg="softConstraintsData::" + dept)
-    saved = page.evaluate("k => JSON.parse(localStorage.getItem(k))", "softConstraintsData::" + dept)
-    assert saved[name]["preferred_period"]
+    page.wait_for_function("window.atlasData.pendingSaves() === 0 && window.__testDb.rows('faculty_preferences').length > 0")
+    prefs = page.evaluate("window.__testDb.rows('faculty_preferences')")
+    assert prefs[0]["preferred_period"] in ("morning", "afternoon", "evening")
+    saved = {name: prefs[0]}
     page.reload()
     page.wait_for_function("document.querySelector('#scFacultySelect').options.length > 1")
     page.evaluate("""n => { document.getElementById('scFacultySelect').value = n;
@@ -163,7 +177,12 @@ def fill(page, values):
 
 
 def stored(page, dept):
-    return page.evaluate("d => JSON.parse(localStorage.getItem('systemSettings::' + d) || 'null')", dept)
+    """The solver values saved for a department in the (fake) database, or None when nothing is saved."""
+    return page.evaluate("d => { const r = window.__testDb.rows('dept_settings').find(x => x.dept === d); return r ? r.solver : null; }", dept)
+
+
+def saved(page):
+    page.wait_for_function("window.atlasData && window.atlasData.pendingSaves() === 0")
 
 
 def test_solver_settings_card_validation_per_department_and_run_request(browser):
@@ -175,7 +194,6 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
     assert page.input_value("#sysCpSatTimeLimit") == "30"                                 # default is 30, not 60
 
     # bad values: inline error, nothing saved
-    page.evaluate("localStorage.removeItem('systemSettings::IT')")
     fill(page, {"max_units": 41, "units_per_assignment": 11, "cp_sat_time_limit": 41, "population": 3,
                 "generations": 201, "mutation": 1.5, "crossover": -0.1})
     page.click("#btnSaveSolver")
@@ -192,6 +210,7 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
     fill(page, it)
     page.click("#btnSaveSolver")
     assert not page.locator("#err-populationSize").is_visible()
+    saved(page)
     assert stored(page, "IT") == it
 
     # CS keeps its own values
@@ -200,12 +219,13 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
     assert page.input_value("#populationSize") == "50" and stored(page, "CS") is None
     fill(page, {"population": 9})
     page.click("#btnSaveSolver")
+    saved(page)
     assert stored(page, "CS")["population"] == 9 and stored(page, "IT")["population"] == 7
 
     # the run request uses the IT values (read at click time, no reload after the change)
     page.evaluate(switch_dept_js('IT'))
     page.goto(BASE + "/pages/dashboard.html")
-    page.wait_for_selector("#facultyTable tbody tr", state="attached")
+    ensure_faculty(page)
     assert page.inner_text("#solverSummary") == "12 s limit, 7 population, 2 generations"
     bodies = []
     page.on("request", lambda r: bodies.append(r.post_data) if r.url.endswith("/run-ga") else None)
@@ -221,6 +241,7 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
     # restore defaults
     page.goto(SETTINGS_URL)
     page.click("#btnRestoreSolver")
+    saved(page)
     assert stored(page, "IT") == {"max_units": 24, "units_per_assignment": 2, "cp_sat_time_limit": 30,
                                   "population": 50, "generations": 100, "mutation": 0.09, "crossover": 0.95}
     assert not errors, errors
@@ -229,9 +250,10 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
 
 def test_old_out_of_range_saved_value_falls_back_to_the_default(browser):
     page, _ = open_dashboard(browser, "MB")
-    page.evaluate("localStorage.setItem('systemSettings::MB', JSON.stringify({cp_sat_time_limit: 60, population: 500}))")
+    page.evaluate("""() => window.__testDb.upsert('dept_settings', {dept: 'MB', academic_year: '2026-2027', semester: '1st Semester',
+        solver: {cp_sat_time_limit: 60, population: 500}, lab_also_lecture: false}, ['dept'])""")
     page.reload()
-    page.wait_for_selector("#facultyTable tbody tr", state="attached")
+    ensure_faculty(page)
     assert page.inner_text("#solverSummary") == "30 s limit, 50 population, 100 generations"
     page.context.close()
 

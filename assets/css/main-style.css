@@ -4323,3 +4323,29 @@ html[data-motion="reduce"] *, html[data-motion="reduce"] *::before, html[data-mo
 .nav-back .ic, .nav-more .ic { width: 24px; height: 24px; }
 .ptr .ic { width: 20px; height: 20px; }
 .ptr.spin .ic { animation: ptr-spin 0.7s linear infinite; transform: none !important; }
+
+/* ---------- Saved runs (Part 17) ---------- */
+.save-run-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 12px;
+  border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--bg-subtle); }
+.save-run-bar.hidden { display: none; }
+.save-run-bar label { font-weight: 600; color: var(--text-secondary); }
+.save-run-bar input { flex: 1 1 220px; min-width: 0; padding: 8px 10px; border: 1px solid var(--input-border); border-radius: 8px;
+  background: var(--input-bg); color: var(--text-primary); }
+.run-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px;
+  padding: 10px 14px; border-radius: 10px; border: 1px solid #d97706; background: rgba(217, 119, 6, 0.14); color: var(--text-primary); font-weight: 600; }
+.run-banner.hidden { display: none; }
+.saved-runs-card { margin-top: 22px; padding: 16px; border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--card-bg); }
+.saved-runs-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.saved-runs-head h3 { margin: 0; }
+.saved-runs-scroll { max-height: 440px; overflow: auto; }
+#savedRunsTable { width: 100%; border-collapse: collapse; min-width: 720px; }
+#savedRunsTable th, #savedRunsTable td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
+#savedRunsTable thead th { position: sticky; top: 0; background: var(--card-bg); z-index: 1; }
+#savedRunsTable tr.run-on-screen td { background: var(--bg-subtle); }
+.run-label { font-weight: 600; max-width: 240px; overflow-wrap: anywhere; }
+.run-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.run-actions .btn { padding: 4px 10px; font-size: 0.8rem; }
+.run-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; border: 1px solid currentColor; }
+.run-draft { color: #78716c; background: rgba(120, 113, 108, 0.14); }
+.run-saved { color: #2563eb; background: rgba(37, 99, 235, 0.14); }
+.run-approved { color: #16a34a; background: rgba(22, 163, 74, 0.16); }

@@ -23,10 +23,9 @@
 const AD = window.AtlasDisplay;
 const API_BASE = AD.resolveApiBase(location);
 
-/* Department chosen at login (sessionStorage 'atlasDept', default IT). Every per-department
-   browser key is stored as <base>::<dept> through dk(); nothing reads an un-suffixed key. */
+/* The department of the signed-in profile (sessionStorage 'atlasDept' is only a display cache). Its data is read from
+   and saved to Supabase through assets/js/data-store.js; the browser keeps no per-department data. */
 const DEPT = (window.atlasDept && window.atlasDept.current()) || 'IT';
-const dk = base => base + '::' + DEPT;
 
 const DAY_MAP = {
   Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday',
@@ -35,14 +34,14 @@ const DAY_MAP = {
 
 const DAY_ORDER = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5 };
 
-// MAX_UNITS is now dynamic - read from Settings (localStorage), default 24
+// MAX_UNITS is dynamic - read from the department's saved solver settings (database), default 24
 function getMaxUnits() {
   return window.atlasSolver.read(DEPT).max_units;
 }
 // Keep a live reference updated on each access
 Object.defineProperty(window, 'MAX_UNITS', { get: getMaxUnits });
 
-// UNITS_PER_ASSIGNMENT - dynamic, read from Settings (localStorage), default 2
+// UNITS_PER_ASSIGNMENT - dynamic, read from the department's saved solver settings (database), default 2
 function getUnitsPerAssignment() {
   return window.atlasSolver.read(DEPT).units_per_assignment;
 }
@@ -56,7 +55,6 @@ function getFacultyMaxUnitsMap() {
   return map;
 }
 
-const DATA_VERSION = 'v7'; // bump to wipe stale localStorage on deploy
 const DEFAULT_PERIOD = { year: '2026-2027', semester: '1st Semester' };   // active period until the chairperson sets one
 
 // Specialization tags of the active department: the file's `specializations` (see loadCurriculumData).
@@ -109,16 +107,12 @@ function applyCurriculum(cur) {
 }
 
 // The static file first (same relative path and exact-case name on Render), the backend second.
-// The copy is cached per department (atlasCurriculumCache::<DEPT>).
 async function loadCurriculumData() {
   const urls = [`../data/curricula/${DEPT}.json`, `${API_BASE}/curriculum/${DEPT}`];
   try {
     applyCurriculum(await AtlasCurriculum.loadCurriculum(DEPT, urls));
-    if (ATLAS_CURRICULUM) {
-      try { localStorage.setItem(dk('atlasCurriculumCache'), JSON.stringify(ATLAS_CURRICULUM)); } catch { /* ignore */ }
-    }
   } catch (e) {
-    try { applyCurriculum(JSON.parse(localStorage.getItem(dk('atlasCurriculumCache')) || 'null')); } catch { applyCurriculum(null); }
+    applyCurriculum(null);
     if (!ATLAS_CURRICULUM) console.error('Curriculum could not be loaded:', e);
   }
   return ATLAS_CURRICULUM;
@@ -177,6 +171,11 @@ let lastSort = { key: 'slot', ascending: true };
 
 // Last known GA result for re-rendering
 let lastGAResult = [];
+let currentRunDbId = null;      // id of the saved run (schedule_runs) shown on screen, if any
+let currentRunStatus = null;
+let screenSemester = null;     // semester of the saved run on screen (so another semester's run is not filtered away)
+let savedRunsCtl = null;       // controller of the Saved runs card (assets/js/saved-runs.js)
+let roomsSyncedSig = '';        // rooms last sent to the engine (so a run does not resend an unchanged list)
 let lastCoverage = null;   // {coverage: {assigned,total}, errors: [...]} of the last run (this department)
 
 /* Coverage summary ("30 of 30 block-courses assigned") and the list of coverage_errors */
@@ -1034,12 +1033,24 @@ async function triggerGARunAPI() {
     );
   }
 
-  // Load soft constraints and include in payload for backend scoring
+  // Everything below comes from what was loaded from (and saved to) the database, never from the browser's storage.
+  if (window.atlasData.pendingSaves() > 0) {
+    throw new Error('Some changes are not saved yet. Wait for "Saved" (or press Retry), then run again.');
+  }
+  const dbFaculty = window.atlasData.faculty.list().map(f => ({
+    name: f.name, specialization: f.specialization, max_units: f.max_units, overload_buffer: f.overload_buffer,
+    absolute_max_units: f.max_units + f.overload_buffer, availability: f.availability
+  }));
+  if (!dbFaculty.length) throw new Error('No faculty are saved for this department. Add faculty or load the sample faculty first.');
+
+  // Preferences and leave dates (leave goes in as leave_dates, which the engine already scores as unavailable dates)
   const softConstraints = loadSoftConstraintsFromStorage();
+  await ensureRoomsSynced();
 
   const payload = {
     dept:             DEPT,
-    faculty:          getFacultyFromTable(),
+    academic_year:    mode ? mode.year : null,
+    faculty:          dbFaculty,
     subjects:         expandedSubjects,
     population,
     generations,
@@ -1118,6 +1129,7 @@ function initRunGA() {
             tableWrapper.classList.remove('hidden');
             runBtn.disabled = false;
 
+            screenSemester = null;                           // a new run belongs to the active period
             lastGAResult = status.result || [];
             if (status.analytics && status.analytics.capacity_metrics) {
               mergeCapacityStatuses(status.analytics);
@@ -1137,7 +1149,6 @@ function initRunGA() {
                 window.__atlasAnalytics = status.analytics;
                 renderCapacityMetrics(resolveCapacityMetrics(status.analytics));
                 renderCapacityAnalytics(status.analytics);
-                localStorage.setItem(dk('atlasAnalyticsCache'), JSON.stringify(status.analytics));
               } catch(e) { console.warn('Analytics render error:', e); }
             }
             // Display backend warnings
@@ -1145,9 +1156,11 @@ function initRunGA() {
               status.warnings.forEach(w => console.warn('[ATLAS]', w));
             }
 
-            try { localStorage.setItem(dk('lastGAResult'), JSON.stringify(lastGAResult)); } catch { /* ignore */ }
+            currentRunDbId = status.saved_run_id || null;     // the server saved this run as a draft in Supabase
+            currentRunStatus = currentRunDbId ? 'draft' : null;
+            screenSemester = null;
+            if (savedRunsCtl && currentRunDbId) savedRunsCtl.noteFreshRun(currentRunDbId);   // banner, "Save this run", list
             lastCoverage = { coverage: status.coverage || {assigned: 0, total: 0}, errors: status.coverage_errors || [] };
-            try { localStorage.setItem(dk('coverageData'), JSON.stringify(lastCoverage)); } catch { /* ignore */ }
             renderCoverageSummary(lastCoverage);
             const metricsSuffix = status.metrics && status.metrics.solve_time_sec
               ? ` (CP-SAT: ${status.metrics.solve_time_sec}s, GA: ${status.metrics.ga_time_sec || 0}s)`
@@ -1187,6 +1200,7 @@ function addFacultyRow(data = {}) {
   if (!tbody) return;
 
   const tr = document.createElement('tr');
+  if (data.id) tr.dataset.fid = data.id;        // the database id: later saves update this row
 
   const nameValue     = data.name || '';
   const specsSelected = data.specialization || [];
@@ -1275,8 +1289,11 @@ function addFacultyRow(data = {}) {
 
   // Row delete handler action integration layer
   tr.querySelector('.btn-delete').addEventListener('click', () => {
+    const fid = tr.dataset.fid;
     tr.remove();
+    if (fid) window.atlasData.faculty.remove(fid);     // explicit delete: the only way a professor leaves the database
     saveFaculty();
+    populateSCFacultyDropdown();
     updateAllSelectAllBtnStates();
   });
 
@@ -1351,22 +1368,63 @@ function getFacultyFromTable() {
   }).filter(f => f.name);
 }
 
-function saveFaculty() {
-  try {
-    localStorage.setItem(dk('facultyData'), JSON.stringify(getFacultyFromTable()));
-    updateAllSelectAllBtnStates();
-  } catch (e) {
-    console.warn('LocalStorage save failed:', e);
-  }
+/* Rows with their database id, for saving. A row gets its id on the first save (insert); later saves update it. */
+function getFacultyRowsForSync() {
+  return Array.from(document.querySelectorAll('#facultyTable tbody tr')).map(row => {
+    const num = row.querySelectorAll('input[type="number"]');
+    const units = parseInt(num[0]?.value, 10);
+    const buffer = parseInt(num[1]?.value, 10);
+    return {
+      name: row.querySelector('input[type="text"]').value.trim(),
+      specialization: Array.from(row.querySelectorAll('.dropdown-content input:checked')).map(c => c.value),
+      max_units: Number.isNaN(units) ? 24 : units,
+      overload_buffer: Number.isNaN(buffer) ? 6 : buffer,
+      availability: Array.from(row.querySelectorAll('.avail-checkboxes input:checked')).map(c => c.value),
+      getId: () => row.dataset.fid || '',
+      setId: id => { row.dataset.fid = id; }
+    };
+  });
 }
 
-function loadFacultyFromStorage() {
-  try {
-    const data = localStorage.getItem(dk('facultyData'));
-    return data ? JSON.parse(data) : null;
-  } catch {
-    return null;
-  }
+// Saves to the database (debounced by the callers). Shows Saving / Saved / Not saved; keeps what was typed on a failure.
+function saveFaculty() {
+  updateAllSelectAllBtnStates();
+  refreshFacultyEmptyNotice();
+  return window.atlasData.faculty.save(getFacultyRowsForSync());
+}
+
+function facultyIdByName(name) {
+  const row = Array.from(document.querySelectorAll('#facultyTable tbody tr'))
+    .find(r => r.querySelector('input[type="text"]').value.trim() === name);
+  return row && row.dataset.fid ? row.dataset.fid : '';
+}
+
+// First visit of a department with no faculty in the database: offer the sample pool, never write it silently.
+function refreshFacultyEmptyNotice() {
+  const notice = document.getElementById('facultyEmptyNotice');
+  if (!notice) return;
+  notice.hidden = !(window.atlasData.faculty.isEmpty() && !document.querySelector('#facultyTable tbody tr'));
+}
+
+function initSampleFaculty() {
+  document.getElementById('loadSampleFaculty')?.addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const pool = defaultFaculty().map(f => ({
+      name: f.name, specialization: f.specialization || [],
+      max_units: f.max_units != null ? f.max_units : 24, overload_buffer: f.overload_buffer != null ? f.overload_buffer : 6,
+      availability: f.availability || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    }));
+    const res = await window.atlasData.faculty.loadSample(pool);
+    btn.disabled = false;
+    if (!res.ok) { showToast(res.error, 'info'); return; }
+    document.querySelector('#facultyTable tbody').innerHTML = '';
+    res.rows.forEach(f => addFacultyRow(f));
+    populateSCFacultyDropdown();
+    updateAllSelectAllBtnStates();
+    refreshFacultyEmptyNotice();
+    showToast(`Loaded ${res.rows.length} sample faculty.`, 'success');
+  });
 }
 
 function initEditFacultyModal() {
@@ -1507,6 +1565,12 @@ function initEditFacultyModal() {
         if (numInput) { numInput.value = newUnits; saveFaculty(); }
       }
 
+      // The approved schedule is frozen: edits only apply to a new run or a loaded draft/saved run.
+      if (savedRunsCtl && savedRunsCtl.editsBlocked()) {
+        showToast('The approved schedule cannot be edited. Run Optimization or load a saved run to make changes.', 'info');
+        return;
+      }
+
       // 2. Apply edited assignments back to lastGAResult
       const assignRows = document.querySelectorAll('#editAssignmentList .modal-assign-row');
       if (assignRows.length) {
@@ -1550,7 +1614,7 @@ function initEditFacultyModal() {
         });
 
         // Re-render all panels
-        try { localStorage.setItem(dk('lastGAResult'), JSON.stringify(lastGAResult)); } catch { /* ignore */ }
+        persistEditedResult();
         const displayResult = filterResultBySemester(lastGAResult);
         renderTable(displayResult);
         updateCharts(displayResult);
@@ -1691,22 +1755,11 @@ function getSubjectsFromTable() {
   }));
 }
 
-function saveSubjects() {
-  try {
-    localStorage.setItem(dk('subjectsData'), JSON.stringify(getSubjectsFromTable()));
-  } catch (e) {
-    console.warn('LocalStorage save failed:', e);
-  }
-}
+// Subjects come from the department's curriculum file; the table only holds edits of units and types for the
+// current page. There is no subjects table in the database, so nothing is stored in the browser.
+function saveSubjects() { /* edits live in the table until the page is closed */ }
 
-function loadSubjectsFromStorage() {
-  try {
-    const data = localStorage.getItem(dk('subjectsData'));
-    return data ? JSON.parse(data) : null;
-  } catch {
-    return null;
-  }
-}
+function loadSubjectsFromStorage() { return null; }
 
 function renderSubjectsGrouped() {
   const container = document.getElementById('subjectsContainer');
@@ -2270,16 +2323,13 @@ function debounce(fn, delay) {
 window.addEventListener('DOMContentLoaded', async () => {
   if (!document.getElementById('facultyTable')) return;   // not the chairperson dashboard
 
-  // Clear stale localStorage if data version changed (this department's keys only)
-  if (localStorage.getItem(dk('atlasDataVersion')) !== DATA_VERSION) {
-    localStorage.removeItem(dk('facultyData'));
-    localStorage.removeItem(dk('subjectsData'));
-    localStorage.removeItem(dk('classSizesData'));
-    localStorage.removeItem(dk('lastGAResult'));
-    localStorage.removeItem(dk('coverageData'));
-    localStorage.setItem(dk('atlasDataVersion'), DATA_VERSION);
+  // The department's data comes from Supabase (RLS returns only this department). Nothing is read from the browser's storage.
+  try {
+    await window.atlasData.init();
+  } catch (e) {
+    showToast('Cannot load this department\'s data from the database. Check your connection and reload.', 'error');
+    return;
   }
-  if (!localStorage.getItem(dk('academicMode'))) localStorage.setItem(dk('academicMode'), JSON.stringify(DEFAULT_PERIOD));
 
   // The department's file decides the defaults: tags, subjects, blocks and class sizes
   await loadCurriculumData();
@@ -2287,10 +2337,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadRuntimeRooms();
   applyDeptLabels();
 
-  // Load class sizes (editable, not fixed)
-  if (!loadClassSizesFromStorage()) {
-    saveClassSizes(defaultClassSizes());
-  }
+  // Class sizes: the saved ones, or the curriculum defaults on screen until the chairperson saves (never written silently)
 
   initCharts();
   initNavigation();
@@ -2307,13 +2354,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('storage', refreshSolverSummary);
 
   // Load faculty
-  const savedFaculty = loadFacultyFromStorage();
-  if (savedFaculty && savedFaculty.length > 0) {
-    savedFaculty.forEach(f => addFacultyRow(f));
-  } else {
-    defaultFaculty().forEach(f => addFacultyRow(f));
-  }
-  saveFaculty();      // the faculty login lists this department's names from this key
+  window.atlasData.faculty.list().forEach(f => addFacultyRow(f));
+  initSampleFaculty();
+  refreshFacultyEmptyNotice();
   updateAllSelectAllBtnStates();
 
   // Load subjects (defaults come from the department's curriculum file)
@@ -2336,44 +2379,93 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Update semester badges now that subjects are loaded
   updateAllSemesterBadges();
 
-  // Restore this department's last GA result and re-render all views
-  try {
-    const saved = localStorage.getItem(dk('lastGAResult'));
-    if (saved) {
-      lastGAResult = JSON.parse(saved);
-      if (lastGAResult && lastGAResult.length) {
-        const displayResult = filterResultBySemester(lastGAResult);
-        renderTable(displayResult);
-        updateCharts(displayResult);
-        computeFairnessReport(displayResult);
-        renderDashboardAssignments(displayResult);
-        renderTimetable(displayResult);
-        updateReportsPanel(displayResult);
-      }
-    }
-    const savedCov = localStorage.getItem(dk('coverageData'));
-    if (savedCov && lastGAResult && lastGAResult.length) { lastCoverage = JSON.parse(savedCov); renderCoverageSummary(lastCoverage); }
-  } catch { lastGAResult = []; }
+  // Restore this department's newest saved run (Supabase) and re-render all views
+  await initSavedRuns();
+});
 
-  // Restore analytics cache and re-populate capacity panels
-  try {
-    const savedAnalytics = localStorage.getItem(dk('atlasAnalyticsCache'));
-    if (savedAnalytics) {
-      const analytics = JSON.parse(savedAnalytics);
-      window.__atlasAnalytics = analytics;
+/* ---------- Saved runs (Part 17) ---------- */
+// Flask API call with the Bearer token; throws {status, message} for a non-2xx answer.
+async function runsApi(path, opts) {
+  const res = await window.atlasAuth.fetch(`${API_BASE}${path}`, opts);
+  let body = {};
+  try { body = await res.json(); } catch { /* no JSON body */ }
+  if (!res.ok || body.success === false) {
+    const err = new Error(body.error || body.message || `Request failed (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return body.data || {};
+}
+
+// Puts a run on screen in every view (table, dashboard, reports, timetable, coverage, analytics). null = empty views.
+function applyRunToScreen(run) {
+  lastGAResult = run && Array.isArray(run.result) ? run.result : [];
+  currentRunDbId = run ? run.id : null;
+  currentRunStatus = run ? run.status : null;
+  screenSemester = run && run.semester && run.semester !== 'unspecified' ? run.semester : null;
+  const displayResult = filterResultBySemester(lastGAResult);
+  renderTable(displayResult);
+  updateCharts(displayResult);
+  computeFairnessReport(displayResult);
+  renderDashboardAssignments(displayResult);
+  renderTimetable(displayResult);
+  updateReportsPanel(displayResult);
+  const box = document.getElementById('coverageSummary');
+  const cov = run && run.coverage ? run.coverage : null;
+  const sum = cov ? (cov.summary || cov) : null;
+  if (sum && (sum.total !== undefined || sum.assigned !== undefined)) {
+    lastCoverage = { coverage: { assigned: sum.assigned || 0, total: sum.total || 0 }, errors: cov.errors || [] };
+    renderCoverageSummary(lastCoverage);
+  } else {
+    lastCoverage = null;
+    if (box) { box.innerHTML = ''; box.classList.add('hidden'); }
+  }
+  const analytics = run && run.analytics && Object.keys(run.analytics).length ? run.analytics : null;
+  window.__atlasAnalytics = analytics;
+  if (analytics) {
+    try {
       mergeCapacityStatuses(analytics);
       renderCapacityMetrics(resolveCapacityMetrics(analytics));
       renderCapacityAnalytics(analytics);
-    }
-  } catch { /* ignore */ }
-});
-
-function getActiveSemester() {
-  try {
-    const mode = JSON.parse(localStorage.getItem(dk('academicMode')) || 'null');
-    return mode && mode.semester ? mode : null;
-  } catch { return null; }
+    } catch (e) { console.warn('Analytics render error:', e); }
+  }
 }
+
+async function lookupRunnerNames(ids) {
+  const out = {};
+  const r = await window.atlasSupabase.from('profiles').select('id,full_name').in('id', ids);
+  (r.data || []).forEach(p => { if (p.full_name) out[p.id] = p.full_name; });
+  return out;
+}
+
+// The default view is the approved run; the Saved runs card loads others on request.
+async function initSavedRuns() {
+  const ui = window.AtlasSavedRuns.createDomUi(document, {
+    applyRun: applyRunToScreen, toast: showToast, confirm: msg => window.confirm(msg)
+  });
+  savedRunsCtl = window.AtlasSavedRuns.createController({
+    api: runsApi, ui, dept: DEPT, now: () => new Date(),
+    userId: window.atlasAuth.user && window.atlasAuth.user.id,
+    semester: () => (getActiveSemester() || {}).semester || '',
+    lookupNames: lookupRunnerNames
+  });
+  ui.bind(savedRunsCtl);
+  await savedRunsCtl.init();
+}
+
+// A manual edit of the result is saved into the draft or saved run on screen. The approved run is frozen.
+async function persistEditedResult() {
+  if (!currentRunDbId) { showToast('This edit is shown on screen only. Run Optimization to save a run first.', 'info'); return; }
+  if (currentRunStatus === 'approved') return;
+  await window.atlasData.runs.saveResult(currentRunDbId, lastGAResult);
+}
+
+// The active period comes from dept_settings (database); until one is saved the default period applies.
+function getActiveSemester() {
+  const mode = window.atlasData && window.atlasData.dept() === DEPT ? window.atlasData.settings.period() : null;
+  return mode && mode.semester ? mode : DEFAULT_PERIOD_MODE();
+}
+function DEFAULT_PERIOD_MODE() { return { year: DEFAULT_PERIOD.year, semester: DEFAULT_PERIOD.semester }; }
 
 function getActiveSemesterLabel() {
   const mode = getActiveSemester();
@@ -2413,7 +2505,7 @@ function updateAllSemesterBadges() {
 function filterResultBySemester(data) {
   // lastGAResult items carry the subject name; we filter by checking the subjects table
   // If no active semester set, return all
-  const mode = getActiveSemester();
+  const mode = screenSemester ? { semester: screenSemester } : getActiveSemester();
   if (!mode) return data;
   const semester = mode.semester;
 
@@ -2464,8 +2556,7 @@ function initAcademicMode() {
       yearInput.focus();
       return;
     }
-    const mode = { year, semester };
-    localStorage.setItem(dk('academicMode'), JSON.stringify(mode));
+    window.atlasData.settings.savePeriod(year, semester);
     updateAllSemesterBadges();
     if (savedMsg) {
       savedMsg.style.display = 'inline-flex';
@@ -2490,20 +2581,11 @@ function initAcademicMode() {
    CLASS SIZE STORAGE
    ============================================================ */
 function loadClassSizesFromStorage() {
-  try {
-    const data = localStorage.getItem(dk('classSizesData'));
-    return data ? JSON.parse(data) : null;
-  } catch {
-    return null;
-  }
+  return window.atlasData.classSizes.has() ? window.atlasData.classSizes.get() : null;
 }
 
 function saveClassSizes(sizes) {
-  try {
-    localStorage.setItem(dk('classSizesData'), JSON.stringify(sizes));
-  } catch (e) {
-    console.warn('LocalStorage save failed:', e);
-  }
+  return window.atlasData.classSizes.save(sizes);
 }
 
 function getClassSizes() {
@@ -2513,14 +2595,14 @@ function getClassSizes() {
 /* ============================================================
    ROOM MANAGEMENT UI
    ============================================================ */
-// The active department's rooms. Saved edits (roomsData::<DEPT>) win; otherwise they come from
+// The active department's rooms. The saved rooms (database) win; otherwise they come from
 // the backend (GET /rooms?dept=<DEPT>).
 let runtimeLectureRooms = [];
 let runtimeLabRooms = [];
 let runtimeRoomCapacity = {};
 
 async function loadRuntimeRooms() {
-  const stored = loadRoomsFromStorage();
+  const stored = window.atlasData.rooms.has() ? window.atlasData.rooms.get() : null;
   const src = stored && Array.isArray(stored.lecture)
     ? { lecture: stored.lecture, lab: stored.lab || [], capacity: stored.capacity || {} }
     : await fetchRoomDefaults();
@@ -2531,7 +2613,7 @@ async function loadRuntimeRooms() {
 
 async function syncRoomsToBackend() {
   try {
-    await window.atlasAuth.fetch(`${API_BASE}/rooms`, {
+    const res = await window.atlasAuth.fetch(`${API_BASE}/rooms`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2541,24 +2623,18 @@ async function syncRoomsToBackend() {
         room_capacity: runtimeRoomCapacity
       })
     });
-  } catch { /* backend optional sync */ }
+    if (res.ok) roomsSyncedSig = JSON.stringify([runtimeLectureRooms, runtimeLabRooms, runtimeRoomCapacity]);
+  } catch { /* the engine copy is refreshed again before the next run */ }
 }
 
-function loadRoomsFromStorage() {
-  try {
-    const data = localStorage.getItem(dk('roomsData'));
-    return data ? JSON.parse(data) : null;
-  } catch { return null; }
-}
-
+// Rooms are saved to the database (rooms table); the engine copy is refreshed with syncRoomsToBackend().
 function saveRoomsToStorage() {
-  try {
-    localStorage.setItem(dk('roomsData'), JSON.stringify({
-      lecture: runtimeLectureRooms,
-      lab: runtimeLabRooms,
-      capacity: runtimeRoomCapacity
-    }));
-  } catch (e) { console.warn('Rooms save failed:', e); }
+  return window.atlasData.rooms.save({ lecture: runtimeLectureRooms, lab: runtimeLabRooms, capacity: runtimeRoomCapacity });
+}
+
+async function ensureRoomsSynced() {
+  const sig = JSON.stringify([runtimeLectureRooms, runtimeLabRooms, runtimeRoomCapacity]);
+  if (sig !== roomsSyncedSig) await syncRoomsToBackend();
 }
 
 function renderRoomList(containerId, rooms) {
@@ -2651,9 +2727,10 @@ function initRoomManagement() {
     });
     runtimeLectureRooms = runtimeLectureRooms.filter(r => r);
     runtimeLabRooms = runtimeLabRooms.filter(r => r);
-    saveRoomsToStorage();
+    const savedRooms = await saveRoomsToStorage();
     populateSCRoomDropdown();
-  populateSCBuildingDropdown();
+    populateSCBuildingDropdown();
+    if (!savedRooms.ok) return;
     showToast('Rooms saved successfully.', 'success');
     await syncRoomsToBackend();
   });
@@ -2665,9 +2742,10 @@ function initRoomManagement() {
     runtimeRoomCapacity = JSON.parse(JSON.stringify(d.capacity));
     renderRoomList('lectureRoomsList', runtimeLectureRooms);
     renderRoomList('labRoomsList', runtimeLabRooms);
-    saveRoomsToStorage();
+    const resetRooms = await saveRoomsToStorage();
     populateSCRoomDropdown();
     populateSCBuildingDropdown();
+    if (!resetRooms.ok) return;
     showToast('Rooms reset to defaults.', 'info');
     await syncRoomsToBackend();
   });
@@ -2724,7 +2802,8 @@ function initClassSizesManagement() {
 
   document.getElementById('saveClassSizes')?.addEventListener('click', async () => {
     const sizes = getClassSizesFromTable();
-    saveClassSizes(sizes);
+    const saved = await saveClassSizes(sizes);
+    if (!saved.ok) return;
     showToast('Class sizes saved.', 'success');
     try {
       await window.atlasAuth.fetch(`${API_BASE}/class-sizes`, {
@@ -2770,17 +2849,9 @@ function initClassSizesManagement() {
    ============================================================ */
 let softConstraintsCache = {};
 
+// Preferences and leave dates of this department's faculty, in the engine's format (from the database).
 function loadSoftConstraintsFromStorage() {
-  try {
-    const data = localStorage.getItem(dk('softConstraintsData'));
-    return data ? JSON.parse(data) : {};
-  } catch { return {}; }
-}
-
-function saveSoftConstraintsToStorage(data) {
-  try {
-    localStorage.setItem(dk('softConstraintsData'), JSON.stringify(data));
-  } catch (e) { console.warn('SC save failed:', e); }
+  return window.atlasData.softConstraints();
 }
 
 function populateSCFacultyDropdown() {
@@ -2861,15 +2932,10 @@ function loadSCFormForFaculty(name) {
   document.getElementById('scPreferredRoom').value = constraints.preferred_room || '';
   document.getElementById('scPreferredBuilding').value = constraints.preferred_building || '';
   document.getElementById('scPreferredFloor').value = constraints.preferred_floor || '';
-  document.getElementById('scMaternityLeave').checked = !!constraints.maternity_leave;
 
   document.querySelectorAll('.sc-restrict-day').forEach(chk => {
     chk.checked = (constraints.restricted_days || []).includes(chk.value);
   });
-
-  const unavailContainer = document.getElementById('unavailDatesContainer');
-  unavailContainer.innerHTML = '';
-  (constraints.unavailable_dates || []).forEach(d => addUnavailDateEntry(unavailContainer, d));
 
   const leaveContainer = document.getElementById('leaveDatesContainer');
   leaveContainer.innerHTML = '';
@@ -2882,10 +2948,7 @@ function getSCFormData() {
     preferred_room:     document.getElementById('scPreferredRoom').value || null,
     preferred_building: document.getElementById('scPreferredBuilding').value || null,
     preferred_floor:    document.getElementById('scPreferredFloor').value || null,
-    maternity_leave:    document.getElementById('scMaternityLeave').checked,
     restricted_days: Array.from(document.querySelectorAll('.sc-restrict-day:checked')).map(c => c.value),
-    unavailable_dates: Array.from(document.querySelectorAll('#unavailDatesContainer .date-entry input[type="date"]'))
-      .map(i => i.value).filter(Boolean),
     leave_dates: Array.from(document.querySelectorAll('#leaveDatesContainer .date-entry')).map(div => {
       const inputs = div.querySelectorAll('input[type="date"]');
       return { start: inputs[0]?.value || '', end: inputs[1]?.value || '' };
@@ -2894,7 +2957,7 @@ function getSCFormData() {
 }
 
 function initSoftConstraints() {
-  softConstraintsCache = loadSoftConstraintsFromStorage();
+  softConstraintsCache = window.atlasData.softConstraints();
   populateSCFacultyDropdown();
   populateSCRoomDropdown();
   populateSCBuildingDropdown();
@@ -2905,10 +2968,6 @@ function initSoftConstraints() {
     loadSCFormForFaculty(name);
   });
 
-  document.getElementById('addUnavailDate')?.addEventListener('click', () => {
-    addUnavailDateEntry(document.getElementById('unavailDatesContainer'));
-  });
-
   document.getElementById('addLeaveDate')?.addEventListener('click', () => {
     addLeaveDateEntry(document.getElementById('leaveDatesContainer'));
   });
@@ -2916,26 +2975,42 @@ function initSoftConstraints() {
   document.getElementById('scSaveBtn')?.addEventListener('click', async () => {
     const name = document.getElementById('scFacultySelect')?.value;
     if (!name) { showToast('Select a faculty member first.', 'info'); return; }
-    const constraints = getSCFormData();
-    softConstraintsCache[name] = constraints;
-    saveSoftConstraintsToStorage(softConstraintsCache);
+    const fid = facultyIdByName(name);
+    if (!fid) { showToast('This professor is not saved yet. Wait for "Saved" and try again.', 'info'); return; }
+    const c = getSCFormData();
+    const dates = c.leave_dates.filter(l => l.start || l.end);
+    if (dates.some(l => !l.start || !l.end || l.end < l.start)) {
+      showToast('Each leave needs a start date and an end date that is not before it.', 'error');
+      return;
+    }
+    const [a, b] = await Promise.all([
+      window.atlasData.prefs.save(fid, {
+        preferred_period: c.preferred_period, preferred_room: c.preferred_room, preferred_building: c.preferred_building,
+        preferred_floor: c.preferred_floor, avoid_days: c.restricted_days
+      }),
+      window.atlasData.leave.replace(fid, dates)
+    ]);
+    softConstraintsCache = window.atlasData.softConstraints();
+    if (!a.ok || !b.ok) return;
     showToast(`Preferences saved for ${name}.`, 'success');
     try {
       await window.atlasAuth.fetch(`${API_BASE}/soft-constraints`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dept: DEPT, faculty: name, constraints })
+        body: JSON.stringify({ dept: DEPT, faculty: name, constraints: softConstraintsCache[name] || {} })
       });
-    } catch { /* optional backend sync */ }
+    } catch { /* the engine copy is refreshed with the run payload */ }
   });
 
-  document.getElementById('scClearBtn')?.addEventListener('click', () => {
+  document.getElementById('scClearBtn')?.addEventListener('click', async () => {
     const name = document.getElementById('scFacultySelect')?.value;
     if (!name) return;
-    delete softConstraintsCache[name];
-    saveSoftConstraintsToStorage(softConstraintsCache);
+    const fid = facultyIdByName(name);
+    if (!fid) return;
+    const [a, b] = await Promise.all([window.atlasData.prefs.clear(fid), window.atlasData.leave.replace(fid, [])]);
+    softConstraintsCache = window.atlasData.softConstraints();
     document.getElementById('softConstraintForm')?.classList.add('hidden');
-    showToast(`Preferences cleared for ${name}.`, 'info');
+    if (a.ok && b.ok) showToast(`Preferences cleared for ${name}.`, 'info');
   });
 }
 

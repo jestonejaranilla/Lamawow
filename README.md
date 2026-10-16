@@ -555,6 +555,29 @@ How it works:
 - Log out exists only in `app/account.html`. It audits the logout, calls `supabase.auth.signOut()` and clears the session cache and the Supabase keys. Department working data in `localStorage` is kept.
 - Accounts are created by an administrator. There is no self sign up, and the browser cannot choose or change a role or department. Administrator accounts have no dashboard here.
 
+### Where the data lives (Part 16)
+
+Faculty, professor preferences, leave dates (date ranges only, no reason), class sizes, rooms, the active academic period and the solver settings are read from and saved to Supabase through `assets/js/data-store.js`. Row Level Security does the filtering: a chairperson gets only their department, a faculty member only their own record, preferences and leave plus the approved run of their department.
+
+- **Saving:** every change shows "Saving...", then "Saved". If a save fails, an error toast appears, what was typed stays on screen and in memory, and a Retry button (and the browser coming back online) saves it again. A newer save replaces an older failed one, so a retry never overwrites newer data.
+- **First visit:** a department with no faculty in the database is offered "Load sample faculty" (the pseudonym pool of the curriculum file). It is inserted only after the table is checked to be empty and is never written silently.
+- **Browser storage:** only device settings (theme, text size) and a 10-minute cache. The cache is read only when the database cannot be reached, it is shown read-only (saving is off until a reload reaches the database), and it is never written back. Logout clears every working key, the cache and the Supabase session, and so does the first sign-in of a different user on the same computer. The old `<base>::<dept>` keys and their migration code are removed.
+- **Run Optimization** sends the faculty, preferences, leave dates (as `leave_dates`, which the engine already scores as unavailable dates), class sizes, rooms and solver settings loaded from the database to `/run-ga` with the Bearer token. It refuses to start while a change is still unsaved.
+- **Last result:** the approved run of the department is loaded from `schedule_runs` (see Saved runs below), so the schedule is the same in every browser.
+- **Audit:** faculty add, edit and delete and solver or period changes go to `POST /audit` (ids and counts only); rooms and class sizes are audited by their routes.
+- **Not in the database yet:** the subject table edits (units and types) are kept only on the open page; subjects always start from the curriculum file.
+
+### Saved runs (Part 17)
+
+On Workload Optimization every finished run is stored as a **Draft** (`schedule_runs`). Two things sit on the page:
+
+- **Save this run:** after a run, a label field (default `<Dept> <Semester> <date time>`) and a "Save this run" button call `POST /runs/<id>/save`; the run becomes **Saved**.
+- **Saved runs card:** label, date and time, who ran it, coverage, balance score and a status badge (Draft, Saved, Approved). Per run: **Load**, **Unload**, **Approve** (asks for confirmation, calls `POST /runs/<id>/approve`, and the previous approved run becomes Saved) and **Delete** (asks for confirmation; an approved run cannot be deleted, in the page and in the API and database).
+- **Loading a run** fills the optimization table, Reports, Dashboard and the faculty timetable under a banner ("Viewing saved run from 15 Oct 2026 5:30 PM, not the approved schedule") with an **Unload** button that goes back to the approved schedule, or to an empty view when none is approved. A new run or a manual edit only ever changes a draft or saved run; the approved schedule is frozen and cannot be edited from the page.
+- **The default view is the approved run** (Dashboard, Reports and the timetable). Faculty can read only the approved run (API and RLS).
+- **Size:** the list loads only small columns (`LIST_COLUMNS`), never `result` or `analytics`; a run's result is fetched when it is opened. The list scrolls inside its card and works with 0 or 50+ runs. The balance score (Jain's index of the teaching load, 0 to 100) is stored in `metrics` when the run is saved; older runs show a dash.
+- Code: `assets/js/saved-runs.js` (controller and DOM), glue in `main-script.js`; tests in `tests/test_part17.py` and `tests/js/saved_runs_harness.js`.
+
 ### Privacy notice (also shown on the login page and in About)
 
 - **We collect:** name, email, role, department, faculty scheduling data (specializations, unit limits, availability, preferences, leave dates), saved schedules, and an audit log (ids and counts only).

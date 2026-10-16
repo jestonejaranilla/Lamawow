@@ -1,7 +1,8 @@
 /* ============================================================
    ATLAS PSU - solver settings: the single source of truth.
-   Stored per department under 'systemSettings::<dept>'. The limits
-   below match what /run-ga accepts (routes/schedule_routes.py).
+   Part 16: the values live in Supabase (dept_settings.solver, through assets/js/data-store.js) and are read from the
+   in-memory copy it loaded; nothing is kept in localStorage. The limits below match what /run-ga accepts
+   (routes/schedule_routes.py).
    Used by app-script.js (the form) and main-script.js (runs, summary).
    ============================================================ */
 (function () {
@@ -17,7 +18,7 @@
     crossover:            { label: 'Crossover Rate',       min: 0, max: 1,   int: false, def: 0.95 },
   };
   const DEFAULTS = Object.fromEntries(Object.entries(FIELDS).map(([k, f]) => [k, f.def]));
-  const key = dept => 'systemSettings::' + dept;
+  const store = () => window.atlasData || null;
 
   /* raw: {field: string|number}. Returns {values, errors}; a bad value is reported, never coerced. */
   function validate(raw) {
@@ -33,11 +34,11 @@
     return { values, errors };
   }
 
-  /* Every call reads storage again, so a change made elsewhere applies on the next run. A stored value
-     that is missing or outside its limit (for example the old 60 s) falls back to the default. */
+  /* Reads the department's saved values from the data store's memory (filled from the database before the page
+     starts). A value that is missing or outside its limit (for example the old 60 s) falls back to the default. */
   function read(dept) {
-    let stored = {};
-    try { stored = JSON.parse(localStorage.getItem(key(dept)) || '{}') || {}; } catch { stored = {}; }
+    const s = store();
+    const stored = s && s.dept() === dept ? s.settings.solver() : {};
     const out = {};
     Object.entries(FIELDS).forEach(([k, f]) => {
       const r = validate({ [k]: stored[k] });
@@ -46,10 +47,11 @@
     return out;
   }
 
+  /* Saves to the database. Returns a promise {ok, error?}; the new values apply on screen at once. */
   function save(dept, values) {
-    let stored = {};
-    try { stored = JSON.parse(localStorage.getItem(key(dept)) || '{}') || {}; } catch { stored = {}; }
-    try { localStorage.setItem(key(dept), JSON.stringify(Object.assign(stored, values))); } catch { /* storage unavailable */ }
+    const s = store();
+    if (!s || s.dept() !== dept) return Promise.resolve({ ok: false, error: 'Not signed in.' });
+    return s.settings.saveSolver(values);
   }
 
   function summary(s) {

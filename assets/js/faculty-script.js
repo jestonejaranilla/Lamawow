@@ -1,9 +1,9 @@
 /* ============================================================
    ATLAS PSU - faculty side (faculty/dashboard.html)
-   Reads the schedule the chairperson saved in this browser
-   (localStorage) and shows each faculty member their own classes,
-   their week, and the whole department. A live clock tracks the time
-   and reminds the faculty member before a class starts.
+   Part 16: reads the department's APPROVED schedule and the faculty member's own record, preferences and leave
+   from Supabase (assets/js/data-store.js, Row Level Security) and shows their own classes, their week, and the
+   whole department. The only things a faculty member can edit are their own preferences and leave dates.
+   A live clock tracks the time and reminds the faculty member before a class starts.
    ============================================================ */
 (function () {
   'use strict';
@@ -14,11 +14,9 @@
   const SLOT_ROWS = [[7, 9], [9, 11], [13, 15], [15, 17], [17, 19]];
   const MINUTES_PER_DAY = 1440;
   const MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY;
-  /* Department chosen at login. Every key below is <base>::<dept>: this page reads only the
-     data its own department saved, never another department's. */
+  /* Department of the signed-in profile. The database only returns this department's approved run. */
   const DEPT = (window.atlasDept && window.atlasDept.current()) || 'IT';
-  const dk = base => base + '::' + DEPT;
-  const DATA_KEYS = ['lastGAResult', 'facultyData', 'academicMode', 'subjectsData', 'systemSettings'].map(dk);
+  const store = () => window.atlasData;
   let deptName = DEPT;      // replaced by the `name` of the department's file once it is loaded
   const DEFAULT_SETTINGS = { enabled: true, lead: 10, atStart: true, sound: true, vibrate: true, browser: false };
   const LOGIN_URL = '../pages/login.html';
@@ -103,38 +101,33 @@
     };
   }
 
+  /* The approved run of the department (Supabase); its result is the schedule everyone sees. */
+  function approvedRun() { return store().self.run(); }
+  function runItems() {
+    const run = approvedRun();
+    return run && Array.isArray(run.result) ? run.result : [];
+  }
+
   function loadSchedule() {
-    let items = readJSON(localStorage, dk('lastGAResult'), []);
-    if (!Array.isArray(items)) items = [];
-    const mode = readJSON(localStorage, dk('academicMode'), null);
-    if (mode && mode.semester) {
-      const valid = new Set(
-        readJSON(localStorage, dk('subjectsData'), [])
-          .filter(s => s.semester === mode.semester)
-          .map(s => s.name)
-      );
-      if (valid.size) items = items.filter(i => valid.has(i.subject));
-    }
-    return items.map(normalize).filter(Boolean).sort((a, b) => a.start - b.start);
+    return runItems().map(normalize).filter(Boolean).sort((a, b) => a.start - b.start);
   }
 
   /* Courses taught without a classroom (NON_CLASSROOM): a professor, no slot, no room. */
   function loadNoClassroom() {
-    const items = readJSON(localStorage, dk('lastGAResult'), []);
-    return (Array.isArray(items) ? items : [])
+    return runItems()
       .filter(i => i && window.AtlasDisplay.isNoClassroom(i))
       .map(i => ({ faculty: i.faculty || '', subject: i.subject || '', section: window.AtlasDisplay.rowLabel(i) }));
   }
 
   function loadFacultyNames() {
-    const names = readJSON(localStorage, dk('facultyData'), []).map(f => f && f.name).filter(Boolean);
+    const names = store().self.names().slice();
     if (!names.includes(session.name)) names.push(session.name);
     return Array.from(new Set(names)).sort();
   }
 
   function unitsPerAssignment() {
-    const settings = readJSON(localStorage, dk('systemSettings'), {});
-    return parseInt(settings.units_per_assignment, 10) || 2;
+    const run = approvedRun();
+    return parseInt(run && run.solver_settings && run.solver_settings.units_per_assignment, 10) || 2;
   }
 
   /* ---------- State ---------- */
@@ -191,7 +184,8 @@
     const short = session.dept ? ' \u00b7 ' + deptName : '';
     $('navUserLabel').textContent = session.name + short;
 
-    const mode = readJSON(localStorage, dk('academicMode'), null);
+    const run = approvedRun();
+    const mode = run ? { year: run.academic_year, semester: run.semester } : null;
     const badge = $('fsSemBadge');
     if (mode && mode.semester) {
       badge.textContent = 'Showing: ' + (mode.year ? mode.year + ' \u00b7 ' : '') + mode.semester;
@@ -522,9 +516,63 @@
   }
 
   function renderDataInfo() {
-    $('fsDataInfo').textContent = state.schedule.length
+    const rec = store().self.record();
+    const load = rec ? ` \u00b7 your limit ${rec.max_units} units (+${rec.overload_buffer} buffer)` : '';
+    $('fsDataInfo').textContent = (state.schedule.length
       ? `${state.schedule.length} classes \u00b7 ${new Set(state.schedule.map(c => c.faculty)).size} faculty`
-      : NO_DATA;
+      : NO_DATA) + load;
+  }
+
+  /* ---------- My preferences and leave: the only data a faculty member edits (saved to the database) ---------- */
+  function addLeaveRow(start, end) {
+    const row = document.createElement('div');
+    row.className = 'fs-leave-row';
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap';
+    row.innerHTML = '<input type="date" aria-label="Leave start date"><span>to</span><input type="date" aria-label="Leave end date">' +
+      '<button type="button" class="btn btn-outline" aria-label="Remove leave">&times;</button>';
+    const inputs = row.querySelectorAll('input');
+    inputs[0].value = start || '';
+    inputs[1].value = end || '';
+    row.querySelector('button').addEventListener('click', () => row.remove());
+    $('fsLeaveList').appendChild(row);
+  }
+
+  function renderPrefs() {
+    const p = store().self.prefs() || {};
+    $('fsPrefPeriod').value = p.preferred_period || '';
+    $('fsPrefRoom').value = p.preferred_room || '';
+    $('fsPrefBuilding').value = p.preferred_building || '';
+    $('fsPrefFloor').value = p.preferred_floor || '';
+    document.querySelectorAll('#fsAvoidDays input').forEach(c => { c.checked = (p.avoid_days || []).includes(c.value); });
+    $('fsLeaveList').innerHTML = '';
+    store().self.leave().forEach(l => addLeaveRow(l.start, l.end));
+    $('fsPrefsError').hidden = true;
+  }
+
+  function initPrefs() {
+    $('fsAddLeave').addEventListener('click', () => addLeaveRow('', ''));
+    $('fsSavePrefs').addEventListener('click', async () => {
+      const error = $('fsPrefsError');
+      const ranges = Array.from(document.querySelectorAll('#fsLeaveList .fs-leave-row')).map(row => {
+        const d = row.querySelectorAll('input');
+        return { start: d[0].value, end: d[1].value };
+      }).filter(l => l.start || l.end);
+      if (ranges.some(l => !l.start || !l.end || l.end < l.start)) {
+        error.textContent = 'Each leave needs a start date and an end date that is not before it.';
+        error.hidden = false;
+        return;
+      }
+      error.hidden = true;
+      const prefs = {
+        preferred_period: $('fsPrefPeriod').value,
+        preferred_room: $('fsPrefRoom').value.trim(),
+        preferred_building: $('fsPrefBuilding').value.trim(),
+        preferred_floor: $('fsPrefFloor').value.trim(),
+        avoid_days: Array.from(document.querySelectorAll('#fsAvoidDays input:checked')).map(c => c.value)
+      };
+      const [a, b] = await Promise.all([store().self.savePrefs(prefs), store().self.saveLeave(ranges)]);
+      if (a.ok && b.ok) toast('Preferences and leave saved');
+    });
   }
 
   function initSettings() {
@@ -547,30 +595,15 @@
     $('fsTestReminder').addEventListener('click', () =>
       notify('Test reminder', 'This is how your class reminders will look.', 'atlas-test'));
 
-    $('fsReloadData').addEventListener('click', () => { refreshAll(); toast('Schedule reloaded'); });
-
-    $('fsSaveProfile').addEventListener('click', () => {
-      const error = $('fsProfileError');
-      const email = $('fsProfileEmail').value.trim();
-      if (!/^[a-zA-Z0-9._%+-]+@psu\.palawan\.edu\.ph$/i.test(email)) {
-        error.textContent = 'Please use your PSU corporate email (name@psu.palawan.edu.ph).';
-        error.hidden = false;
-        return;
-      }
-      error.hidden = true;
-      const name = $('fsProfileFaculty').value;
-      const profiles = readJSON(localStorage, 'facultyProfiles', {});
-      profiles[name] = { email, dept: session.dept };
-      writeJSON(localStorage, 'facultyProfiles', profiles);
-      sessionStorage.setItem('atlasFaculty', name);
-      sessionStorage.setItem('atlasUser', name);
-      sessionStorage.setItem('atlasEmail', email);
-      session.name = name;
-      session.email = email;
-      settings = Object.assign({}, DEFAULT_SETTINGS, readJSON(localStorage, settingsKey(), {}));
-      refreshAll();
-      toast('Profile saved');
+    $('fsReloadData').addEventListener('click', async () => {
+      try {
+        await store().self.reload();
+        refreshAll();
+        renderPrefs();
+        toast('Schedule reloaded');
+      } catch { toast('Cannot reach the database. Try again.'); }
     });
+
   }
 
   /* ---------- Refresh ---------- */
@@ -585,10 +618,13 @@
     renderDataInfo();
   }
 
-  /* ---------- Start ---------- */
+  /* ---------- Start (after the database copy is loaded) ---------- */
+  function start() {
   initNavigation();
   initTabs();
   initSettings();
+  initPrefs();
+  renderPrefs();
   $('fsAlertClose').addEventListener('click', hideAlert);
   $('fsWeekStrip').addEventListener('click', e => {
     const button = e.target.closest('.fs-day-btn');
@@ -599,7 +635,6 @@
     renderMine(now);
   });
   $('fsFacultyFilter').addEventListener('change', () => renderAll(new Date()));
-  window.addEventListener('storage', e => { if (e.key === null || DATA_KEYS.includes(e.key)) refreshAll(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { const n = new Date(); renderStatus(n); checkReminders(n); } });
 
   /* Logout or another department: empty what is held in memory and what is on screen. */
@@ -612,8 +647,6 @@
 
   /* Department name from the department's file (the dashboard caches it per department). */
   async function loadDeptName() {
-    const cached = readJSON(localStorage, dk('atlasCurriculumCache'), null);
-    if (cached && cached.dept === DEPT && cached.name) deptName = cached.name;
     try {
       const res = await fetch('../data/curricula/' + DEPT + '.json', { cache: 'no-cache' });
       const data = await res.json();
@@ -641,4 +674,10 @@
       renderWeek(now);
     }
   }, 1000);
+  }
+
+  window.atlasData.init().then(start, () => {
+    initNavigation();
+    $('fsDataInfo').textContent = 'Cannot load your data from the database. Check your connection and reload.';
+  });
 })();
