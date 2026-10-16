@@ -36,6 +36,7 @@
   function setBusy(busy) {
     const btn = $('siSubmit');
     btn.disabled = busy;
+    btn.classList.toggle('is-busy', busy);
     btn.textContent = busy ? 'Signing in...' : 'Log in';
   }
 
@@ -85,7 +86,7 @@
         $('periodYearErr').textContent = '';
         if (!m || Number(m[2]) !== Number(m[1]) + 1 || SEMS.indexOf(sem) < 0) { $('periodYearErr').textContent = 'Use an academic year like 2026-2027.'; return; }
         dept = dept || $('periodDept').value;
-        save.disabled = true; save.textContent = 'Saving...'; note('');
+        save.disabled = true; save.classList.add('is-busy'); save.textContent = 'Saving...'; note('');
         try {
           const old = await client.from('dept_settings').select('solver,lab_also_lecture').eq('dept', dept).maybeSingle();
           const row = { dept: dept, academic_year: year, semester: sem,
@@ -99,7 +100,7 @@
           done();
         } catch {
           note('Could not save the period. Check your connection, or continue and set it later in Application Settings.');
-          skip.hidden = false; save.disabled = false; save.textContent = 'Try again';
+          skip.hidden = false; save.disabled = false; save.classList.remove('is-busy'); save.textContent = 'Try again';
         }
       };
       skip.onclick = done;

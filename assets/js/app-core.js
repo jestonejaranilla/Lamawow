@@ -1,4 +1,132 @@
 /* ============================================================
+   ATLAS PSU - shared loading spinner and rubber band (UI only)
+   One spinner for every page: it covers the page from the first paint until the page, the sign in check
+   and (on the dashboards) the data are ready, and again while a link to another page opens.
+   window.atlasLoader.show() / .hide() can be used by any script. Rubber band: on touch screens a pull past
+   the top or bottom of the page stretches it and springs back.
+   ============================================================ */
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  if (!document.head || typeof clearTimeout !== 'function') return;     // not a real page (test harness)
+  var css =
+    'html.atlas-loading::before{content:"";position:fixed;inset:0;z-index:2147483000;background:var(--bg-page,#faf7f3);opacity:1;transition:opacity .3s ease}' +
+    'html.atlas-loading::after{content:"";position:fixed;z-index:2147483001;top:50%;left:50%;width:32px;height:32px;margin:-16px 0 0 -16px;box-sizing:border-box;' +
+    'border:3px solid var(--border-default,#e3dbd2);border-top-color:var(--clr-primary-500,#c0440a);border-radius:50%;animation:atlas-spin .8s linear infinite;transition:opacity .3s ease}' +
+    'html.atlas-loading.atlas-loading-out::before,html.atlas-loading.atlas-loading-out::after{opacity:0;pointer-events:none}' +
+    'html[data-theme="dark"].atlas-loading::before{background:var(--bg-page,#17120f)}' +
+    'html.atlas-loading{overflow:hidden}' +
+    '@keyframes atlas-spin{to{transform:rotate(360deg)}}';
+  try {
+    var st = document.createElement('style');
+    st.id = 'atlasLoaderCss';
+    st.textContent = css;
+    (document.head || root).appendChild(st);
+  } catch (e) { /* no styling, no loader */ }
+
+  var timer = null, failsafe = null;
+  function show(maxMs) {
+    clearTimeout(timer);
+    root.classList.remove('atlas-loading-out');
+    root.classList.add('atlas-loading');
+    clearTimeout(failsafe);
+    failsafe = setTimeout(hide, maxMs || 8000);
+  }
+  function hide() {
+    clearTimeout(failsafe);
+    if (!root.classList.contains('atlas-loading')) return;
+    root.classList.add('atlas-loading-out');
+    clearTimeout(timer);
+    timer = setTimeout(function () { root.classList.remove('atlas-loading', 'atlas-loading-out'); }, 320);
+  }
+  window.atlasLoader = { show: show, hide: hide };
+  show(10000);
+
+  function whenReady() {
+    var waits = [];
+    var noop = function () {};
+    if (window.atlasAuth && window.atlasAuth.ready) waits.push(Promise.resolve(window.atlasAuth.ready).catch(noop));
+    if (window.atlasData && window.atlasData.init && /\/(pages|faculty)\/dashboard/.test(location.pathname)) {
+      try { waits.push(Promise.resolve(window.atlasData.init()).catch(noop)); } catch (e) { /* not ready */ }
+    }
+    return Promise.all(waits);
+  }
+  function onLoaded() { whenReady().then(function () { requestAnimationFrame(hide); }); }
+  if (document.readyState === 'complete') onLoaded(); else window.addEventListener('load', onLoaded);
+  window.addEventListener('pageshow', function (e) { if (e.persisted) hide(); });
+
+  /* opening another page of the site */
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || (a.target && a.target !== '_self') || a.hasAttribute('download')) return;
+    var u;
+    try { u = new URL(a.href, location.href); } catch (x) { return; }
+    if (!/^https?:$/.test(u.protocol) || u.origin !== location.origin) return;
+    if (u.pathname === location.pathname && u.search === location.search) return;
+    if (!/(\.html|\/)$/.test(u.pathname)) return;
+    setTimeout(function () { if (!e.defaultPrevented) show(6000); }, 80);
+  });
+
+  /* ---------- rubber band ---------- */
+  if (!('ontouchstart' in window)) return;
+  var BLOCK = 'input,select,textarea,[contenteditable],[role="dialog"],.modal-overlay,.tt-viewer,.auth-modal,[data-no-rubber]';
+  var MAX = 110, g = null;
+  function reduce() { return root.getAttribute('data-motion') === 'reduce'; }
+  function curve(d) { return MAX * (1 - Math.exp(-d / (MAX * 2.2))); }
+  function innerScroller(t, stop) {
+    for (; t && t !== stop && t !== document.body && t !== root; t = t.parentElement) {
+      var o = getComputedStyle(t).overflowY;
+      if ((o === 'auto' || o === 'scroll') && t.scrollHeight > t.clientHeight + 2) return t;
+    }
+    return null;
+  }
+  function wrapperEl() { return document.querySelector('.app-shell, .auth-shell, .ld-hero'); }
+  function settle(el) {
+    if (!el) return;
+    el.style.transition = 'transform .6s cubic-bezier(.22,1.25,.36,1)';
+    el.style.transform = '';
+    setTimeout(function () { el.style.transition = ''; el.style.willChange = ''; }, 650);
+  }
+  document.addEventListener('touchstart', function (e) {
+    g = null;
+    var t = e.target;
+    if (reduce() || e.touches.length !== 1 || !t.closest || t.closest(BLOCK)) return;
+    var panel = t.closest('.panel');
+    if (innerScroller(t, panel)) return;
+    var el = panel || wrapperEl();
+    if (!el) return;
+    var sc = panel || document.scrollingElement || root;
+    g = { x: e.touches[0].clientX, y: e.touches[0].clientY, panel: panel, sc: sc, el: el, on: false, y0: 0, dir: 0 };
+  }, { passive: true });
+  document.addEventListener('touchmove', function (e) {
+    if (!g) return;
+    if (e.defaultPrevented) { g = null; return; }              // the dashboard swipe / pull gesture owns it
+    var y = e.touches[0].clientY, dy = y - g.y, dx = e.touches[0].clientX - g.x;
+    if (!g.on) {
+      if (Math.abs(dy) < 6) return;
+      if (Math.abs(dx) > Math.abs(dy)) { g = null; return; }
+      var sc = g.sc;
+      var atTop = sc.scrollTop <= 0;
+      var atBottom = sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 1;
+      if (dy > 0 && atTop && !g.panel) g.dir = 1;              // panels pull down to refresh on their own
+      else if (dy < 0 && atBottom) g.dir = -1;
+      else { g = null; return; }
+      g.on = true; g.y0 = y;
+      g.el.style.willChange = 'transform';
+    }
+    var d = (y - g.y0) * g.dir;
+    if (d <= 0) { g.el.style.transition = 'none'; g.el.style.transform = ''; var el0 = g.el; g = null; settle(el0); return; }
+    if (e.cancelable) e.preventDefault();
+    g.el.style.transition = 'none';
+    g.el.style.transform = 'translate3d(0,' + (g.dir * curve(d)) + 'px,0)';
+  }, { passive: false });
+  function release() { if (g && g.on) settle(g.el); g = null; }
+  document.addEventListener('touchend', release);
+  document.addEventListener('touchcancel', release);
+})();
+
+/* ============================================================
    ATLAS PSU - app core (loaded first on every page)
    Device-level preferences: theme, text size, motion, alerts.
    Stored in localStorage under "atlasApp".

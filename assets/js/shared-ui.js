@@ -285,9 +285,25 @@
       busy = true;
       ptr.classList.add('spin');
       setPull(PULL_AT, false);
-      try { sessionStorage.setItem(SAVE_KEY, String(activeIndex())); } catch { /* storage unavailable */ }
-      setTimeout(() => location.reload(), reduce() ? 0 : 600);
+      try { sessionStorage.setItem(SAVE_KEY, String(activeIndex())); sessionStorage.setItem('atlasRefreshed', '1'); } catch { /* storage unavailable */ }
+      setTimeout(() => location.reload(), reduce() ? 0 : 900);
     }
+
+    /* small "Refreshed" confirmation after the page came back */
+    try {
+      if (sessionStorage.getItem('atlasRefreshed') === '1') {
+        sessionStorage.removeItem('atlasRefreshed');
+        const done = document.createElement('div');
+        done.className = 'ptr-done';
+        done.setAttribute('role', 'status');
+        done.textContent = 'Refreshed';
+        window.addEventListener('load', () => {
+          document.body.appendChild(done);
+          requestAnimationFrame(() => done.classList.add('on'));
+          setTimeout(() => { done.classList.remove('on'); setTimeout(() => done.remove(), 400); }, 1500);
+        });
+      }
+    } catch { /* storage unavailable */ }
 
     /* come back to the same section after a refresh */
     try {

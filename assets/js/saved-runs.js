@@ -265,8 +265,8 @@
           if (r.canApprove) acts.push('<button type="button" class="btn" data-act="approve" data-id="' + esc(r.id) + '">Approve</button>');
           if (r.canDelete) acts.push('<button type="button" class="btn btn-outline run-delete" data-act="remove" data-id="' + esc(r.id) + '">Delete</button>');
           return '<tr data-run-id="' + esc(r.id) + '"' + (r.onScreen ? ' class="run-on-screen"' : '') + '>' +
-            '<td class="run-label">' + esc(r.label) + '</td><td>' + esc(r.when) + '</td><td>' + esc(r.who) + '</td>' +
-            '<td>' + esc(r.coverage) + '</td><td>' + esc(r.balance) + '</td>' +
+            '<td class="run-label">' + esc(r.label) + '</td><td data-label="Date">' + esc(r.when) + '</td><td data-label="Ran by">' + esc(r.who) + '</td>' +
+            '<td data-label="Coverage">' + esc(r.coverage) + '</td><td data-label="Balance">' + esc(r.balance) + '</td>' +
             '<td><span class="run-badge run-' + esc(r.status) + '">' + esc(r.statusLabel) + '</span></td>' +
             '<td><div class="run-actions">' + (acts.length ? acts.join('') : '<span class="run-none">Locked</span>') + '</div></td></tr>';
         }).join('');
