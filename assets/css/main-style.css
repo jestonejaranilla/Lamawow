@@ -4461,3 +4461,9 @@ html { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent;
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover, [data-theme="dark"] .panel::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:active, .panel::-webkit-scrollbar-thumb:active { background: var(--clr-primary-600); background-clip: padding-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
+
+/* a hidden tooltip must not widen the page (application pages) */
+.info-tip::after { display: none; }
+.info-tip:hover::after, .info-tip:focus::after { display: block; }
+.info-tip::after { max-width: min(240px, calc(100vw - 48px)); }
+.app-shell, .app-content { min-width: 0; }
