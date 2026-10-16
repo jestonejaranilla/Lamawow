@@ -46,6 +46,7 @@
     var waits = [];
     var noop = function () {};
     if (window.atlasAuth && window.atlasAuth.ready) waits.push(Promise.resolve(window.atlasAuth.ready).catch(noop));
+    if (window.atlasPageReady) waits.push(Promise.resolve(window.atlasPageReady).catch(noop));      // a page can hold the loader until its own data is shown
     if (window.atlasData && window.atlasData.init && /\/(pages|faculty)\/dashboard/.test(location.pathname)) {
       try { waits.push(Promise.resolve(window.atlasData.init()).catch(noop)); } catch (e) { /* not ready */ }
     }

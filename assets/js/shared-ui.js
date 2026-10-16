@@ -8,6 +8,8 @@
   'use strict';
 
   const syncers = [];   // re-run after the start page is applied
+  let restoreIdx = null, acted = false;   // returning from the Menu: reopen a section with no slide until the user acts
+  let noSlide = false;  // set while a finished swipe switches section (the swipe already animated)
 
   /* ---------- Bottom tab bar (mobile) ---------- */
   function initBottomNav() {
@@ -41,7 +43,9 @@
       const index = panels.findIndex(p => p.classList.contains('active'));
       const active = panels[index];
       title.textContent = active ? (active.dataset.title || active.getAttribute('aria-label') || '') : '';
-      back.classList.toggle('is-hidden', index <= 0);
+      back.classList.add('is-hidden');                       // the top bar has no back button; the phone back button navigates
+      const more = document.querySelector('.nav-more');
+      if (more) more.classList.toggle('is-hidden', index !== panels.length - 1);   // Menu only on the last section (Rooms)
     }
 
     syncers.push(sync);
@@ -376,7 +380,7 @@
         active.style.transform = '';
         active.style.willChange = '';
         releaseSide();
-        if (commit && side && window.switchPanel) window.switchPanel(index + dir);
+        if (commit && side && window.switchPanel) { noSlide = true; window.switchPanel(index + dir); setTimeout(() => { noSlide = false; }, 50); }
         busy = false;
       };
       setTimeout(finish, reduce() ? 0 : 300);
@@ -450,9 +454,144 @@
     wrapper.addEventListener('touchcancel', end);
   }
 
+  /* ---------- Mobile: slide between sections, and a logical phone back button ---------- */
+  const mobile = () => window.matchMedia('(max-width: 900px)').matches;
+  const panelList = () => Array.from(document.querySelectorAll('.panel'));
+  const panelIndex = () => panelList().findIndex(p => p.classList.contains('active'));
+  const reducedMotion = () => document.documentElement.getAttribute('data-motion') === 'reduce' ||
+    (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  function injectNavCss() {
+    const st = document.createElement('style');
+    st.id = 'atlasNavCss';
+    st.textContent =
+      '.nav-more.is-hidden{visibility:hidden;pointer-events:none}' +
+      '@media (max-width:900px){' +
+      '.top-navbar{transition:transform .32s cubic-bezier(.32,.72,.2,1),background var(--transition-slow),border-color var(--transition-slow),box-shadow .32s ease}' +
+      '.panels-wrapper{transition:margin-top .32s cubic-bezier(.32,.72,.2,1),height .32s cubic-bezier(.32,.72,.2,1)}' +
+      'html.atlas-nav-away .top-navbar{transform:translate3d(0,-100%,0);box-shadow:none}' +
+      'html.atlas-nav-away .panels-wrapper{margin-top:env(safe-area-inset-top,0px);height:calc(100vh - var(--bottom-nav-h) - env(safe-area-inset-top,0px));height:calc(100dvh - var(--bottom-nav-h) - env(safe-area-inset-top,0px))}' +
+      '}' +
+      '@keyframes atlas-in-r{from{transform:translate3d(100%,0,0)}to{transform:translate3d(0,0,0)}}' +
+      '@keyframes atlas-in-l{from{transform:translate3d(-100%,0,0)}to{transform:translate3d(0,0,0)}}' +
+      '@keyframes atlas-out-l{from{transform:translate3d(0,0,0)}to{transform:translate3d(-100%,0,0)}}' +
+      '@keyframes atlas-out-r{from{transform:translate3d(0,0,0)}to{transform:translate3d(100%,0,0)}}' +
+      '@media (max-width:900px){' +
+      '.panels-container.atlas-slide{overflow:hidden}' +
+      '.panel.atlas-in-r{z-index:2;animation:atlas-in-r .32s cubic-bezier(.32,.72,.2,1) both!important;will-change:transform}' +
+      '.panel.atlas-in-l{z-index:2;animation:atlas-in-l .32s cubic-bezier(.32,.72,.2,1) both!important;will-change:transform}' +
+      '.panel.atlas-out-l,.panel.atlas-out-r{display:block!important;position:absolute!important;top:0;left:0;right:0;bottom:0;z-index:1;overflow:hidden!important;pointer-events:none;will-change:transform}' +
+      '.panel.atlas-out-l{animation:atlas-out-l .32s cubic-bezier(.32,.72,.2,1) both!important}' +
+      '.panel.atlas-out-r{animation:atlas-out-r .32s cubic-bezier(.32,.72,.2,1) both!important}' +
+      '}';
+    document.head.appendChild(st);
+  }
+
+  function initSectionSlide() {
+    const main = document.querySelector('main');
+    const container = document.querySelector('.panels-container');
+    if (!main || !container) return;
+    const CLS = ['atlas-in-r', 'atlas-in-l', 'atlas-out-l', 'atlas-out-r'];
+    let last = panelIndex();
+    let timer = 0;
+    document.addEventListener('scroll', e => { const t = e.target; if (t && t.classList && t.classList.contains('panel') && !t.classList.contains('atlas-out-l') && !t.classList.contains('atlas-out-r')) t.__atlasTop = t.scrollTop; }, true);
+    function clean() {
+      clearTimeout(timer);
+      panelList().forEach(p => p.classList.remove(...CLS));
+      container.classList.remove('atlas-slide');
+    }
+    new MutationObserver(() => {
+      const now = panelIndex();
+      if (now === last) return;
+      const prev = last;
+      last = now;
+      if (noSlide || (restoreIdx !== null && !acted)) { noSlide = false; clean(); return; }
+      if (prev < 0 || now < 0 || !mobile() || reducedMotion() || document.readyState !== 'complete') return;
+      clean();
+      const list = panelList(), fwd = now > prev;
+      container.classList.add('atlas-slide');
+      list[now].classList.add(fwd ? 'atlas-in-r' : 'atlas-in-l');
+      list[prev].classList.add(fwd ? 'atlas-out-l' : 'atlas-out-r');
+      if (list[prev].__atlasTop) list[prev].scrollTop = list[prev].__atlasTop;
+      timer = setTimeout(clean, 380);
+    }).observe(main, { attributes: true, subtree: true, attributeFilter: ['class'] });
+  }
+
+  /* Phone back button (mobile dashboards): Home exits the app, any other section goes to Home.
+     Entry 1 is Home. The first move away from Home pushes one entry; moves between other sections replace it,
+     so a single Back always lands on Home. The Menu page is reached from Rooms and Back returns to Rooms. */
+  function initPhoneBack() {
+    if (!window.history || !history.pushState || !panelList().length) return;
+    const stateIdx = () => (history.state && Number.isInteger(history.state.atlasPanel)) ? history.state.atlasPanel : null;
+    let busy = false, ready = false;
+    ['pointerdown', 'touchstart', 'keydown'].forEach(t => window.addEventListener(t, () => { acted = true; restoreIdx = null; }, true));
+
+    function start() {
+      ready = true;
+      const saved = stateIdx(), now = panelIndex();
+      if (saved !== null && saved !== now && saved < panelList().length && window.switchPanel) {
+        restoreIdx = saved;                                // coming back from the Menu: reopen the section it was opened from
+        window.switchPanel(saved);                         // (the page may apply its own start section a moment later; keep ours until the user acts)
+      } else if (saved === null) {
+        history.replaceState({ atlasPanel: 0 }, '');
+        if (now > 0) history.pushState({ atlasPanel: now }, '');   // a start page other than Home keeps Home underneath
+      }
+    }
+
+    function onChange() {
+      if (!ready || busy || !mobile()) return;
+      const now = panelIndex(), saved = stateIdx();
+      if (now < 0 || saved === now) return;
+      if (!acted && restoreIdx !== null && now !== restoreIdx && window.switchPanel) { window.switchPanel(restoreIdx); return; }
+      if (now > 0 && (saved === 0 || saved === null)) history.pushState({ atlasPanel: now }, '');
+      else if (now > 0) history.replaceState({ atlasPanel: now }, '');
+      else if (saved > 0) { busy = true; history.back(); setTimeout(() => { busy = false; }, 120); }   // Home by tab: drop the extra entry
+    }
+
+    window.addEventListener('popstate', () => {
+      if (!mobile()) return;
+      const idx = stateIdx() === null ? 0 : stateIdx();
+      if (idx !== panelIndex() && window.switchPanel) { busy = true; window.switchPanel(idx); setTimeout(() => { busy = false; }, 120); }
+    });
+    new MutationObserver(() => onChange()).observe(document.querySelector('main') || document.body,
+      { attributes: true, subtree: true, attributeFilter: ['class'] });
+    if (document.readyState === 'complete') start(); else window.addEventListener('load', start);
+  }
+
+  /* Top bar hides while scrolling down and returns on scroll up (mobile dashboards). The section below grows into the freed space. */
+  function initNavAutoHide() {
+    const root = document.documentElement;
+    if (!document.querySelector('.top-navbar') || !document.querySelector('.panel')) return;
+    const last = new WeakMap();
+    let lock = 0, idx = panelIndex();
+    function setAway(v) {
+      if (root.classList.contains('atlas-nav-away') === v) return;
+      root.classList.toggle('atlas-nav-away', v);
+      lock = performance.now() + 420;                    // the resize this causes must not count as a scroll
+    }
+    document.addEventListener('scroll', e => {
+      const t = e.target;
+      if (!mobile() || !t || !t.classList || !t.classList.contains('panel') || !t.classList.contains('active')) return;
+      const y = t.scrollTop, prev = last.has(t) ? last.get(t) : y;
+      last.set(t, y);
+      if (performance.now() < lock) return;
+      if (y <= 4) { setAway(false); return; }
+      const d = y - prev;
+      if (Math.abs(d) < 6) return;
+      if (d > 0) { if (y > 56 && t.scrollHeight - t.clientHeight > 160) setAway(true); }
+      else setAway(false);
+    }, true);
+    syncers.push(() => { const now = panelIndex(); if (now !== idx) { idx = now; setAway(false); } });
+    window.matchMedia('(max-width: 900px)').addEventListener('change', () => root.classList.remove('atlas-nav-away'));
+  }
+
+  injectNavCss();
   initBottomNav();
   initTopBar();
   watchPanels();
+  initSectionSlide();
+  initNavAutoHide();
+  initPhoneBack();
   initScrollHandle();
   initViewer();
   initMobileGestures();

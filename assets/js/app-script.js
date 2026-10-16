@@ -110,6 +110,16 @@
     const update = () => { back.href = (isDesktop() || page === 'menu') ? DASHBOARD : 'menu.html'; };
     update();
     window.addEventListener('resize', update);
+    // Phone: Back from a settings page returns to the Menu, and Back from the Menu returns to the dashboard section
+    // it was opened from (Rooms). Using the history keeps that section and avoids stacking extra pages.
+    back.addEventListener('click', e => {
+      if (isDesktop() || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+      let ref = '';
+      try { ref = new URL(document.referrer).pathname; } catch (x) { return; }
+      const fromMenu = page !== 'menu' && /\/menu\.html$/.test(ref);
+      const fromDash = page === 'menu' && /\/dashboard\.html$/.test(ref);
+      if ((fromMenu || fromDash) && history.length > 1) { e.preventDefault(); history.back(); }
+    });
   }
 
   /* ---------- Generic bindings ---------- */
@@ -462,10 +472,28 @@
   if (page === 'settings') {
     initSettings();
     // the solver card reads the database copy, so it waits for the data to be loaded
-    if (!isFaculty && window.atlasData) window.atlasData.init().then(() => { initPeriod(); initSolverSettings(); }, () => { ['solver', 'periodCard'].forEach(id => { const c = $(id); if (c) c.remove(); }); });
-    else { const c = $('periodCard'); if (c) c.remove(); initSolverSettings(); }
-    initAuditLog();
+    // The academic period, solver and audit log cards all appear together, after the data is ready. The page loader
+    // (app-core.js) stays up until then, so nothing pops in one card at a time.
+    if (!isFaculty && window.atlasData) {
+      window.atlasPageReady = window.atlasData.init().then(
+        () => { initPeriod(); initSolverSettings(); initAuditLog(); },
+        () => { ['solver', 'periodCard'].forEach(id => { const c = $(id); if (c) c.remove(); }); initAuditLog(); });
+    } else { const c = $('periodCard'); if (c) c.remove(); initSolverSettings(); initAuditLog(); }
   }
+  // Phone: the top bar slips away while scrolling down and returns on scroll up
+  (function () {
+    const bar = document.querySelector('.app-top');
+    if (!bar) return;
+    let last = window.scrollY;
+    window.addEventListener('scroll', () => {
+      const y = window.scrollY, d = y - last;
+      if (window.matchMedia('(min-width: 901px)').matches) { bar.classList.remove('is-away'); last = y; return; }
+      if (y <= 4) bar.classList.remove('is-away');
+      else if (d > 6 && y > 56) bar.classList.add('is-away');
+      else if (d < -6) bar.classList.remove('is-away');
+      last = y;
+    }, { passive: true });
+  })();
   if (page === 'notifications') initNotifications();
   if (page === 'account') initAccount();
   if (page === 'appearance') initAppearance();

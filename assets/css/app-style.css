@@ -12,6 +12,8 @@ body.page-app { height: auto; min-height: 100vh; min-height: 100dvh; overflow: a
 }
 .app-back { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 44px; margin-left: -10px; color: var(--text-primary); border-radius: 22px; text-decoration: none; }
 .app-back:hover { background: var(--bg-surface-3); }
+.app-top { transition: transform .32s cubic-bezier(.32,.72,.2,1), box-shadow .32s ease; }
+@media (max-width: 900px) { .app-top.is-away { transform: translate3d(0, -100%, 0); box-shadow: none; } }
 .app-back svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .app-back-text { display: none; padding-right: var(--space-3); font-weight: 600; }
 .app-title { font-size: 1.125rem; font-weight: 700; color: var(--text-primary); }
@@ -152,7 +154,8 @@ html[data-motion="reduce"] input[type="checkbox"].app-switch:checked::after { tr
 /* ---------- Desktop ---------- */
 @media (min-width: 901px) {
   .app-back-text { display: inline; }
-  .app-title { margin-left: var(--space-2); }
+  /* the page title sits in the middle of the top bar on desktop */
+  .app-title { position: absolute; left: 50%; transform: translateX(-50%); margin: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
 }
 
 /* ---------- Mobile: the menu is its own page ---------- */
