@@ -171,7 +171,7 @@
       var r = st.runs.filter(function (x) { return x.id === id; })[0];
       if (!r || r.status === 'approved') return false;
       var name = r.label || 'this run';
-      if (!ui.confirm('Approve "' + name + '"? It becomes the schedule faculty see, and the current approved run becomes Saved.')) return false;
+      if (!(await ui.confirm('Approve "' + name + '"? It becomes the schedule faculty see, and the current approved run becomes Saved.', { title: 'Approve this run?', ok: 'Approve' }))) return false;
       try {
         await api('/runs/' + id + '/approve', { method: 'POST' });
       } catch (e) {
@@ -192,7 +192,7 @@
         ui.toast('An approved run cannot be deleted. Approve another run first.', 'info');
         return false;
       }
-      if (!ui.confirm('Delete "' + (r.label || 'this run') + '"? This cannot be undone.')) return false;
+      if (!(await ui.confirm('Delete "' + (r.label || 'this run') + '"? This cannot be undone.', { title: 'Delete this run?', ok: 'Delete', danger: true }))) return false;
       if (st.viewing && st.viewing.id === id) await showApproved();                     // leave the run before it disappears
       try {
         await api('/runs/' + id, { method: 'DELETE' });

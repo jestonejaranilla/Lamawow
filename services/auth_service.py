@@ -215,7 +215,7 @@ def scope_dept(*requested):
 
 
 # Endpoints anyone may call without a token.
-PUBLIC_ENDPOINTS = {"index_page", "manifest_file", "static_files", "schedule.curricula", "schedule.get_curriculum"}
+PUBLIC_ENDPOINTS = {"index_page", "manifest_file", "not_found_page", "offline_worker", "static_files", "schedule.curricula", "schedule.get_curriculum"}
 
 
 def gate():

@@ -199,8 +199,8 @@
     // Schedules live in saved runs in the database, not on this device, so there is nothing to clear here.
     const clearBtn = $('btnClearSchedule');
     if (clearBtn) { clearBtn.hidden = true; clearBtn.disabled = true; }
-    $('btnResetSettings').addEventListener('click', () => {
-      if (!window.confirm('Reset all application settings to their defaults?')) return;
+    $('btnResetSettings').addEventListener('click', async () => {
+      if (!(await window.atlasDialog.confirm('Reset all application settings to their defaults?', { title: 'Reset settings?', ok: 'Reset' }))) return;
       app.reset();
       window.location.reload();
     });
@@ -310,8 +310,8 @@
     $('acctRole').textContent = isFaculty ? 'Faculty' : 'Department chairperson';
 
     $('btnExport').addEventListener('click', exportAll);
-    $('btnClearAll').addEventListener('click', () => {
-      if (!window.confirm('Clear all saved data on this device and log out? This cannot be undone.')) return;
+    $('btnClearAll').addEventListener('click', async () => {
+      if (!(await window.atlasDialog.confirm('Clear all saved data on this device and log out? This cannot be undone.', { title: 'Clear data and log out?', ok: 'Clear and log out', danger: true }))) return;
       try { localStorage.clear(); } catch { /* storage unavailable */ }
       logout();
     });

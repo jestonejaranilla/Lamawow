@@ -4447,3 +4447,17 @@ body.page-app:not([data-page="menu"]) .app-card:nth-of-type(n+4) { animation-del
 html[data-motion="reduce"] *, html[data-motion="reduce"] *::before, html[data-motion="reduce"] *::after { animation-duration: 0.001ms !important; animation-delay: 0s !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 html[data-motion="reduce"] .spinner, html[data-motion="reduce"] .ptr.spin::after, html[data-motion="reduce"] .is-busy::before, html[data-motion="reduce"] .spinner-sm { animation-duration: 1.2s !important; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* slim scrollbars everywhere (same look as the phone), light and night */
+html { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+::-webkit-scrollbar, .panel::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track, .panel::-webkit-scrollbar-track,
+[data-theme="dark"] ::-webkit-scrollbar-track, [data-theme="dark"] .panel::-webkit-scrollbar-track { background: transparent; border: 0; }
+::-webkit-scrollbar-thumb, .panel::-webkit-scrollbar-thumb,
+[data-theme="dark"] ::-webkit-scrollbar-thumb, [data-theme="dark"] .panel::-webkit-scrollbar-thumb {
+  background: var(--border-strong); background-clip: padding-box; border: 2px solid transparent; border-radius: 999px; min-height: 40px; min-width: 40px;
+}
+::-webkit-scrollbar-thumb:hover, .panel::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover, [data-theme="dark"] .panel::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:active, .panel::-webkit-scrollbar-thumb:active { background: var(--clr-primary-600); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }

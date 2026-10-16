@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#9a3608">
+  <link rel="icon" type="image/svg+xml" href="/assets/images/favicon.svg">
+  <title>Page not found | ATLAS PSU</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>window.__atlasOfflineFallback = !/404\.html$/.test(location.pathname);</script>
+  <script src="/assets/js/app-core.js"></script>
+  <link rel="stylesheet" href="/assets/css/main-style.css">
+  <style>
+    .nf { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; background: var(--bg-page); color: var(--text-primary); font-family: 'DM Sans', system-ui, sans-serif; }
+    .nf-brand { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 28px; color: var(--text-primary); text-decoration: none; font-weight: 700; }
+    .nf-brand img { width: 32px; height: 32px; }
+    .nf-art { width: min(300px, 78vw); height: auto; margin: 0 auto 8px; color: var(--clr-primary-500); animation: nf-rise 0.6s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+    .nf p.nf-code { margin: 0; font-size: clamp(3.4rem, 14vw, 5.5rem) !important; font-weight: 700; letter-spacing: -0.04em; line-height: 1; max-width: none; color: var(--clr-primary-600); animation: nf-rise 0.6s 0.06s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+    .nf h1 { margin: 10px 0 8px; font-size: 1.35rem; font-weight: 700; animation: nf-rise 0.6s 0.1s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+    .nf p { max-width: 380px; margin: 0 0 26px; font-size: 0.97rem; line-height: 1.55; color: var(--text-secondary); animation: nf-rise 0.6s 0.14s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+    .nf-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; animation: nf-rise 0.6s 0.18s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+    .nf-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 24px; border-radius: 999px; font: inherit; font-weight: 600; font-size: 0.95rem; text-decoration: none; cursor: pointer; color: var(--text-primary); background: transparent; border: 1px solid var(--border-default); transition: transform 0.15s ease, background-color 0.2s ease; }
+    .nf-btn:hover { background: var(--bg-surface-3); }
+    .nf-btn:active { transform: scale(0.97); }
+    .nf-btn.primary { color: #fff; background: var(--clr-primary-500); border-color: transparent; }
+    .nf-btn.primary:hover { background: var(--btn-hover); }
+    .nf-art .nf-q { transform-origin: 124px 74px; animation: nf-float 3s ease-in-out infinite; }
+    @keyframes nf-rise { from { opacity: 0; transform: translate3d(0, 16px, 0); } to { opacity: 1; transform: none; } }
+    @keyframes nf-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  </style>
+</head>
+<body>
+  <main class="nf">
+    <a class="nf-brand" href="/"><img src="/assets/images/logo.svg" alt="" width="32" height="32">ATLAS PSU</a>
+
+    <!-- a timetable with one slot that does not exist -->
+    <svg class="nf-art" viewBox="0 0 240 150" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="A timetable with a missing slot">
+      <rect x="12" y="10" width="216" height="130" rx="16" stroke="var(--border-default)" stroke-width="3" fill="var(--card-bg)"/>
+      <path d="M12 40h216M84 40v100M156 40v100M12 78h216M12 110h216" stroke="var(--border-subtle)" stroke-width="2"/>
+      <circle cx="30" cy="25" r="4" fill="var(--border-strong)" stroke="none"/><circle cx="44" cy="25" r="4" fill="var(--border-strong)" stroke="none"/><circle cx="58" cy="25" r="4" fill="var(--border-strong)" stroke="none"/>
+      <rect x="22" y="48" width="54" height="22" rx="7" fill="var(--clr-primary-100)" stroke="none"/>
+      <rect x="94" y="86" width="54" height="16" rx="7" fill="var(--clr-primary-100)" stroke="none"/>
+      <rect x="164" y="48" width="54" height="22" rx="7" fill="var(--clr-primary-100)" stroke="none"/>
+      <rect x="22" y="118" width="54" height="14" rx="7" fill="var(--clr-primary-100)" stroke="none"/>
+      <rect x="94" y="48" width="54" height="22" rx="7" stroke-width="2.5" stroke-dasharray="5 6"/>
+      <g class="nf-q"><path d="M114 60a7 7 0 1 1 9.5 6.4c-2 .9-3 2.2-3 4" stroke-width="3"/><path d="M120.5 76v.2" stroke-width="3.4"/></g>
+    </svg>
+
+    <p class="nf-code">404</p>
+    <h1>This page isn't in the schedule</h1>
+    <p>The page you opened doesn't exist or has moved. Check the address, or head back to somewhere that does.</p>
+    <div class="nf-actions">
+      <a class="nf-btn primary" href="/">Go to home</a>
+      <button class="nf-btn" type="button" onclick="history.length > 1 ? history.back() : location.assign('/')">Go back</button>
+    </div>
+  </main>
+</body>
+</html>

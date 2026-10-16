@@ -551,3 +551,180 @@
   window.atlasLogout = logout;
   if (window.atlasDept) window.atlasDept.logout = logout;
 })();
+
+/* ============================================================
+   ATLAS PSU - site dialogs, offline screen, offline page worker (UI only)
+   window.atlasDialog.alert(message, {title, tone}) and .confirm(message, {title, ok, cancel, danger})
+   replace the browser's "<site> says" boxes (window.alert is routed here too). The offline screen opens
+   whenever the device loses its connection and closes when it is back.
+   ============================================================ */
+(function () {
+  'use strict';
+  if (typeof document === 'undefined' || !document.head || typeof window.addEventListener !== 'function' || typeof clearTimeout !== 'function') return;
+  var root = document.documentElement;
+  var css =
+    '.ad-ov{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg-overlay,rgba(30,20,12,.5));-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);opacity:0;transition:opacity .22s ease}' +
+    '.ad-ov.on{opacity:1}' +
+    '.ad-card{width:100%;max-width:400px;padding:26px 22px 20px;text-align:center;background:var(--card-bg,#fff);color:var(--text-primary,#2a2119);border:1px solid var(--border-subtle,#eee4da);border-radius:22px;box-shadow:var(--shadow-xl,0 20px 50px rgba(0,0,0,.28));transform:translateY(16px) scale(.95);transition:transform .34s cubic-bezier(.34,1.56,.64,1)}' +
+    '.ad-ov.on .ad-card{transform:none}' +
+    '.ad-ic{width:54px;height:54px;margin:0 auto 14px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--warn-soft,rgba(217,146,43,.16));color:var(--warn,#b9770e)}' +
+    '.ad-ic.info{background:var(--ok-soft,rgba(42,127,134,.14));color:var(--ok,#2a7f86)}' +
+    '.ad-ic.danger{background:var(--bad-soft,rgba(180,55,43,.14));color:var(--bad,#b4372b)}' +
+    '.ad-ic svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}' +
+    '.ad-title{margin:0 0 6px;font-size:1.1rem;font-weight:700;line-height:1.3}' +
+    '.ad-msg{margin:0 0 20px;font-size:.92rem;line-height:1.55;color:var(--text-secondary,#6e6358);white-space:pre-line;overflow-wrap:anywhere;max-height:40vh;overflow:auto}' +
+    '.ad-btns{display:flex;gap:10px}' +
+    '.ad-btn{flex:1;min-height:44px;padding:0 16px;font:inherit;font-weight:600;font-size:.95rem;border-radius:999px;cursor:pointer;color:var(--text-primary,#2a2119);background:transparent;border:1px solid var(--border-default,#d8cdc1);transition:transform .15s ease,background-color .2s ease,border-color .2s ease;touch-action:manipulation}' +
+    '.ad-btn:hover{background:var(--bg-surface-3,rgba(0,0,0,.05))}.ad-btn:active{transform:scale(.97)}' +
+    '.ad-btn.primary{color:#fff;background:var(--clr-primary-500,#c0440a);border-color:transparent}.ad-btn.primary:hover{background:var(--btn-hover,#9a3608)}' +
+    '.ad-btn.danger{color:#fff;background:#c0392b;border-color:transparent}.ad-btn.danger:hover{background:#a53125}' +
+    '.ad-btn:focus-visible{outline:2px solid var(--clr-primary-500,#c0440a);outline-offset:2px}' +
+    /* offline screen */
+    '.ao-ov{position:fixed;inset:0;z-index:2147483300;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;background:var(--bg-page,#faf7f3);color:var(--text-primary,#2a2119);opacity:0;visibility:hidden;transition:opacity .3s ease,visibility 0s linear .3s}' +
+    '.ao-ov.on{opacity:1;visibility:visible;transition:opacity .3s ease}' +
+    '.ao-box{max-width:380px;transform:translateY(12px);transition:transform .4s cubic-bezier(.22,.8,.3,1)}.ao-ov.on .ao-box{transform:none}' +
+    '.ao-box svg{width:150px;height:auto;margin:0 auto 18px;display:block;color:var(--clr-primary-500,#c0440a)}' +
+    '.ao-box h2{margin:0 0 8px;font-size:1.4rem;font-weight:700}' +
+    '.ao-box p{margin:0 0 22px;font-size:.95rem;line-height:1.55;color:var(--text-secondary,#6e6358)}' +
+    '.ao-box .ad-btn{flex:none;min-width:160px}' +
+    '.ao-note{margin:14px 0 0!important;font-size:.82rem!important;color:var(--text-muted,#9a8e82)!important;min-height:1.2em}' +
+    '@keyframes ao-pulse{0%,100%{opacity:.35}50%{opacity:1}}.ao-box .ao-dot{animation:ao-pulse 1.6s ease-in-out infinite}' +
+    '@media (max-width:480px){.ad-card{padding:22px 18px 18px}}' +
+    'html[data-motion="reduce"] .ad-card,html[data-motion="reduce"] .ao-box{transition:none}';
+  var st = document.createElement('style');
+  st.id = 'atlasDialogCss';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  var ICONS = {
+    warn: '<path d="M12 3 2.5 20h19L12 3z"/><path d="M12 10v4.5M12 17.6v.1"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/>',
+    danger: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4v.1"/>',
+    ask: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.7M12 16.6v.1"/>'
+  };
+
+  var queue = [], open = false;
+  function guess(msg) {
+    return /fail|cannot|can't|could not|error|refus/i.test(msg) ? { title: 'Something went wrong', tone: 'danger' }
+      : /wait|not saved|first|please|before/i.test(msg) ? { title: 'One moment', tone: 'warn' }
+      : { title: 'ATLAS PSU', tone: 'info' };
+  }
+  function next() {
+    if (open || !queue.length) return;
+    open = true;
+    var job = queue.shift(), o = job.opts;
+    var prevFocus = document.activeElement;
+    var ov = document.createElement('div');
+    ov.className = 'ad-ov';
+    ov.innerHTML = '<div class="ad-card" role="alertdialog" aria-modal="true"><div class="ad-ic ' + o.tone + '"><svg viewBox="0 0 24 24" aria-hidden="true">' +
+      ICONS[o.confirm ? (o.danger ? 'danger' : 'ask') : o.tone === 'danger' ? 'danger' : o.tone === 'info' ? 'info' : 'warn'] + '</svg></div>' +
+      '<h2 class="ad-title"></h2><p class="ad-msg"></p><div class="ad-btns"></div></div>';
+    var card = ov.firstChild;
+    card.querySelector('.ad-title').textContent = o.title;
+    card.querySelector('.ad-msg').textContent = job.msg;
+    card.setAttribute('aria-label', o.title);
+    var btns = card.querySelector('.ad-btns');
+    function mk(label, cls, value) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'ad-btn ' + cls; b.textContent = label;
+      b.addEventListener('click', function () { close(value); });
+      btns.appendChild(b); return b;
+    }
+    if (o.confirm) mk(o.cancel, '', false);
+    var okBtn = mk(o.ok, o.danger ? 'danger' : 'primary', true);
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); close(o.confirm ? false : true); }
+      else if (e.key === 'Tab') {
+        var f = card.querySelectorAll('button'); if (!f.length) return;
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    }
+    var closed = false;
+    function close(value) {
+      if (closed) return; closed = true;
+      document.removeEventListener('keydown', onKey, true);
+      ov.classList.remove('on');
+      setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); open = false; try { if (prevFocus && prevFocus.focus) prevFocus.focus(); } catch (e) { /* gone */ } job.resolve(value); next(); }, 220);
+    }
+    ov.addEventListener('mousedown', function (e) { if (e.target === ov && !o.confirm) close(true); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(ov);
+    requestAnimationFrame(function () { ov.classList.add('on'); okBtn.focus(); });
+  }
+  function ask(msg, opts, confirm) {
+    msg = String(msg == null ? '' : msg);
+    var g = guess(msg);
+    opts = opts || {};
+    var o = {
+      confirm: confirm,
+      title: opts.title || (confirm ? 'Please confirm' : g.title),
+      tone: opts.tone || g.tone,
+      ok: opts.ok || (confirm ? 'Confirm' : 'OK'),
+      cancel: opts.cancel || 'Cancel',
+      danger: !!opts.danger
+    };
+    return new Promise(function (resolve) {
+      var go = function () { queue.push({ msg: msg, opts: o, resolve: resolve }); next(); };
+      if (document.body) go(); else document.addEventListener('DOMContentLoaded', go);
+    });
+  }
+  window.atlasDialog = {
+    alert: function (m, o) { return ask(m, o, false); },
+    confirm: function (m, o) { return ask(m, o, true); }
+  };
+  window.alert = function (m) { ask(m, null, false); };
+
+  /* ---------- offline screen ---------- */
+  var off = null, checking = false;
+  var WIFI = '<svg viewBox="0 0 160 120" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<rect x="6" y="14" width="148" height="92" rx="16" stroke="var(--border-default,#d8cdc1)" stroke-width="3"/>' +
+    '<path d="M44 58c20-17 52-17 72 0" opacity=".45"/><path d="M58 72c13-10 31-10 44 0"/>' +
+    '<circle class="ao-dot" cx="80" cy="86" r="4" fill="currentColor" stroke="none"/>' +
+    '<path d="M36 28 124 96" stroke="var(--bad,#b4372b)"/></svg>';
+  function buildOffline() {
+    off = document.createElement('div');
+    off.className = 'ao-ov';
+    off.setAttribute('role', 'alert');
+    off.innerHTML = '<div class="ao-box">' + WIFI + '<h2>No internet connection</h2>' +
+      '<p>Check your Wi-Fi or mobile data. ATLAS PSU will carry on as soon as you are back online.</p>' +
+      '<button type="button" class="ad-btn primary" id="aoRetry">Try again</button><p class="ao-note" id="aoNote" aria-live="polite"></p></div>';
+    document.body.appendChild(off);
+    off.querySelector('#aoRetry').addEventListener('click', retry);
+  }
+  function setOffline(is) {
+    if (!document.body) { document.addEventListener('DOMContentLoaded', function () { setOffline(is); }); return; }
+    if (is && !off) buildOffline();
+    if (!off) return;
+    if (is) { requestAnimationFrame(function () { off.classList.add('on'); }); }
+    else {
+      off.classList.remove('on');
+      if (window.__atlasOfflineFallback) { try { location.reload(); } catch (e) { /* ignore */ } }
+    }
+  }
+  function retry() {
+    if (checking) return;
+    checking = true;
+    var note = off.querySelector('#aoNote'), btn = off.querySelector('#aoRetry');
+    btn.disabled = true; btn.classList.add('is-busy'); note.textContent = 'Checking...';
+    var done = function (ok) {
+      checking = false; btn.disabled = false; btn.classList.remove('is-busy');
+      if (ok) { note.textContent = ''; setOffline(false); } else note.textContent = 'Still offline. Try again in a moment.';
+    };
+    if (typeof fetch !== 'function') { done(navigator.onLine); return; }
+    fetch(location.pathname + '?_=' + Date.now(), { method: 'HEAD', cache: 'no-store' }).then(function () { done(true); }, function () { done(false); });
+  }
+  window.addEventListener('offline', function () { setOffline(true); });
+  window.addEventListener('online', function () { setOffline(false); });
+  if (navigator.onLine === false) setOffline(true);
+
+  /* ---------- page worker: shows the offline / 404 page when a page cannot be fetched ---------- */
+  try {
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      var src = document.currentScript && document.currentScript.src;
+      var base = src ? src.replace(/assets\/js\/app-core\.js.*$/, '') : '/';
+      window.addEventListener('load', function () { navigator.serviceWorker.register(base + 'sw.js').catch(function () { /* optional */ }); });
+    }
+  } catch (e) { /* optional */ }
+})();

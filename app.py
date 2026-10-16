@@ -78,6 +78,30 @@ def manifest_file():
     return send_from_directory(ROOT, "manifest.json")
 
 
+@app.route("/404.html", methods=["GET"])
+def not_found_page():
+    return send_from_directory(ROOT, "404.html")
+
+
+@app.route("/sw.js", methods=["GET"])
+def offline_worker():
+    """The offline page worker. It must be served from the site root and never cached for long."""
+    resp = send_from_directory(ROOT, "sw.js", mimetype="application/javascript")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@app.errorhandler(404)
+def handle_404(_error):
+    """A browser asking for a page that does not exist gets the 404 page; API clients keep getting JSON."""
+    wants_html = request.method == "GET" and request.accept_mimetypes.best == "text/html"
+    if wants_html:
+        resp = send_from_directory(ROOT, "404.html")
+        resp.status_code = 404
+        return resp
+    return jsonify({"success": False, "error": "Not found", "data": {}, "metrics": {}, "warnings": []}), 404
+
+
 @app.route("/<any(%s):folder>/<path:filename>" % ",".join(STATIC_DIRS), methods=["GET"])
 def static_files(folder, filename):
     return send_from_directory(os.path.join(ROOT, folder), filename)

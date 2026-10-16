@@ -1185,6 +1185,7 @@ function initRunGA() {
       loading.classList.add('hidden');
       runBtn.disabled = false;
       const unreachable = e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(String(e.message));
+      if (/not saved yet/i.test(String(e.message))) { window.atlasDialog.alert(e.message, { title: 'Finish saving first', tone: 'warn' }); return; }
       alert(unreachable
         ? 'Cannot reach the ATLAS server at ' + API_BASE + '. Start it with "py app.py" (local) or wait about a minute if Render is waking up, then try again.'
         : 'Failed to connect to backend engine: ' + e.message);
@@ -2441,7 +2442,7 @@ async function lookupRunnerNames(ids) {
 // The default view is the approved run; the Saved runs card loads others on request.
 async function initSavedRuns() {
   const ui = window.AtlasSavedRuns.createDomUi(document, {
-    applyRun: applyRunToScreen, toast: showToast, confirm: msg => window.confirm(msg)
+    applyRun: applyRunToScreen, toast: showToast, confirm: (msg, o) => window.atlasDialog ? window.atlasDialog.confirm(msg, o) : Promise.resolve(window.confirm(msg))
   });
   savedRunsCtl = window.AtlasSavedRuns.createController({
     api: runsApi, ui, dept: DEPT, now: () => new Date(),
