@@ -122,6 +122,7 @@ CP_WEIGHTS = {
     "course_professor":  30,         # per distinct professor teaching the same course
     "over_soft_cap":     25,         # per load unit above max_units (24)
     "load_balance":      3,          # per load unit of the busiest professor
+    "fair_share":        10,         # per load unit a professor sits below the average share (0 turns it off)
     "lab_for_lecture":   20,         # per lecture placed in a laboratory room
     "room_over":         1,          # per student above a room's recommended size
 }

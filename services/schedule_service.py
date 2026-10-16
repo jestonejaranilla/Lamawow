@@ -557,8 +557,25 @@ def run_scheduling_job(
         unassigned = sum(1 for a in best_assignments if not a.get("faculty"))
         if unassigned:
             warnings.append(f"{unassigned} section(s) could not be assigned to any faculty.")
-        if cp_metrics.get("solver_used") == "cp_backtracking":
+        if cp_metrics.get("solver_fallback"):
+            warnings.append("The optimizer ran out of time on this server, so the simpler fallback solver built this "
+                            "schedule. It is valid but less balanced. Run again, or raise the time limit in Application Settings.")
+        elif cp_metrics.get("solver_used") == "cp_backtracking":
             warnings.append("OR-Tools not available - used the greedy fallback solver (not optimal).")
+        # Professors who ended with no class: say why, so adding a professor never looks like a silent failure.
+        taught = {a.get("faculty") for a in best_assignments if a.get("faculty")}
+        for f in faculty_list:
+            if f["name"] in taught:
+                continue
+            if not [t for t in f.get("specialization", []) if t != "Elective"]:
+                why = "no specialization selected, so only electives can be assigned"
+            elif not f.get("availability"):
+                why = "no available days selected"
+            elif len(f.get("availability", [])) <= 2:
+                why = f"only {len(f['availability'])} available day(s)"
+            else:
+                why = "other professors with the same specializations already cover those courses"
+            warnings.append(f"{f['name']} has no classes: {why}.")
 
         cap_analytics = analytics.get("capacity_metrics", {})
         hard_violations = cap_analytics.get("hard_violations", [])

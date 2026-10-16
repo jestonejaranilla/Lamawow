@@ -362,6 +362,7 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
 
     # R7: load. The hard cap is the variable's domain.
     loads, over = [], []
+    load_of = {}                 # faculty index -> load variable
     for fi, fac in enumerate(faculty_list):
         terms = [g["units"] * z[(g["gid"], fi)] for g in live if (g["gid"], fi) in z]
         if not terms:
@@ -373,6 +374,7 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
         ov = model.NewIntVar(0, max(0, abs_max - soft), f"over_{fi}")
         model.Add(ov >= load - soft)
         loads.append(load)
+        load_of[fi] = load
         over.append(ov)
     top = model.NewIntVar(0, 1000, "top_load")
     for ld in loads:
@@ -402,6 +404,32 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
     for ov in over:
         obj.append(-W.get("over_soft_cap", 25) * ov)
     obj.append(-W.get("load_balance", 3) * top)
+
+    # Fair share: every professor who CAN teach is pulled toward the average load. Without this term
+    # only the busiest professor was priced, so adding or removing a professor, or changing days,
+    # let the solver leave some professors with little or no teaching load.
+    # target = average units per professor, capped by what that professor can actually take
+    # (qualified courses, available slots, hard cap), so nobody is pushed beyond what is possible.
+    fair_w = W.get("fair_share", 10)
+    if fair_w:
+        total_units = sum(g["units"] for g in live)
+        can_teach = []
+        for fi, fac in enumerate(faculty_list):
+            pot = sum(g["units"] for g in live if (g["gid"], fi) in z)
+            slot_cap = sum(1 for t in range(n_slots) if avail[fi][t]) * _upa()
+            cap = min(pot, slot_cap, int(fac.get("absolute_max_units", 30)))
+            if cap > 0:
+                can_teach.append((fi, cap))
+        if can_teach and total_units:
+            target = total_units // len(can_teach)
+            by_fi = load_of
+            for fi, cap in can_teach:
+                want = min(target, cap, int(faculty_list[fi].get("max_units", 24)))
+                if want <= 0 or fi not in by_fi:
+                    continue
+                short = model.NewIntVar(0, want, f"short_{fi}")
+                model.Add(short >= want - by_fi[fi])
+                obj.append(-fair_w * short)
     obj.extend(-c for c in room_cost)
     model.Maximize(sum(obj))
 
@@ -682,6 +710,14 @@ def _solve(sections: list, faculty_list: list, static_lookup: dict,
         result = _solve_greedy(meetings, groups, faculty_list, static_lookup, progress_cb)
         solver_used = "cp_backtracking"   # name kept: the service and UI already key on it
     plan, info = result
+    fell_back = False
+    if solver_used == "cp_sat_ortools" and info.get("status") not in ("OPTIMAL", "FEASIBLE"):
+        # CP-SAT found no schedule inside the time limit (a slow or busy server can do that), which used to
+        # leave every class without a professor. Fall back to the greedy solver so the run still produces
+        # a valid schedule, and say so in the metrics.
+        plan, info = _solve_greedy(meetings, groups, faculty_list, static_lookup, progress_cb)
+        solver_used = "cp_backtracking"
+        fell_back = True
 
     loads = {f["name"]: 0 for f in faculty_list}
     for gid, p in plan.items():
@@ -699,6 +735,7 @@ def _solve(sections: list, faculty_list: list, static_lookup: dict,
     metrics = {
         "solver_used":      solver_used,
         "solver_status":    info.get("status"),
+        "solver_fallback":  fell_back,
         "solve_time_sec":   round(time.time() - t0, 3),
         "section_count":    len(sections),
         "group_count":      len(groups),
