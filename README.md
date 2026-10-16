@@ -696,3 +696,5 @@ The browser follows the same rule. The department of the signed-in profile (cach
 
 
 **Limits.** Departments are scheduled separately: cross-department room clashes are not checked. The department comes from the signed-in user's profile and is checked by the server on every request; the browser cannot choose it.
+
+**Extract repo zip** git archive -o repository.zip HEAD
