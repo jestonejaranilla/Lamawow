@@ -54,6 +54,60 @@
     showAlert(MESSAGES[code] || MESSAGES.offline);
   }
 
+  /* Chairpersons and admins confirm the active academic period at every new sign in, before the dashboard.
+     Faculty are never asked. The period lives in dept_settings (RLS: own department, or admin). */
+  const SEMS = ['1st Semester', '2nd Semester', 'Summer'];
+  const PERIOD_FLAG = 'atlasPeriodAsked';
+
+  function askPeriod(user) {
+    return new Promise(function (resolve) {
+      const modal = $('periodModal');
+      const isAdmin = user.role === 'admin';
+      let dept = user.dept || null;
+      const alertBox = $('periodAlert'), skip = $('periodSkip'), save = $('periodSave');
+      $('periodDeptField').hidden = !(isAdmin && !dept);
+
+      function note(text) { alertBox.textContent = text; alertBox.hidden = !text; }
+      function done() { try { sessionStorage.setItem(PERIOD_FLAG, '1'); } catch { /* storage unavailable */ } modal.hidden = true; resolve(); }
+
+      async function prefill() {
+        $('periodYear').value = '2026-2027'; $('periodSem').value = '1st Semester';
+        try {
+          dept = dept || $('periodDept').value;
+          const r = await client.from('dept_settings').select('academic_year,semester').eq('dept', dept).maybeSingle();
+          if (r.data) { $('periodYear').value = r.data.academic_year || ''; $('periodSem').value = r.data.semester || '1st Semester'; }
+        } catch { /* the defaults stay */ }
+      }
+
+      $('periodDept').onchange = function () { dept = $('periodDept').value; prefill(); };
+      save.onclick = async function () {
+        const year = $('periodYear').value.trim(), m = /^(\d{4})-(\d{4})$/.exec(year), sem = $('periodSem').value;
+        $('periodYearErr').textContent = '';
+        if (!m || Number(m[2]) !== Number(m[1]) + 1 || SEMS.indexOf(sem) < 0) { $('periodYearErr').textContent = 'Use an academic year like 2026-2027.'; return; }
+        dept = dept || $('periodDept').value;
+        save.disabled = true; save.textContent = 'Saving...'; note('');
+        try {
+          const old = await client.from('dept_settings').select('solver,lab_also_lecture').eq('dept', dept).maybeSingle();
+          const row = { dept: dept, academic_year: year, semester: sem,
+                        solver: (old.data && old.data.solver) || {}, lab_also_lecture: !!(old.data && old.data.lab_also_lecture) };
+          const r = await client.from('dept_settings').upsert(row, { onConflict: 'dept' });
+          if (r.error) throw r.error;
+          try {                                           // ids and counts only, best effort
+            auth.fetch(auth.apiBase() + '/audit', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'solver_settings_changed', dept: dept, meta: { keys: 2 } }) }).catch(function () {});
+          } catch { /* never blocks the sign in */ }
+          done();
+        } catch {
+          note('Could not save the period. Check your connection, or continue and set it later in Application Settings.');
+          skip.hidden = false; save.disabled = false; save.textContent = 'Try again';
+        }
+      };
+      skip.onclick = done;
+      modal.hidden = false;
+      prefill().then(function () { $('periodYear').focus(); });
+    });
+  }
+
   async function routeSignedIn(announce) {
     const result = await auth.loadUser();
     if (result.error) {
@@ -70,6 +124,7 @@
         ]);
       } catch { /* the audit row is best effort */ }
     }
+    if (result.user.role !== 'faculty' && sessionStorage.getItem(PERIOD_FLAG) !== '1') await askPeriod(result.user);
     window.location.replace(auth.DASH[result.user.role]);
     return true;
   }

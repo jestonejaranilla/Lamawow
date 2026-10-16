@@ -565,7 +565,6 @@ Faculty, professor preferences, leave dates (date ranges only, no reason), class
 - **Run Optimization** sends the faculty, preferences, leave dates (as `leave_dates`, which the engine already scores as unavailable dates), class sizes, rooms and solver settings loaded from the database to `/run-ga` with the Bearer token. It refuses to start while a change is still unsaved.
 - **Last result:** the approved run of the department is loaded from `schedule_runs` (see Saved runs below), so the schedule is the same in every browser.
 - **Audit:** faculty add, edit and delete and solver or period changes go to `POST /audit` (ids and counts only); rooms and class sizes are audited by their routes.
-- **Not in the database yet:** the subject table edits (units and types) are kept only on the open page; subjects always start from the curriculum file.
 
 ### Saved runs (Part 17)
 
@@ -577,6 +576,14 @@ On Workload Optimization every finished run is stored as a **Draft** (`schedule_
 - **The default view is the approved run** (Dashboard, Reports and the timetable). Faculty can read only the approved run (API and RLS).
 - **Size:** the list loads only small columns (`LIST_COLUMNS`), never `result` or `analytics`; a run's result is fetched when it is opened. The list scrolls inside its card and works with 0 or 50+ runs. The balance score (Jain's index of the teaching load, 0 to 100) is stored in `metrics` when the run is saved; older runs show a dash.
 - Code: `assets/js/saved-runs.js` (controller and DOM), glue in `main-script.js`; tests in `tests/test_part17.py` and `tests/js/saved_runs_harness.js`.
+
+### Part 18: audit log screen, retention, data documentation
+
+- **Audit log card** (Application Settings, chairperson only): time, user, action and entity of the chairperson's own department, newest first, with an action filter, a date range and paging (25 per page). It reads `GET /audit`, which is read only, forces the department from the profile (an admin may pass `?dept=`), and returns only those four fields: no ids, no `meta`. A chairperson asking for another department gets a 403, faculty get a 403.
+- **Purging old rows:** `python scripts/purge_audit_log.py --older-than "12 months" [--dry-run]`. Admin sign in (password prompt), shows the row count, and asks you to type `PURGE`. Production (`ATLAS_ENV=production` or Render) keeps at least 12 months and the script refuses anything shorter. Development may purge freely.
+- **Data documentation for the paper:** `docs/DATA.md` (every table and field, why, who reads and writes, retention, what is not collected).
+- **Tests:** `tests/test_part18.py`. Set `ATLAS_TEST_PG` to the URL of an empty throwaway PostgreSQL database (with `psql` on PATH) to also run `db/rls_tests.sql` automatically (`tests/sql/` holds the Supabase stand-in). Never use the real project. It also contains the secret scan.
+- **Not in the database yet:** the subject table edits (units and types) are kept only on the open page; subjects always start from the curriculum file.
 
 ### Privacy notice (also shown on the login page and in About)
 

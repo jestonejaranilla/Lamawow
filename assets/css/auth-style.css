@@ -151,3 +151,6 @@ body[data-role="faculty"] [data-only="chairperson"], body[data-role="chairperson
 .auth-privacy p:last-child { margin-bottom: 0; }
 .auth-privacy strong { color: var(--text-primary); }
 .auth-divider[hidden], .auth-btn-google[hidden] { display: none; }
+
+.auth-modal-text { margin: 0 0 var(--space-4); text-align: center; font-size: 0.9375rem; line-height: 1.45; color: var(--text-secondary); }
+.auth-modal-card .auth-btn { width: 100%; }

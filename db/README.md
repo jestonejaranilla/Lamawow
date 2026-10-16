@@ -94,9 +94,11 @@ Roles and departments are never set by the signed-in user. Only an admin, the SQ
 
 Audit rows cannot be edited by anyone, including the service role (a trigger blocks UPDATE). The `email` column holds the actor's email on purpose; it is not part of `meta`.
 
-### Retention (suggestion, the team decides)
+### Retention (team decision)
 
 - Production: keep at least 12 months of audit rows. Run `purge_audit_log` no more often than monthly, and never with an interval shorter than 12 months.
+- Use `python scripts/purge_audit_log.py --older-than "12 months"` (admin sign in, asks you to type PURGE). With `ATLAS_ENV=production` (or on Render) it refuses anything shorter than 12 months. That floor is enforced by the script and by this rule, not by the database function, which only needs an admin and a positive interval.
+- Every table and field is described in `docs/DATA.md`.
 - Development: purge freely, for example `select public.purge_audit_log(interval '1 day');`.
 
 ## Notes

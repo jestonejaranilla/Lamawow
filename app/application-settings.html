@@ -33,6 +33,28 @@
   <div class="app-shell">
     <nav class="app-nav" id="appNav" aria-label="Menu"></nav>
     <main class="app-content">
+      <section class="app-card period-card" id="periodCard" hidden>
+        <h2>Active academic period</h2>
+        <p class="app-hint">Subjects from other semesters are left out of runs, reports and exports.</p>
+        <p class="period-now" id="periodNow" aria-live="polite"></p>
+        <div class="period-form">
+          <label>Academic year
+            <input type="text" class="app-input" id="periodYear" placeholder="2026-2027" inputmode="numeric" maxlength="9" autocomplete="off">
+          </label>
+          <label>Semester
+            <select class="app-input" id="periodSem">
+              <option value="1st Semester">1st Semester</option>
+              <option value="2nd Semester">2nd Semester</option>
+              <option value="Summer">Summer</option>
+            </select>
+          </label>
+        </div>
+        <p class="app-error" id="periodErr" hidden></p>
+        <div class="app-actions period-actions">
+          <button type="button" class="app-btn app-btn-primary" id="periodSave">Set active period</button>
+        </div>
+      </section>
+
       <section class="app-card" id="solver" hidden>
         <h2>Solver settings</h2>
         <p class="app-hint">Applies on the next optimization run of <strong id="solverDept"></strong>. Each department keeps its own values.</p>
@@ -82,6 +104,39 @@
         <div class="app-actions">
           <button type="button" class="app-btn app-btn-primary" id="btnSaveSolver">Save</button>
           <button type="button" class="app-btn" id="btnRestoreSolver">Restore defaults</button>
+        </div>
+      </section>
+
+      <section class="app-card" id="auditCard" hidden>
+        <h2>Audit log</h2>
+        <p class="app-hint">Who did what in your department, newest first. Read only.</p>
+        <div class="app-row">
+          <div class="app-row-text"><strong>Action</strong></div>
+          <select class="app-input" id="auditAction" aria-label="Filter by action"><option value="">All actions</option></select>
+        </div>
+        <div class="app-row">
+          <div class="app-row-text"><strong>From</strong></div>
+          <input type="date" class="app-input" id="auditFrom" aria-label="From date">
+        </div>
+        <div class="app-row">
+          <div class="app-row-text"><strong>To</strong></div>
+          <input type="date" class="app-input" id="auditTo" aria-label="To date">
+        </div>
+        <div class="app-actions">
+          <button type="button" class="app-btn app-btn-primary" id="auditApply">Apply</button>
+          <button type="button" class="app-btn" id="auditClear">Clear filters</button>
+        </div>
+        <p class="app-hint" id="auditStatus" aria-live="polite"></p>
+        <div style="overflow-x:auto">
+          <table class="audit-table" id="auditTable" style="width:100%;border-collapse:collapse;font-size:0.875rem">
+            <thead><tr><th align="left">Time</th><th align="left">User</th><th align="left">Action</th><th align="left">Entity</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="app-actions">
+          <button type="button" class="app-btn" id="auditPrev" disabled>Previous</button>
+          <span class="app-hint" id="auditPage"></span>
+          <button type="button" class="app-btn" id="auditNext" disabled>Next</button>
         </div>
       </section>
 

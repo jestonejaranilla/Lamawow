@@ -183,3 +183,12 @@ html[data-motion="reduce"] input[type="checkbox"].app-switch:checked::after { tr
 .app-input[aria-invalid="true"] { border-color: #b91c1c; }
 @media (max-width: 700px) { .app-field-grid { grid-template-columns: 1fr; } }
 .app-note { margin: var(--space-3) 0 0; font-size: 0.875rem; line-height: 1.5; color: var(--text-muted); }
+
+/* Active academic period card: centered, above the solver settings */
+.period-card { text-align: center; }
+.period-card .app-hint { margin-left: auto; margin-right: auto; max-width: 46ch; }
+.period-now { display: inline-block; margin: 0 0 var(--space-3); padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 0.9rem; background: var(--bg-surface-2); color: var(--text-primary); }
+.period-form { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.period-form label { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 160px; font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); }
+.period-form .app-input, .period-form select.app-input { width: 100%; max-width: none; }
+.period-actions { justify-content: center; }

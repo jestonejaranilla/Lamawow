@@ -80,5 +80,28 @@
     </main>
   </div>
 
+  <div class="auth-modal" id="periodModal" role="dialog" aria-modal="true" aria-labelledby="periodTitle" hidden>
+    <div class="auth-modal-card">
+      <h2 id="periodTitle">Active academic period</h2>
+      <p class="auth-modal-text">Which academic year and semester are you scheduling for? You can change it later in Application Settings.</p>
+      <div class="auth-field" id="periodDeptField" hidden>
+        <label for="periodDept">Department</label>
+        <div class="auth-input"><select id="periodDept"><option>IT</option><option>CS</option><option>MB</option><option>ES</option><option>MedB</option></select></div>
+      </div>
+      <div class="auth-field">
+        <label for="periodYear">Academic year</label>
+        <div class="auth-input"><input type="text" id="periodYear" placeholder="2026-2027" inputmode="numeric" maxlength="9" autocomplete="off"></div>
+        <span class="auth-error" id="periodYearErr"></span>
+      </div>
+      <div class="auth-field">
+        <label for="periodSem">Semester</label>
+        <div class="auth-input"><select id="periodSem"><option value="1st Semester">1st Semester</option><option value="2nd Semester">2nd Semester</option><option value="Summer">Summer</option></select></div>
+      </div>
+      <div class="auth-alert" id="periodAlert" hidden></div>
+      <button type="button" class="auth-btn" id="periodSave">Continue</button>
+      <button type="button" class="auth-btn auth-btn-ghost" id="periodSkip" hidden>Continue without changing</button>
+    </div>
+  </div>
+
 </body>
 </html>

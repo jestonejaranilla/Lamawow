@@ -122,7 +122,7 @@ def test_panel_layout_and_preferences_round_trip(browser, dept):
     panel = lambda sel: page.evaluate("s => { const e = document.querySelector(s); const p = e && e.closest('.panel');"
                                       " return p ? p.dataset.title : null }", sel)
     # Rooms panel keeps year/semester, rooms, class sizes; nothing else
-    for sel in ("#academicModeCard", "#lectureRoomsList", "#labRoomsList", "#classSizesTable"):
+    for sel in ("#lectureRoomsList", "#labRoomsList", "#classSizesTable"):
         assert panel(sel) == "Rooms", sel
     assert page.locator(".panel[data-title='Rooms'] h2").inner_text().strip() == "Rooms and Blocks"
     assert page.locator(".panel[data-title='Rooms'] #engineSettingsCard").count() == 0

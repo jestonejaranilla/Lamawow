@@ -268,7 +268,7 @@
             '<td class="run-label">' + esc(r.label) + '</td><td>' + esc(r.when) + '</td><td>' + esc(r.who) + '</td>' +
             '<td>' + esc(r.coverage) + '</td><td>' + esc(r.balance) + '</td>' +
             '<td><span class="run-badge run-' + esc(r.status) + '">' + esc(r.statusLabel) + '</span></td>' +
-            '<td class="run-actions">' + acts.join('') + '</td></tr>';
+            '<td><div class="run-actions">' + (acts.length ? acts.join('') : '<span class="run-none">Locked</span>') + '</div></td></tr>';
         }).join('');
       },
 

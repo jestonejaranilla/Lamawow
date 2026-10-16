@@ -328,6 +328,98 @@
     paint();
   }
 
+  /* ---------- Active academic period (chairperson; saved in the database through the data layer) ---------- */
+  function initPeriod() {
+    const card = $('periodCard');
+    if (!card) return;
+    if (isFaculty || !window.atlasData) { card.remove(); return; }
+    card.hidden = false;
+    const show = () => {
+      const p = window.atlasData.settings.period();
+      $('periodYear').value = p.year || '';
+      $('periodSem').value = p.semester || '1st Semester';
+      $('periodNow').textContent = 'Active now: ' + (p.year ? p.year + ' \u00b7 ' : '') + p.semester;
+    };
+    show();
+    $('periodSave').addEventListener('click', () => {
+      const year = $('periodYear').value.trim(), err = $('periodErr');
+      const m = /^(\d{4})-(\d{4})$/.exec(year);
+      if (!m || Number(m[2]) !== Number(m[1]) + 1) {
+        err.textContent = 'Use an academic year like 2026-2027.'; err.hidden = false; $('periodYear').focus(); return;
+      }
+      err.hidden = true;
+      window.atlasData.settings.savePeriod(year, $('periodSem').value);
+      show();
+      toast('Active period set: ' + year + ' \u00b7 ' + $('periodSem').value);
+    });
+  }
+
+  /* ---------- Audit log (chairperson; GET /audit, read only; the server forces the department) ---------- */
+  function initAuditLog() {
+    const card = $('auditCard');
+    if (!card) return;
+    if (session.role !== 'chairperson' || !window.atlasAuth || !window.atlasAuth.fetch) { card.remove(); return; }
+    card.hidden = false;
+    const PAGE_SIZE = 25;
+    const body = card.querySelector('tbody');
+    const state = { page: 1, hasMore: false, filled: false };
+
+    function label(action) { return String(action || '').replace(/_/g, ' '); }
+    function localDay(value, plusDays) {                       // 'YYYY-MM-DD' (local) -> ISO instant at local midnight
+      const p = value.split('-').map(Number);
+      return new Date(p[0], p[1] - 1, p[2] + (plusDays || 0)).toISOString();
+    }
+    function cell(tr, text) { const td = document.createElement('td'); td.style.padding = '6px 8px'; td.textContent = text == null ? '' : String(text); tr.appendChild(td); }
+    function setStatus(text) { $('auditStatus').textContent = text || ''; }
+
+    function render(data) {
+      body.textContent = '';
+      (data.rows || []).forEach(r => {
+        const tr = document.createElement('tr');
+        const t = r.time ? new Date(r.time) : null;
+        cell(tr, t && !isNaN(t) ? t.toLocaleString() : '');
+        cell(tr, r.user || 'unknown');
+        cell(tr, label(r.action));
+        cell(tr, r.entity || '');
+        body.appendChild(tr);
+      });
+      if (!state.filled) {                                      // the action list comes from the server, once
+        const sel = $('auditAction');
+        (data.actions || []).forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = label(a); sel.appendChild(o); });
+        state.filled = true;
+      }
+      state.hasMore = !!data.has_more;
+      $('auditPrev').disabled = state.page <= 1;
+      $('auditNext').disabled = !state.hasMore;
+      $('auditPage').textContent = 'Page ' + state.page;
+      setStatus((data.rows || []).length ? '' : 'No audit entries match.');
+    }
+
+    async function load() {
+      const q = new URLSearchParams({ page: String(state.page), page_size: String(PAGE_SIZE) });
+      const action = $('auditAction').value, from = $('auditFrom').value, to = $('auditTo').value;
+      if (action) q.set('action', action);
+      if (from) q.set('from', localDay(from, 0));
+      if (to) q.set('to', localDay(to, 1));                     // the "to" day is included
+      setStatus('Loading...');
+      try {
+        const res = await window.atlasAuth.fetch(window.atlasAuth.apiBase() + '/audit?' + q.toString());
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) { setStatus(json.error || 'Could not load the audit log.'); return; }
+        render(json.data || json);
+      } catch (e) { setStatus('Could not reach the server.'); }
+    }
+
+    $('auditApply').addEventListener('click', () => {
+      if ($('auditFrom').value && $('auditTo').value && $('auditFrom').value > $('auditTo').value) { setStatus('The start date must be before the end date.'); return; }
+      state.page = 1; load();
+    });
+    $('auditClear').addEventListener('click', () => { $('auditAction').value = ''; $('auditFrom').value = ''; $('auditTo').value = ''; state.page = 1; load(); });
+    $('auditPrev').addEventListener('click', () => { if (state.page > 1) { state.page -= 1; load(); } });
+    $('auditNext').addEventListener('click', () => { if (state.hasMore) { state.page += 1; load(); } });
+    load();
+  }
+
   /* ---------- Solver settings (chairperson only; values live in atlasSolver) ---------- */
   function initSolverSettings() {
     const card = $('solver');
@@ -370,8 +462,9 @@
   if (page === 'settings') {
     initSettings();
     // the solver card reads the database copy, so it waits for the data to be loaded
-    if (!isFaculty && window.atlasData) window.atlasData.init().then(initSolverSettings, () => { const c = $('solver'); if (c) c.remove(); });
-    else initSolverSettings();
+    if (!isFaculty && window.atlasData) window.atlasData.init().then(() => { initPeriod(); initSolverSettings(); }, () => { ['solver', 'periodCard'].forEach(id => { const c = $(id); if (c) c.remove(); }); });
+    else { const c = $('periodCard'); if (c) c.remove(); initSolverSettings(); }
+    initAuditLog();
   }
   if (page === 'notifications') initNotifications();
   if (page === 'account') initAccount();
