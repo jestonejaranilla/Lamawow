@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#9a3608">
   <link rel="icon" type="image/svg+xml" href="/assets/images/favicon.svg">
   <title>Page not found | ATLAS PSU</title>
-  <script>window.__atlasOfflineFallback = !/404\.html$/.test(location.pathname);</script>
+  <script src="/assets/js/offline-page.js"></script>
   <script src="/assets/js/app-core.js"></script>
   <link rel="stylesheet" href="/assets/css/main-style.css">
   <style>
@@ -51,7 +51,7 @@
     <p>The page you opened doesn't exist or has moved. Check the address, or head back to somewhere that does.</p>
     <div class="nf-actions">
       <a class="nf-btn primary" href="/">Go to home</a>
-      <button class="nf-btn" type="button" onclick="history.length > 1 ? history.back() : location.assign('/')">Go back</button>
+      <button class="nf-btn" type="button" id="nfBack">Go back</button>
     </div>
   </main>
 </body>

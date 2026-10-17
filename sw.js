@@ -1,8 +1,8 @@
 /* ATLAS PSU - sw.js
    Only job: when a page cannot be fetched (no connection), show the offline / 404 page instead of the browser's
    dinosaur. Pages and data are never cached: the network always wins. */
-const CACHE = 'atlas-offline-v1';
-const FILES = ['/404.html', '/assets/css/main-style.css', '/assets/js/app-core.js', '/assets/images/logo.svg', '/assets/images/favicon.svg'];
+const CACHE = 'atlas-offline-v2';
+const FILES = ['/404.html', '/assets/css/main-style.css', '/assets/js/app-core.js', '/assets/js/offline-page.js', '/assets/images/logo.svg', '/assets/images/favicon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(FILES.map(f => c.add(f).catch(() => {})))).then(() => self.skipWaiting()));

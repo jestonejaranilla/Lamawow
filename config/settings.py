@@ -118,6 +118,11 @@ REQUIRE_FULL_COVERAGE = False
 
 # CP-SAT objective weights (integers)
 # The solver reads exactly these names (see cp_sat_solver._weights).
+# Tried and reverted (Part 26, N3): a "primary_tag" bonus of 2 per meeting (course carries the professor's FIRST tag)
+# changed nothing in 30 runs (primary match 62.9% before and after, Jain 0.9653 before and after), because
+# course_professor, exact_spec and fair_share terms already decide every choice. A bonus large enough to matter
+# would have to outweigh load_balance and fair_share, which the fairness-first rule forbids. The system claims
+# "qualified" (always 100%), not "primary tag match".
 CP_WEIGHTS = {
     "uncovered_group":   1_000_000,  # reward per meeting of a covered group; coverage dominates everything else
     "exact_spec":        40,         # per meeting, exact specialization match

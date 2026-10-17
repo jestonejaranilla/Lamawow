@@ -3,7 +3,7 @@
 One command regenerates every number of the results chapter:
 
     python scripts/evaluate.py --out evaluation          # full protocol (use --jobs N to run seeds in parallel)
-    python scripts/evaluate.py --quick                   # smoke test only, not for the paper
+    python scripts/evaluate.py --quick                   # smoke test only, writes to a temp folder (never evaluation/)
 
 Outputs: `results.csv` (one row per run) and `summary.md` (mean, sample standard deviation and 95% confidence interval).
 Both are generated; this folder keeps only this file in the repository.
@@ -59,3 +59,9 @@ pools every run of a method across the 10 cells, so its SD includes the spread b
 
 Serial, one CPU: roughly (10 cells x 10 seeds + 5 scenarios x 10 cells x 3 seeds) tasks of about 20 to 30 seconds each, so plan for
 a few hours, or use `--jobs`. `--quick` takes a few minutes.
+## Specialization claim
+
+CP-SAT guarantees that every assigned professor is **qualified** (holds at least one tag of the course): 100% in all runs. It does
+not improve the primary-tag match (course carries the professor's first listed tag). A tie-breaker bonus for it (weight 2, below
+`load_balance` and `fair_share`) was tried in Part 26 on 10 cells x 3 seeds: primary match 62.9% before and after, Jain 0.9653
+before and after, so it was reverted. Report "qualified", not "primary specialization".

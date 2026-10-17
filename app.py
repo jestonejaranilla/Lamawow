@@ -46,6 +46,43 @@ CORS(app, origins=cors_origins(), allow_headers=["Authorization", "Content-Type"
 app.before_request(gate)                # every endpoint except the public ones needs a valid token
 
 
+def _supabase_origins() -> list:
+    """The Supabase project URL comes from the environment (never hard-coded). Without it (local dev) the
+    whole supabase.co domain is allowed so the page still works."""
+    base = (os.environ.get("SUPABASE_URL") or "").strip().rstrip("/")
+    if base.startswith("https://") and "." in base:
+        return [base, "wss://" + base[len("https://"):]]
+    return ["https://*.supabase.co", "wss://*.supabase.co"]
+
+
+def content_security_policy() -> str:
+    connect = " ".join(["'self'"] + _supabase_origins())
+    return "; ".join([
+        "default-src 'self'",
+        "script-src 'self'",                       # no inline scripts: they live in assets/js
+        "style-src 'self' 'unsafe-inline'",       # inline style attributes are used by the UI
+        "img-src 'self' data:",
+        "font-src 'self'",
+        f"connect-src {connect}",
+        "manifest-src 'self'",
+        "worker-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ])
+
+
+@app.after_request
+def _security_headers(resp):
+    h = resp.headers
+    h["X-Content-Type-Options"] = "nosniff"
+    h["X-Frame-Options"] = "DENY"
+    h["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    h["Content-Security-Policy"] = content_security_policy()
+    return resp
+
+
 @app.errorhandler(AuthError)
 def _auth_error(e):
     return error_response(e)

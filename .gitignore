@@ -105,3 +105,7 @@ cython_debug/
 .pypirc
 user-credentials.txt
 repository.zip
+
+# Generated evaluation outputs (never commit smoke runs)
+evaluation/results.csv
+evaluation/summary.md

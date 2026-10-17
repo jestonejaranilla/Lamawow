@@ -217,7 +217,7 @@ def main(argv=None) -> list:
     ap = argparse.ArgumentParser(description="ATLAS PSU evaluation harness")
     ap.add_argument("--seeds", type=int, default=10, help="seeds per cell (default 10)")
     ap.add_argument("--quick", action="store_true", help="2 seeds, short limits, scenarios on IT 1st semester only")
-    ap.add_argument("--out", default=os.path.join(ROOT, "evaluation"), help="output folder")
+    ap.add_argument("--out", default=None, help="output folder (default: evaluation/, or a temp folder with --quick)")
     ap.add_argument("--depts", nargs="+", default=None, choices=DEPTS, help="departments (default all 5)")
     ap.add_argument("--cp-time", type=float, default=None, help="CP-SAT budget in deterministic seconds (default 15)")
     ap.add_argument("--generations", type=int, default=None)
@@ -226,6 +226,9 @@ def main(argv=None) -> list:
     ap.add_argument("--skip-scenarios", action="store_true")
     ap.add_argument("--jobs", type=int, default=1, help="worker processes (results do not depend on it)")
     a = ap.parse_args(argv)
+    if a.out is None:
+        import tempfile
+        a.out = tempfile.mkdtemp(prefix="atlas_eval_quick_") if a.quick else os.path.join(ROOT, "evaluation")
 
     o = {"seeds": 2 if a.quick else a.seeds, "cp_time": a.cp_time or (2.0 if a.quick else 15.0),
          "generations": a.generations or (4 if a.quick else 50), "population": a.population or (6 if a.quick else 20)}
