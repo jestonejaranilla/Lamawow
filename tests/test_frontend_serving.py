@@ -66,7 +66,7 @@ def test_dashboard_pages_load_scripts_in_order(client):
 
 
 def _node(js):
-    out = subprocess.run([NODE, "-e", js], capture_output=True, text=True, cwd=ROOT, timeout=60)
+    out = subprocess.run([NODE, "-e", js], capture_output=True, text=True, encoding="utf-8", cwd=ROOT, timeout=60)   # Windows would decode with cp1252
     assert out.returncode == 0, out.stderr
     return json.loads(out.stdout)
 

@@ -31,14 +31,17 @@ Hard rules in the model:
 Objective: exact specialization, same professor for the same course across
 blocks, balanced load, little overload.
 
-Time limit: never above CP_SAT_MAX_TIME_LIMIT_SECONDS (< 45 s). The best solution found
-is returned.
+Time limit: never above CP_SAT_MAX_TIME_LIMIT_SECONDS (default 40 s, env ATLAS_CP_SAT_MAX_TIME_LIMIT, at most
+120 s). The best solution found is returned. When the limit stops CP-SAT before it covered every group, a repair
+pass (_repair) places the missing groups with the greedy solver around the assignments CP-SAT made, which are
+never changed.
 
 Fallback (OR-Tools missing): a greedy group-level solver that obeys the same
 hard rules (same helpers, same room matching). It is not optimal and may leave
 groups uncovered; it reports them exactly like the CP-SAT path.
 """
 
+import math
 import os
 import random
 import time
@@ -60,15 +63,75 @@ def _upa() -> int:
     return _cfg.units_per_assignment()
 
 
+# cgroup files that hold a container's CPU quota (v2, then v1). Module constants so tests can point them elsewhere.
+_CG2_CPU_MAX = "/sys/fs/cgroup/cpu.max"
+_CG1_QUOTA = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us"
+_CG1_PERIOD = "/sys/fs/cgroup/cpu/cpu.cfs_period_us"
+
+
+def parse_cpu_max(text: str) -> Optional[int]:
+    """cgroup v2 `cpu.max` ("max 100000", "50000 100000") -> ceil(quota / period), None when unlimited or unreadable."""
+    try:
+        quota, period = str(text).split()[:2]
+        if quota == "max":
+            return None
+        q, p = int(quota), int(period)
+    except (ValueError, TypeError):
+        return None
+    return max(1, math.ceil(q / p)) if q > 0 and p > 0 else None
+
+
+def parse_cfs(quota_text: str, period_text: str) -> Optional[int]:
+    """cgroup v1 quota and period files -> ceil(quota / period); a quota of -1 means unlimited (None)."""
+    try:
+        q, p = int(str(quota_text).strip()), int(str(period_text).strip())
+    except (ValueError, TypeError):
+        return None
+    return max(1, math.ceil(q / p)) if q > 0 and p > 0 else None
+
+
+def _read(path: str) -> Optional[str]:
+    try:
+        with open(path, "r", encoding="ascii") as fh:
+            return fh.read()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def cpu_quota_cpus() -> Optional[int]:
+    """CPUs the container may use by its cgroup quota, or None when there is no limit or the files are missing."""
+    v2 = _read(_CG2_CPU_MAX)
+    if v2 is not None:
+        return parse_cpu_max(v2)
+    q, p = _read(_CG1_QUOTA), _read(_CG1_PERIOD)
+    if q is not None and p is not None:
+        return parse_cfs(q, p)
+    return None
+
+
+def _host_cpus() -> int:
+    count = getattr(os, "process_cpu_count", None)          # Python 3.13+, respects CPU affinity
+    n = count() if callable(count) else None
+    if not n and hasattr(os, "sched_getaffinity"):
+        try:
+            n = len(os.sched_getaffinity(0))
+        except OSError:
+            n = None
+    return n or os.cpu_count() or 1
+
+
 def _search_workers() -> int:
-    """CP-SAT search workers: one per CPU, at most 8 (a small Render instance must not run 8 threads on 1 core)."""
-    return max(1, min(8, os.cpu_count() or 1))
+    """CP-SAT search workers: at most 8, at most the CPUs of this process, at most the container's CPU quota
+    (os.cpu_count() reports the host, so a free instance with a fraction of a CPU would otherwise get 8 threads)."""
+    quota = cpu_quota_cpus()
+    n = min(8, _host_cpus(), quota if quota else 8)
+    return max(1, n)
 
 
 def _time_limit() -> float:
     asked = _cfg.cp_sat_time_limit()
     cap = float(getattr(_cfg, "CP_SAT_MAX_TIME_LIMIT_SECONDS", 40.0))
-    return max(1.0, min(asked, cap, 44.0))
+    return max(1.0, min(asked, cap))
 
 
 def _weights() -> dict:
@@ -241,21 +304,50 @@ def _group_table(sections: list, meetings: list, faculty_list: list, static_look
     return groups
 
 
-def _uncovered_reason(g: dict, faculty_list: list, loads: dict) -> str:
-    """Reason for a group the optimizer left out although it looked possible alone."""
+REASON_OUT_OF_TIME = "the solver ran out of time"
+
+
+def _slot_demands(plan: dict, meetings: list) -> dict:
+    """{slot: [(meeting, kind, size)]} for the meetings a plan has placed."""
+    out: dict = {}
+    for p in plan.values():
+        for mi, t in p["slots"].items():
+            m = meetings[mi]
+            out.setdefault(t, []).append((mi, m["kind"], m["size"]))
+    return out
+
+
+def _room_free_somewhere(g: dict, meetings: list, demands: dict) -> bool:
+    """True when every meeting of the group still has a free, large-enough room in at least one slot of the week."""
+    for mi in g["meetings"]:
+        m = meetings[mi]
+        if not any(_match(demands.get(t, []) + [(mi, m["kind"], m["size"])]) is not None
+                   for t in range(len(ALL_SLOT_STRINGS))):
+            return False
+    return True
+
+
+def _uncovered_reason(g: dict, faculty_list: list, loads: dict,
+                      timed_out: bool = False, room_free: bool = False) -> str:
+    """Reason for a group the optimizer left out although it looked possible alone.
+    timed_out: CP-SAT stopped on its time limit (FEASIBLE), so it never proved the group impossible."""
     if g["reason"]:
         return g["reason"]
     if all(loads.get(faculty_list[i]["name"], 0) + g["units"]
            > faculty_list[i].get("absolute_max_units", 30) for i in g["fac"]):
         return "load cap reached"
+    if timed_out and room_free and g["fac"]:
+        return REASON_OUT_OF_TIME
     return "no conflict-free slot and room found"
 
 
 # ── CP-SAT model ──────────────────────────────────────────────────────────────
 
 def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
-                        static_lookup: dict, progress_cb: Optional[Callable] = None):
-    """Returns (plan, info), or None when OR-Tools is not installed."""
+                        static_lookup: dict, progress_cb: Optional[Callable] = None,
+                        hint: Optional[dict] = None):
+    """Returns (plan, info), or None when OR-Tools is not installed.
+    hint: a feasible (possibly partial) greedy plan {gid: {"fac", "slots"}} given to CP-SAT as a warm start."""
     try:
         from ortools.sat.python import cp_model
     except ImportError:
@@ -439,7 +531,38 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
     obj.extend(-c for c in room_cost)
     model.Maximize(sum(obj))
 
+    if hint:
+        # Warm start: every assignment variable gets the value the greedy schedule gave it (0 when it did not use it),
+        # so CP-SAT starts from a complete schedule instead of searching for the first one.
+        for g in live:
+            p = hint.get(g["gid"])
+            model.AddHint(cover[g["gid"]], 1 if p else 0)
+            for f in g["fac"]:
+                model.AddHint(z[(g["gid"], f)], 1 if p and p["fac"] == f else 0)
+            if g["non"]:
+                continue
+            for mi in g["meetings"]:
+                chosen = p["slots"].get(mi) if p else None
+                for f in g["fac"]:
+                    for t in range(n_slots):
+                        v = x.get((mi, f, t))
+                        if v is not None:
+                            model.AddHint(v, 1 if (p and p["fac"] == f and chosen == t) else 0)
+
+        # Rooms: the greedy schedule's room matching, counted per (class, room type, slot), so the hint is complete.
+        type_of_room = {r: k for k, info in types.items() for r in info["rooms"]}
+        count: dict = {}
+        for t, here in _slot_demands(hint, meetings).items():
+            got = _match(here)
+            for mi, room in (got or {}).items():
+                key = (class_of[mi], type_of_room[room], t)
+                count[key] = count.get(key, 0) + 1
+        for key, fv in rv.items():
+            model.AddHint(fv, count.get(key, 0))
+
     solver = cp_model.CpSolver()
+    if hint:
+        solver.parameters.repair_hint = True
     if _cfg.is_deterministic():
         # One worker and a deterministic-time limit: the same model and seed give the same answer on any machine load.
         solver.parameters.num_search_workers = 1
@@ -515,9 +638,11 @@ def _rooms_from_model(solver, plan, rv, types, compat, class_of) -> dict:
 # ── Greedy fallback (same hard rules, no optimality) ──────────────────────────
 
 def _solve_greedy(meetings: list, groups: dict, faculty_list: list, static_lookup: dict,
-                  progress_cb: Optional[Callable] = None, randomize: bool = False):
+                  progress_cb: Optional[Callable] = None, randomize: bool = False,
+                  base_plan: Optional[dict] = None):
     """
-    The greedy group-level solver. randomize=True is the evaluation BASELINE (random-feasible): groups are taken in
+    The greedy group-level solver. base_plan (the repair pass) holds assignments that stay exactly as they are:
+    only the groups missing from it are placed, around them, under the same hard rules. randomize=True is the evaluation BASELINE (random-feasible): groups are taken in
     random order, each goes to a random qualified professor and random free slots, and only the hard rules decide
     what is allowed (availability, one meeting per professor, block and room per slot, the absolute load cap).
     """
@@ -530,9 +655,16 @@ def _solve_greedy(meetings: list, groups: dict, faculty_list: list, static_looku
     block_slots: dict = {}
     slot_demands: dict = {}          # t -> [(key, kind, size)]
     loads = {i: 0 for i in range(len(faculty_list))}
-    plan = {}
+    plan = {gid: {"fac": p["fac"], "slots": dict(p["slots"])} for gid, p in (base_plan or {}).items()}
+    for gid, p in plan.items():
+        loads[p["fac"]] += groups[gid]["units"]
+        for mi, t in p["slots"].items():
+            m = meetings[mi]
+            fac_slots[p["fac"]].add(t)
+            block_slots.setdefault(m["block"], set()).add(t)
+            slot_demands.setdefault(t, []).append((mi, m["kind"], m["size"]))
 
-    live = [g for g in groups.values() if not g["reason"]]
+    live = [g for g in groups.values() if not g["reason"] and g["gid"] not in plan]
     live.sort(key=lambda g: (len(g["fac"]), -g["units"], g["gid"]))
     if randomize:
         live.sort(key=lambda g: g["gid"])           # a fixed start, so the seed alone decides the shuffle
@@ -596,6 +728,35 @@ def _solve_greedy(meetings: list, groups: dict, faculty_list: list, static_looku
     if progress_cb:
         progress_cb(1, 1)
     return plan, {"status": "GREEDY", "time": 0.0}
+
+
+# ── Repair: complete a partial CP-SAT result ──────────────────────────────────
+
+def _repair(meetings: list, groups: dict, faculty_list: list, static_lookup: dict, plan: dict, info: dict):
+    """
+    CP-SAT can stop on its time limit (FEASIBLE) with some groups still uncovered. Place those groups with the greedy
+    solver around the rows already assigned. A professor CP-SAT chose is never changed. Only the room names of the
+    slots that received a repaired meeting are matched again, so every slot keeps a valid room for every meeting.
+    Returns (plan, info, repaired group ids).
+    """
+    missing = [gid for gid, g in groups.items() if not g["reason"] and gid not in plan]
+    if not missing:
+        return plan, info, []
+    new_plan, _ = _solve_greedy(meetings, groups, faculty_list, static_lookup, base_plan=plan)
+    fixed = sorted(gid for gid in missing if gid in new_plan)
+    if not fixed:
+        return plan, info, []
+    if "rooms" in info:
+        rooms = dict(info["rooms"])
+        touched = {t for gid in fixed for t in new_plan[gid]["slots"].values()}
+        for t, here in _slot_demands(new_plan, meetings).items():
+            if t in touched:
+                got = _match(here)
+                if got is None:
+                    raise RuntimeError("room matching failed for a slot the repair accepted")
+                rooms.update(got)
+        info = {**info, "rooms": rooms}
+    return new_plan, info, fixed
 
 
 # ── Output rows ───────────────────────────────────────────────────────────────
@@ -729,7 +890,10 @@ def _solve(sections: list, faculty_list: list, static_lookup: dict,
     meetings = _build_meetings(classroom, max_lab)
     groups = _group_table(sections, meetings, faculty_list, static_lookup)
 
-    result = None if baseline else _solve_with_ortools(meetings, groups, faculty_list, static_lookup, progress_cb)
+    hint = None
+    if not baseline and _cfg.warm_start():
+        hint, _ = _solve_greedy(meetings, groups, faculty_list, static_lookup)    # fast; hints CP-SAT, never returned as is
+    result = None if baseline else _solve_with_ortools(meetings, groups, faculty_list, static_lookup, progress_cb, hint)
     solver_used = "cp_sat_ortools"
     if result is None:
         result = _solve_greedy(meetings, groups, faculty_list, static_lookup, progress_cb, randomize=baseline)
@@ -744,12 +908,26 @@ def _solve(sections: list, faculty_list: list, static_lookup: dict,
         solver_used = "cp_backtracking"
         fell_back = True
 
+    repaired: list = []
+    if solver_used == "cp_sat_ortools":
+        # A FEASIBLE answer at the time limit may leave groups without a professor, and the fallback above only runs
+        # when there is no answer at all. Complete the schedule around what CP-SAT assigned (never changing it).
+        plan, info, repaired = _repair(meetings, groups, faculty_list, static_lookup, plan, info)
+
     loads = {f["name"]: 0 for f in faculty_list}
     for gid, p in plan.items():
         loads[faculty_list[p["fac"]]["name"]] += groups[gid]["units"]
 
-    uncovered = {gid: _uncovered_reason(g, faculty_list, loads)
-                 for gid, g in groups.items() if gid not in plan}
+    timed_out = solver_used == "cp_sat_ortools" and info.get("status") == "FEASIBLE"
+    demands = _slot_demands(plan, meetings) if timed_out else {}
+    uncovered = {}
+    for gid, g in groups.items():
+        if gid in plan:
+            continue
+        free = timed_out and not g["reason"] and not g["non"] and _room_free_somewhere(g, meetings, demands)
+        if timed_out and not g["reason"] and g["non"]:
+            free = True            # no room needed
+        uncovered[gid] = _uncovered_reason(g, faculty_list, loads, timed_out, free)
 
     rows = _build_rows(plan, groups, meetings, faculty_list, info.get("rooms"))
     if strict and uncovered:
@@ -760,7 +938,9 @@ def _solve(sections: list, faculty_list: list, static_lookup: dict,
     metrics = {
         "solver_used":      solver_used,
         "solver_status":    info.get("status"),
-        "solver_fallback":  fell_back,
+        "solver_fallback":  fell_back or bool(repaired),
+        "repaired_groups":  len(repaired),
+        "repaired_group_ids": repaired,
         "solve_time_sec":   round(time.time() - t0, 3),
         "section_count":    len(sections),
         "group_count":      len(groups),

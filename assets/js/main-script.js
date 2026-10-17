@@ -817,6 +817,12 @@ function computeFairnessReport(data) {
     ['fairnessScore', 'fairnessJain', 'fairnessStdDev', 'fairnessMinMax', 'fairnessZeroLoad'].forEach(id => set(id, '-'));
     set('fairnessScoreLabel', 'Not available for this run');
   }
+  const inc = el('fairnessIncomplete');
+  if (inc) {
+    const n = sp ? (sp.unassigned_group_count || 0) : 0;
+    inc.textContent = n ? `Incomplete schedule: ${n} of ${sp.group_count} groups have no professor, so the numbers below describe a partial schedule.` : '';
+    inc.classList.toggle('hidden', !n);
+  }
   if (sp) {
     set('fairnessMatchRate', sp.primary_tag_match_pct.toFixed(1) + '%');
     set('fairnessQualified', sp.any_tag_match_pct.toFixed(1) + '%');
@@ -3200,8 +3206,9 @@ function resetDepartmentState() {
    'lectureRoomsList', 'labRoomsList', 'editAssignmentList'
   ].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
   ['statAvgLoad', 'statOverloaded', 'statBalance', 'fairnessScore', 'fairnessScoreLabel', 'fairnessJain',
-   'fairnessStdDev', 'fairnessMatchRate', 'fairnessMinMax', 'fairnessZeroLoad', 'fairnessQualified', 'fairnessElectiveGroups', 'navUserLabel', 'deptBannerName'
+   'fairnessStdDev', 'fairnessMatchRate', 'fairnessMinMax', 'fairnessZeroLoad', 'fairnessQualified', 'fairnessElectiveGroups', 'navUserLabel', 'deptBannerName', 'fairnessIncomplete'
   ].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+  { const inc = document.getElementById('fairnessIncomplete'); if (inc) inc.classList.add('hidden'); }
   const card = document.getElementById('capacitySummaryCard');
   if (card) card.style.display = 'none';
   const banner = document.getElementById('deptBanner');

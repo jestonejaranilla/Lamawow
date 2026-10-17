@@ -50,6 +50,11 @@ def test_data_md_no_longer_says_fonts_come_from_google():
 # ── S6: deployment ───────────────────────────────────────────────────────────
 def test_search_workers_follow_the_cpu_count_capped_at_8(monkeypatch):
     from solver import cp_sat_solver as cps
+    # Part 27A added two more inputs (process CPU count and the cgroup quota). Switch them off so this test still
+    # checks exactly what it always did: os.cpu_count() capped at 8, never below 1.
+    monkeypatch.setattr(cps.os, "process_cpu_count", lambda: None, raising=False)
+    monkeypatch.setattr(cps.os, "sched_getaffinity", lambda pid: (_ for _ in ()).throw(OSError()), raising=False)
+    monkeypatch.setattr(cps, "cpu_quota_cpus", lambda: None)
     for cpus, want in ((1, 1), (2, 2), (8, 8), (64, 8), (None, 1)):
         monkeypatch.setattr(cps.os, "cpu_count", lambda c=cpus: c)
         assert cps._search_workers() == want

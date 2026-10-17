@@ -13,7 +13,16 @@ environment settings and in your local `.env` (which is git-ignored).
   - A restart, a deploy or a free-tier sleep loses a running job. Start the run again.
   - Two chairpersons of one department share one run state. A second run of the same department is refused
     while one is running; whoever finishes last owns the shown result.
-- CP-SAT uses one search worker per CPU, at most 8 (`os.cpu_count()`), so a small instance is not oversold.
+- CP-SAT uses one search worker per CPU, at most 8, and no more than the container's CPU quota (read from
+  `/sys/fs/cgroup/cpu.max`, or `cpu.cfs_quota_us` and `cpu.cfs_period_us` on cgroup v1), so a small instance is not oversold.
+- **Solver time (optional environment variables, seconds):**
+  - `ATLAS_CP_SAT_TIME_LIMIT`: default budget of a run that does not ask for one (default 30, never above the ceiling).
+    The dashboard sends the department's saved Solver Settings value, so that is what a browser run uses.
+  - `ATLAS_CP_SAT_MAX_TIME_LIMIT`: hard ceiling for every run, including the browser setting (default 40, allowed up to 120).
+  - gunicorn's `--timeout 120` does not limit the background job, which runs in its own thread. Keep a demo run under
+    about 60 s anyway.
+  - If CP-SAT stops on its limit with groups still uncovered (slow free CPU), a repair step completes them without
+    changing any professor CP-SAT chose, and the run shows a warning with the number of repaired groups.
 - **Environment variables** (names only, see `.env.example`): `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
   `SUPABASE_SERVICE_KEY`, `SUPABASE_JWT_SECRET`.
 

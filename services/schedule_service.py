@@ -556,14 +556,21 @@ def run_scheduling_job(
             warnings.append(f"{len(cp_violations)} hard-rule violation(s) found in the schedule: "
                             + "; ".join(cp_violations[:3]))
         if coverage_errors:
+            named = "; ".join(
+                f"{e.get('block', '')} {e.get('course', '')} ({e.get('reason', '')})".strip()
+                for e in coverage_errors if isinstance(e, dict))
             warnings.append(
                 f"{len(coverage_errors)} group(s) could not be fully covered "
-                f"({coverage['assigned']}/{coverage['total']} assigned). See coverage_errors."
+                f"({coverage['assigned']}/{coverage['total']} assigned): {named}."
             )
         unassigned = sum(1 for a in best_assignments if not a.get("faculty"))
         if unassigned:
             warnings.append(f"{unassigned} section(s) could not be assigned to any faculty.")
-        if cp_metrics.get("solver_fallback"):
+        if cp_metrics.get("repaired_groups"):
+            warnings.append(f"{cp_metrics['repaired_groups']} groups were completed by the repair step because the "
+                            "solver ran out of time. They are valid but less balanced. Run again, or raise the "
+                            "time limit in Application Settings.")
+        elif cp_metrics.get("solver_fallback"):
             warnings.append("The optimizer ran out of time on this server, so the simpler fallback solver built this "
                             "schedule. It is valid but less balanced. Run again, or raise the time limit in Application Settings.")
         elif cp_metrics.get("solver_used") == "cp_backtracking":

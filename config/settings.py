@@ -110,8 +110,33 @@ GA_WEIGHTS = {
 }
 
 # ── Solver Config ─────────────────────────────────────────────────────────────
-CP_SAT_TIME_LIMIT_SECONDS = 30.0      # default; the solver never runs past the max below
-CP_SAT_MAX_TIME_LIMIT_SECONDS = 40.0  # hard ceiling (always under 45 s), best solution is returned
+import os as _os
+
+
+def _env_seconds(name: str, default: float, lo: float, hi: float) -> float:
+    """Seconds from an environment variable, clamped to [lo, hi]. Missing or not a number: the default."""
+    raw = _os.environ.get(name, "")
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return float(default)
+    if v != v or v in (float("inf"), float("-inf")):
+        return float(default)
+    return float(min(hi, max(lo, v)))
+
+
+# ATLAS_CP_SAT_MAX_TIME_LIMIT: hard ceiling for any run (default 40, allowed 5 to 120). The browser setting is clamped to it.
+# ATLAS_CP_SAT_TIME_LIMIT: default budget of a run that does not ask for one (default 30, never above the ceiling).
+# gunicorn's --timeout 120 does not limit the background job, but a demo should not run longer than about 60 s.
+CP_SAT_MAX_TIME_LIMIT_SECONDS = _env_seconds("ATLAS_CP_SAT_MAX_TIME_LIMIT", 40.0, 5.0, 120.0)
+CP_SAT_TIME_LIMIT_SECONDS = min(_env_seconds("ATLAS_CP_SAT_TIME_LIMIT", 30.0, 1.0, 120.0),
+                                CP_SAT_MAX_TIME_LIMIT_SECONDS)
+# Warm start: build the greedy schedule first and give it to CP-SAT as a hint, so the first solution CP-SAT
+# reports is already complete even with almost no CPU. Off restores the old behaviour exactly.
+# Default OFF (Part 27B measurement, deterministic mode, 2 seeds, mean Jain on the standard pool, before to after:
+# IT 0.921 to 0.940, CS 0.947 to 0.942, MB 0.967 to 0.984, ES 0.958 to 0.952, MedB 0.973 to 0.959). It helped two
+# departments and made three slightly worse, so it is opt-in: run_settings(warm_start=True) or WARM_START = True.
+WARM_START = False
 # False: schedule every group that can be staffed and list the rest in coverage_errors.
 # True: if any group cannot be covered, return no assignments, only coverage_errors.
 REQUIRE_FULL_COVERAGE = False
@@ -180,6 +205,10 @@ def run_seed() -> int:
 def is_deterministic() -> bool:
     """Deterministic mode: one CP-SAT worker, a deterministic-time limit, no wall-clock cut-off in the GA."""
     return bool(_run_value("deterministic", DETERMINISTIC))
+
+
+def warm_start() -> bool:
+    return bool(_run_value("warm_start", WARM_START))
 
 
 def non_classroom_units() -> int:

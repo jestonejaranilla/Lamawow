@@ -82,15 +82,20 @@ def _specialization_groups(assignments: list, fac_map: dict, static_lookup: dict
       primary_tag_match_pct: the course carries the professor's FIRST listed tag
       any_tag_match_pct:     the professor holds ANY tag of the course ("qualified"; 100 by design,
                              because the solver refuses unqualified professors)
+    Both percentages are computed over groups that HAVE a professor. A group with no professor (any meeting without
+    one) is counted in unassigned_group_count and left out of every percentage.
     """
     groups: dict = {}
     for a in assignments or []:
         key = (a.get("year", ""), a.get("section", ""), a.get("subject", ""))
         groups.setdefault(key, []).append(a)
 
-    elective = scored = primary = qualified = 0
+    elective = scored = primary = qualified = unassigned = 0
     per_fac: dict = {}
     for (_y, _sec, subj), rows in groups.items():
+        if any(not r.get("faculty") for r in rows):          # a group with no professor is reported on its own,
+            unassigned += 1                                  # so the percentages describe the groups that have one
+            continue
         if is_open_assignment(subj, static_lookup):
             elective += 1
             continue
@@ -111,6 +116,7 @@ def _specialization_groups(assignments: list, fac_map: dict, static_lookup: dict
         "group_count": len(groups),
         "scored_group_count": scored,
         "elective_group_count": elective,
+        "unassigned_group_count": unassigned,
         "primary_tag_match_count": primary,
         "any_tag_match_count": qualified,
         "primary_tag_match_pct": round(primary / scored * 100, 1) if scored else 0.0,

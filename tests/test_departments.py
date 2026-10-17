@@ -176,7 +176,8 @@ def test_curricula_endpoints(clients):
     assert c.get("/curriculum/XX").status_code == 404
 
 
-@pytest.mark.skipif(shutil.which("gunicorn") is None, reason="gunicorn not installed")
+@pytest.mark.skipif(shutil.which("gunicorn") is None or sys.platform == "win32",
+                    reason="gunicorn not installed, or Windows (gunicorn needs fcntl; Render runs Linux)")
 def test_gunicorn_starts_and_serves_rooms():
     s = socket.socket()
     s.bind(("127.0.0.1", 0))

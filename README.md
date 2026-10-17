@@ -499,9 +499,10 @@ Key constants in `config/settings.py`:
 
 | `UNITS_PER_ASSIGNMENT` | 2 | Teaching units counted per assigned slot |
 
-| `CP_SAT_TIME_LIMIT_SECONDS` | 30.0 | OR-Tools solver time limit requested for a run (the request may override it) |
-| `CP_SAT_MAX_TIME_LIMIT_SECONDS` | 40.0 | Hard ceiling for the solver, always under 45 s |
+| `CP_SAT_TIME_LIMIT_SECONDS` | 30.0 | Default solver time limit of a run that asks for none; env `ATLAS_CP_SAT_TIME_LIMIT` (seconds, never above the ceiling) |
+| `CP_SAT_MAX_TIME_LIMIT_SECONDS` | 40.0 | Hard ceiling for the solver and for the browser setting; env `ATLAS_CP_SAT_MAX_TIME_LIMIT` (default 40, allowed up to 120). gunicorn's `--timeout 120` does not limit the background job, but a demo should not run longer than about 60 s |
 | `CP_WEIGHTS` | See settings.py | CP-SAT objective weights (coverage, exact specialization, same professor per course, load above `max_units`, load balance, room fit) |
+| `WARM_START` | False | Build the greedy schedule first and give it to CP-SAT as a hint, so a run on a slow host starts from a complete schedule. Default off: on 2 seeds in deterministic mode it raised mean Jain for IT and MB and lowered it slightly for CS, ES and MedB. Per run: `run_settings(warm_start=...)` |
 | `REQUIRE_FULL_COVERAGE` | False | True returns no assignments when any group cannot be covered |
 
 | `GA_WEIGHTS` | See settings.py | Soft preference scoring weights for the GA |
@@ -609,7 +610,7 @@ On Workload Optimization every finished run is stored as a **Draft** (`schedule_
 
 OR-Tools is strongly recommended. Without it, the built-in greedy solver runs as a fallback: what it places is valid, but it does not guarantee full coverage or an optimal result.
 
-Chart.js is kept in `assets/vendor/`, so the dashboard needs no CDN. On Render the start command is `gunicorn app:app --workers 1 --threads 4 --timeout 120`. It is one process on purpose, because the state of a run lives in memory; so a restart (or a free-tier sleep) loses a running job, and two chairpersons of one department share one run state. CP-SAT uses one search worker per CPU, at most 8. The full checklist, including rotating the Supabase keys, is in `docs/DEPLOY.md`. Fonts (DM Sans, DM Serif Display, Instrument Serif, JetBrains Mono) are served from `assets/fonts/`, so no page contacts Google.
+Chart.js is kept in `assets/vendor/`, so the dashboard needs no CDN. On Render the start command is `gunicorn app:app --workers 1 --threads 4 --timeout 120`. It is one process on purpose, because the state of a run lives in memory; so a restart (or a free-tier sleep) loses a running job, and two chairpersons of one department share one run state. CP-SAT uses one search worker per CPU, at most 8, and no more than the container's CPU quota (cgroup `cpu.max` or `cpu.cfs_quota_us`). If CP-SAT stops on its time limit with some groups uncovered, a repair step places them around the rows it assigned (professors are never changed) and the run warns "N groups were completed by the repair step because the solver ran out of time". The full checklist, including rotating the Supabase keys, is in `docs/DEPLOY.md`. Fonts (DM Sans, DM Serif Display, Instrument Serif, JetBrains Mono) are served from `assets/fonts/`, so no page contacts Google.
 
 
 
@@ -623,7 +624,7 @@ python -m pytest tests/test_part15.py -q  # Supabase sign in: static checks plus
 
 The Playwright tests open the dashboards with a fake Supabase (`tests/fake_auth.py`), so they need no real project.
 
-Tests marked `slow` run the solver for whole departments or open a real browser (Playwright: `pip install -r requirements-dev.txt && python -m playwright install chromium`). `/run-ga` clamps its inputs (generations 1 to 200, population 4 to 100, mutation and crossover 0 to 1, solver time limit up to `CP_SAT_MAX_TIME_LIMIT_SECONDS`), answers 400 for non-numbers, and applies `units_per_assignment`, `non_classroom_units` and `cp_sat_time_limit` to that run only.
+Tests marked `slow` run the solver for whole departments or open a real browser (Playwright: `pip install -r requirements-dev.txt && python -m playwright install chromium`). `/run-ga` clamps its inputs (generations 1 to 200, population 4 to 100, mutation and crossover 0 to 1, solver time limit up to `CP_SAT_MAX_TIME_LIMIT_SECONDS`, set by `ATLAS_CP_SAT_MAX_TIME_LIMIT`), answers 400 for non-numbers, and applies `units_per_assignment`, `non_classroom_units` and `cp_sat_time_limit` to that run only.
 
 To install the app on a phone, serve the site over HTTPS and use the browser's "Add to Home screen" option.
 
