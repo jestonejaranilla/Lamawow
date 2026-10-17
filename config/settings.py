@@ -83,6 +83,8 @@ SUBJECT_TYPES = [
 LAB_MEETINGS_PER_LAB_UNIT = 1
 
 # ── GA Optimizer Weights (configurable) ──────────────────────────────────────
+# GA fitness uses the preference, capacity and affinity weights. exact_spec_match, load_variance_weight and
+# underload_gap_weight only feed assignment_quality() (reporting), because the GA never changes a professor.
 GA_WEIGHTS = {
     "preferred_period_match":   5.0,
     "preferred_period_miss":   -2.0,
@@ -132,6 +134,11 @@ UNITS_PER_ASSIGNMENT = 2
 # "per_meeting" is the only implemented model. "prospectus" (units = course lec + lab hours from the
 # curriculum JSON, divided across its meetings) is NOT implemented; nothing reads this value yet.
 LOAD_MODEL = "per_meeting"
+# Reproducibility. A run's seed is random unless given, and always stored with the run.
+# Deterministic mode (off by default; forced on by the evaluation script) makes results independent of machine load.
+DETERMINISTIC = False
+DETERMINISTIC_WALL_CAP_SECONDS = 300.0   # safety stop only; hitting it can break exact reproducibility
+VERSION = "atlas-psu 1.0 (fix plan part 20)"   # recorded in every run snapshot when git is not available
 # Colour bands of the Reports balance card, on Jain's index (0 to 1) only.
 JAIN_BAND_GOOD = 0.90      # at or above: good
 JAIN_BAND_WARNING = 0.80   # at or above: warning; below: danger
@@ -156,6 +163,18 @@ def _run_value(key, default):
 
 def units_per_assignment() -> int:
     return int(_run_value("units_per_assignment", UNITS_PER_ASSIGNMENT))
+
+
+def run_seed() -> int:
+    """Seed of this run (CP-SAT random_seed, GA random.Random, greedy fallback). 1 when the caller gave none;
+    /run-ga always draws a random one and records it with the run."""
+    v = _run_value("seed", None)
+    return 1 if v is None else int(v)
+
+
+def is_deterministic() -> bool:
+    """Deterministic mode: one CP-SAT worker, a deterministic-time limit, no wall-clock cut-off in the GA."""
+    return bool(_run_value("deterministic", DETERMINISTIC))
 
 
 def non_classroom_units() -> int:

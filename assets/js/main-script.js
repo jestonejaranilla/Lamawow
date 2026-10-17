@@ -1091,8 +1091,8 @@ function initRunGA() {
               progressFill.style.backgroundColor = getProgressColor(pct);
             }
             if (genCounter) {
-              const phaseLabel = status.phase === 'cp_sat' ? 'CP-SAT Solving'
-                : status.phase === 'ga' ? 'GA Optimizing'
+              const phaseLabel = status.phase === 'cp_sat' ? 'CP-SAT: assigning professors'
+                : status.phase === 'ga' ? 'GA: improving times and rooms'
                 : status.phase === 'analytics' ? 'Computing Analytics'
                 : 'Processing';
               genCounter.textContent = `${phaseLabel}: ${pct}%`;

@@ -445,11 +445,16 @@ def set_soft_constraint(dept: str, faculty_name: str, key: str, value) -> None:
 
 
 def load_soft_constraints(dept: str, incoming: dict) -> None:
+    """A run's preferences and leave are EXACTLY what the request sent: it replaces what the server held, so a
+    cleared preference stays cleared and professors missing from the request lose theirs (S2)."""
+    replace_soft_constraints(dept, incoming)
+
+
+def replace_soft_constraints(dept: str, incoming: dict) -> None:
+    """Set the department's preferences and leave to exactly `incoming` (used when they come from the database)."""
     st = _state(dept)
     with st.lock:
-        for fac_name, constraints in incoming.items():
-            if isinstance(constraints, dict):
-                st.soft_constraints.setdefault(fac_name, {}).update(constraints)
+        st.soft_constraints = {k: dict(v) for k, v in (incoming or {}).items() if isinstance(v, dict)}
 
 
 # ── Main scheduling job ───────────────────────────────────────────────────────
@@ -606,6 +611,9 @@ def start_scheduling(
     wait: bool = False,
     run_settings: dict = None,
     on_finish=None,
+    replace_preferences: bool = False,
+    seed: Optional[int] = None,
+    deterministic: Optional[bool] = None,
 ) -> dict:
     """
     Validate inputs, build the department's meetings, start the background job.
@@ -617,6 +625,12 @@ def start_scheduling(
     `on_finish(dept, run_id)` is called after the job ends (done or error); it cannot change the result
     and its errors are only printed.
     """
+    # The seed and the deterministic flag travel with the run's settings (one context variable per run).
+    run_settings = {**(run_settings or {})}
+    if seed is not None:
+        run_settings["seed"] = int(seed)
+    if deterministic is not None:
+        run_settings["deterministic"] = bool(deterministic)
     st = _state(dept)
     with st.lock:
         if st.progress["running"]:
@@ -627,8 +641,7 @@ def start_scheduling(
         if not subjects_raw:
             return {"error": "No subjects provided."}
 
-        if soft_constraints_incoming:
-            load_soft_constraints(dept, soft_constraints_incoming)
+        load_soft_constraints(dept, soft_constraints_incoming or {})      # replace, never merge (S2)
         if class_sizes:
             update_class_sizes(dept, {k: v for k, v in class_sizes.items() if _block_key_ok(dept, k)})
         sizes = copy.deepcopy(st.class_sizes)
@@ -643,7 +656,17 @@ def start_scheduling(
         rooms = get_rooms(dept)
         run_id = uuid.uuid4().hex[:12]
         st.progress = _blank_progress(dept)
-        st.progress.update(run_id=run_id, running=True, phase="cp_sat",
+        # What this run depends on, kept for the saved-run snapshot (never sent to the browser: /progress lists its fields).
+        from services import run_snapshot
+        rs_now = dict(run_settings or {})
+        solver_used_settings = {**{k: v for k, v in (ga_params or {}).items()},
+                                **{k: v for k, v in rs_now.items() if k not in ("seed", "deterministic") and v is not None}}
+        effective_seed = _settings_cfg.run_seed() if rs_now.get("seed") is None else int(rs_now["seed"])
+        effective_det = bool(rs_now.get("deterministic", _settings_cfg.DETERMINISTIC))
+        inputs_raw = run_snapshot.build_data(dept, faculty_raw, sizes, rooms, copy.deepcopy(st.soft_constraints),
+                                             subjects_raw, solver_used_settings, effective_seed, effective_det,
+                                             active_semester)
+        st.progress.update(run_id=run_id, running=True, phase="cp_sat", inputs_raw=inputs_raw,
                            coverage={"assigned": 0, "total": len(prep["groups"])})
 
     args = (dept, run_id, faculty_raw, sections, static_lookup, ga_params, sizes,

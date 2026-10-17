@@ -108,3 +108,4 @@ Audit rows cannot be edited by anyone, including the service role (a trigger blo
 - `dept_settings.semester` accepts the same strings as the dashboard: `1st Semester`, `2nd Semester`, `Summer`. The seed sets `2026-2027`, `1st Semester`.
 - `schedule_runs.result` and `analytics` hold full schedules (large jsonb). Faculty can read them for approved runs, so do not put private notes in there.
 - Not modeled yet: `maternity_leave` and `unavailable_dates` from the current UI. Unavailable dates map to `faculty_leave` rows with `start_date = end_date`.
+Part 23: `rls_tests.sql` also proves that a chairperson cannot demote (and then delete) an approved run, that a signed-in user can append only the four client-origin audit actions, and that `purge_audit_log` keeps the 12-month floor unless `atlas.allow_short_purge` is on. Re-run `schema.sql` on an existing database to upgrade it (the guard, the audit policy and the purge function are replaced).

@@ -415,7 +415,7 @@
       try {
         const res = await window.atlasAuth.fetch(window.atlasAuth.apiBase() + '/audit?' + q.toString());
         const json = await res.json().catch(() => ({}));
-        if (!res.ok) { setStatus(json.error || 'Could not load the audit log.'); return; }
+        if (!res.ok) { setStatus(json.code === 'audit_read_failed' ? 'The audit log could not be read. Contact the administrator.' : (json.error || 'Could not load the audit log.')); return; }
         render(json.data || json);
       } catch (e) { setStatus('Could not reach the server.'); }
     }

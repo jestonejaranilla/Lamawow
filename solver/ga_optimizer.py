@@ -23,7 +23,7 @@ from solver.constraints import (
     room_exceeds_hard_max, get_building,
     validate_schedule, is_non_classroom,
 )
-from solver.objective_functions import schedule_fitness
+from solver.objective_functions import schedule_fitness, fitness_terms
 from config.rooms import current_rooms, use_rooms
 
 
@@ -110,11 +110,12 @@ ALL_SLOTS = _all_slot_strings()
 
 # ── Mutation operators (hard-constraint-preserving) ───────────────────────────
 
-def _mutate_slot_swap(assignments: list, faculty_list: list, soft_constraints: dict) -> list:
+def _mutate_slot_swap(assignments: list, faculty_list: list, soft_constraints: dict, rng=None) -> list:
     """
     Swap slots between two assignments of the SAME faculty.
     Preserves no-overlap hard constraint for that faculty.
     """
+    rng = rng or random
     fac_map = {f["name"]: f for f in faculty_list}
     result = copy.deepcopy(assignments)
 
@@ -128,14 +129,14 @@ def _mutate_slot_swap(assignments: list, faculty_list: list, soft_constraints: d
     for fac_name, idxs in fac_indices.items():
         if len(idxs) < 2:
             continue
-        if random.random() > 0.3:
+        if rng.random() > 0.3:
             continue
 
         fac = fac_map.get(fac_name)
         if not fac:
             continue
 
-        i, j = random.sample(idxs, 2)
+        i, j = rng.sample(idxs, 2)
         a_i, a_j = result[i], result[j]
 
         # Hard: both new slots must be on available days
@@ -148,12 +149,13 @@ def _mutate_slot_swap(assignments: list, faculty_list: list, soft_constraints: d
     return result
 
 
-def _mutate_slot_shift(assignments: list, faculty_list: list, soft_constraints: dict) -> list:
+def _mutate_slot_shift(assignments: list, faculty_list: list, soft_constraints: dict, rng=None) -> list:
     """
     Relocate a single assignment to a different available slot for that faculty,
     ensuring no collision with that faculty's other assignments.
     Biases toward slots matching the faculty's preferred_period.
     """
+    rng = rng or random
     fac_map = {f["name"]: f for f in faculty_list}
     result = copy.deepcopy(assignments)
 
@@ -161,7 +163,7 @@ def _mutate_slot_shift(assignments: list, faculty_list: list, soft_constraints: 
     movable = [i for i, x in enumerate(result) if not _is_fixed(x)]
     if not movable:
         return result
-    idx = random.choice(movable)
+    idx = rng.choice(movable)
     a = result[idx]
     fac = fac_map.get(a["faculty"])
     if not fac:
@@ -194,14 +196,14 @@ def _mutate_slot_shift(assignments: list, faculty_list: list, soft_constraints: 
         if preferred:
             candidates = preferred
 
-    new_slot = random.choice(candidates)
+    new_slot = rng.choice(candidates)
     result[idx]["slot"] = new_slot
     result[idx]["slot_display"] = _slot_to_12h(new_slot)
     return result
 
 
 def _mutate_room(assignments: list, soft_constraints: dict,
-                 class_sizes: dict = None) -> list:
+                 class_sizes: dict = None, rng=None) -> list:
     """
     Reassign room for a single assignment, respecting:
       - Room type compatibility (LAB → lab rooms only)
@@ -210,6 +212,7 @@ def _mutate_room(assignments: list, soft_constraints: dict,
       - Per-day building affinity (faculty and section)
       - Explicit faculty room/building preferences
     """
+    rng = rng or random
     import config.settings as _cfg
     result = copy.deepcopy(assignments)
 
@@ -221,7 +224,7 @@ def _mutate_room(assignments: list, soft_constraints: dict,
     movable = [i for i, x in enumerate(result) if not _is_fixed(x)]
     if not movable:
         return result
-    idx = random.choice(movable)
+    idx = rng.choice(movable)
     a = result[idx]
 
     sc = soft_constraints.get(a["faculty"], {})
@@ -295,19 +298,20 @@ def _mutate_room(assignments: list, soft_constraints: dict,
 # ── GA main loop ──────────────────────────────────────────────────────────────
 
 def _crossover(parent_a: list, parent_b: list, faculty_list: list, static_lookup: dict,
-                class_sizes: dict, rate: float) -> list:
+                class_sizes: dict, rate: float, rng=None) -> list:
     """
     Uniform crossover between two valid schedules (slot/room only - faculty
     and subject per index are identical across the population by design).
     The result is validated against all hard constraints; if invalid,
     falls back to parent_a unchanged.
     """
-    if random.random() > rate or len(parent_a) != len(parent_b) or not _faculty_unchanged(parent_b, parent_a):
+    rng = rng or random
+    if rng.random() > rate or len(parent_a) != len(parent_b) or not _faculty_unchanged(parent_b, parent_a):
         return copy.deepcopy(parent_a)
 
     child = copy.deepcopy(parent_a)
     for i in range(len(child)):
-        if random.random() < 0.5:
+        if rng.random() < 0.5:
             child[i]["slot"] = parent_b[i]["slot"]
             child[i]["slot_display"] = parent_b[i]["slot_display"]
             child[i]["room"] = parent_b[i]["room"]
@@ -331,21 +335,30 @@ def optimize(
     time_limit: float = 120.0,
     class_sizes: dict = None,
     rooms=None,
+    seed: Optional[int] = None,
+    deterministic: Optional[bool] = None,
 ) -> tuple[list, dict]:
     """
     Run GA preference optimizer over a valid CP-SAT schedule.
     `rooms` is the department's RoomSet (default: the active one).
+    `seed` (default: the run's seed, see config.settings) feeds ONE random.Random used by every operator,
+    so the same inputs and seed give the same schedule. `deterministic` (default: the run's flag) drops the
+    wall-clock cap, because a time cut-off would make the result depend on machine load.
     """
     rs = rooms if rooms is not None else current_rooms()
+    import config.settings as _cfg
+    rng = random.Random(_cfg.run_seed() if seed is None else seed)
+    if _cfg.is_deterministic() if deterministic is None else deterministic:
+        time_limit = float("inf")
     with use_rooms(rs):
         return _optimize(base_schedule, faculty_list, static_lookup, soft_constraints,
                          generations, population_size, mutation_rate, crossover_rate,
-                         progress_cb, time_limit, class_sizes)
+                         progress_cb, time_limit, class_sizes, rng)
 
 
 def _optimize(base_schedule, faculty_list, static_lookup, soft_constraints, generations,
               population_size, mutation_rate, crossover_rate, progress_cb, time_limit,
-              class_sizes) -> tuple:
+              class_sizes, rng) -> tuple:
     """
     Run GA preference optimizer over a valid CP-SAT schedule.
 
@@ -366,7 +379,7 @@ def _optimize(base_schedule, faculty_list, static_lookup, soft_constraints, gene
         return base_schedule, {"ga_time_sec": 0, "generations_run": 0, "improvement": 0.0}
 
     def fitness(sched):
-        return schedule_fitness(sched, faculty_list, soft_constraints, static_lookup, class_sizes)
+        return schedule_fitness(sched, soft_constraints, class_sizes)
 
     base_fit = fitness(base_schedule)
 
@@ -384,12 +397,12 @@ def _optimize(base_schedule, faculty_list, static_lookup, soft_constraints, gene
     for _ in range(population_size - 1):
         ind = copy.deepcopy(base_schedule)
         for _ in range(3):
-            op = random.choice([_mutate_slot_swap, _mutate_slot_shift, _mutate_room])
+            op = rng.choice([_mutate_slot_swap, _mutate_slot_shift, _mutate_room])
             prev = ind
             if op == _mutate_room:
-                ind = op(ind, soft_constraints, class_sizes)
+                ind = op(ind, soft_constraints, class_sizes, rng)
             else:
-                ind = op(ind, faculty_list, soft_constraints)
+                ind = op(ind, faculty_list, soft_constraints, rng)
             ind = accept(ind, prev)
         population.append(ind)
 
@@ -417,15 +430,15 @@ def _optimize(base_schedule, faculty_list, static_lookup, soft_constraints, gene
         new_pop = [copy.deepcopy(scored[i][0]) for i in range(elite_count)]
 
         while len(new_pop) < population_size:
-            t1 = random.choice(scored[:max(2, population_size // 2)])[0]
-            t2 = random.choice(scored[:max(2, population_size // 2)])[0]
-            child = _crossover(t1, t2, faculty_list, static_lookup, class_sizes, crossover_rate)
+            t1 = rng.choice(scored[:max(2, population_size // 2)])[0]
+            t2 = rng.choice(scored[:max(2, population_size // 2)])[0]
+            child = _crossover(t1, t2, faculty_list, static_lookup, class_sizes, crossover_rate, rng)
 
-            if random.random() < mutation_rate:
-                op = random.choice([
-                    lambda s: _mutate_slot_swap(s, faculty_list, soft_constraints),
-                    lambda s: _mutate_slot_shift(s, faculty_list, soft_constraints),
-                    lambda s: _mutate_room(s, soft_constraints, class_sizes),
+            if rng.random() < mutation_rate:
+                op = rng.choice([
+                    lambda s: _mutate_slot_swap(s, faculty_list, soft_constraints, rng),
+                    lambda s: _mutate_slot_shift(s, faculty_list, soft_constraints, rng),
+                    lambda s: _mutate_room(s, soft_constraints, class_sizes, rng),
                 ])
                 child = accept(op(child), child)
 
@@ -440,11 +453,15 @@ def _optimize(base_schedule, faculty_list, static_lookup, soft_constraints, gene
 
     ga_time = round(time.time() - t0, 3)
     improvement = round(best_fit - base_fit, 2)
+    t_base = fitness_terms(base_schedule, soft_constraints, class_sizes)
+    t_final = fitness_terms(best, soft_constraints, class_sizes)
+    improvement_terms = {k: round(t_final[k] - t_base[k], 2) for k in t_base}
 
     return best, {
         "ga_time_sec":      ga_time,
         "generations_run":  actual_generations,
         "base_fitness":     round(base_fit, 2),
         "final_fitness":    round(best_fit, 2),
-        "improvement":      improvement,
+        "improvement":      improvement,                 # final minus base fitness, GA-changeable terms only
+        "improvement_terms": improvement_terms,          # {preference, capacity, affinity}
     }

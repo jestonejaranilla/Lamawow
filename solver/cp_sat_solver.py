@@ -434,9 +434,15 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
     model.Maximize(sum(obj))
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = t_limit
-    solver.parameters.num_search_workers = 8
-    solver.parameters.random_seed = 1
+    if _cfg.is_deterministic():
+        # One worker and a deterministic-time limit: the same model and seed give the same answer on any machine load.
+        solver.parameters.num_search_workers = 1
+        solver.parameters.max_deterministic_time = t_limit
+        solver.parameters.max_time_in_seconds = float(getattr(_cfg, "DETERMINISTIC_WALL_CAP_SECONDS", 300.0))
+    else:
+        solver.parameters.max_time_in_seconds = t_limit
+        solver.parameters.num_search_workers = 8
+    solver.parameters.random_seed = _cfg.run_seed()
 
     t_start = time.time()
 
@@ -503,9 +509,15 @@ def _rooms_from_model(solver, plan, rv, types, compat, class_of) -> dict:
 # ── Greedy fallback (same hard rules, no optimality) ──────────────────────────
 
 def _solve_greedy(meetings: list, groups: dict, faculty_list: list, static_lookup: dict,
-                  progress_cb: Optional[Callable] = None):
-    deadline = time.time() + _time_limit()
-    rng = random.Random(1)
+                  progress_cb: Optional[Callable] = None, randomize: bool = False):
+    """
+    The greedy group-level solver. randomize=True is the evaluation BASELINE (random-feasible): groups are taken in
+    random order, each goes to a random qualified professor and random free slots, and only the hard rules decide
+    what is allowed (availability, one meeting per professor, block and room per slot, the absolute load cap).
+    """
+    deadline = time.time() + (float(getattr(_cfg, "DETERMINISTIC_WALL_CAP_SECONDS", 300.0))
+                              if _cfg.is_deterministic() else _time_limit())
+    rng = random.Random(_cfg.run_seed())
     n_slots = len(ALL_SLOT_STRINGS)
 
     fac_slots = {i: set() for i in range(len(faculty_list))}
@@ -516,6 +528,9 @@ def _solve_greedy(meetings: list, groups: dict, faculty_list: list, static_looku
 
     live = [g for g in groups.values() if not g["reason"]]
     live.sort(key=lambda g: (len(g["fac"]), -g["units"], g["gid"]))
+    if randomize:
+        live.sort(key=lambda g: g["gid"])           # a fixed start, so the seed alone decides the shuffle
+        rng.shuffle(live)
 
     for gi, g in enumerate(live):
         if progress_cb:
@@ -527,6 +542,9 @@ def _solve_greedy(meetings: list, groups: dict, faculty_list: list, static_looku
             (not open_course) and not is_exact_spec_match(faculty_list[f], g["title"], static_lookup),
             loads[f] + g["units"] > faculty_list[f].get("max_units", 24),
             loads[f], rng.random()))
+        if randomize:
+            options = sorted(g["fac"])
+            rng.shuffle(options)
         for f in options:
             if loads[f] + g["units"] > faculty_list[f].get("absolute_max_units", 30):
                 continue
@@ -558,7 +576,7 @@ def _solve_greedy(meetings: list, groups: dict, faculty_list: list, static_looku
                 if not cand:
                     ok = False
                     break
-                placed[mi] = min(cand)[1]
+                placed[mi] = rng.choice(cand)[1] if randomize else min(cand)[1]
             if not ok:
                 continue
             for mi, t in placed.items():
@@ -677,17 +695,18 @@ def _build_rows(plan: dict, groups: dict, meetings: list, faculty_list: list,
 
 def solve(sections: list, faculty_list: list, static_lookup: dict,
           progress_cb: Optional[Callable] = None, strict: bool = False,
-          rooms=None) -> tuple:
+          rooms=None, baseline: bool = False) -> tuple:
     """
     `rooms` is the department's RoomSet (default: the active one, see config.rooms).
+    `baseline=True` skips CP-SAT and runs the random-feasible greedy (the evaluation baseline, seeded by the run seed).
     """
     rs = rooms if rooms is not None else current_rooms()
     with use_rooms(rs):
-        return _solve(sections, faculty_list, static_lookup, progress_cb, strict)
+        return _solve(sections, faculty_list, static_lookup, progress_cb, strict, baseline)
 
 
 def _solve(sections: list, faculty_list: list, static_lookup: dict,
-           progress_cb: Optional[Callable] = None, strict: bool = False) -> tuple:
+           progress_cb: Optional[Callable] = None, strict: bool = False, baseline: bool = False) -> tuple:
     """
     Build the schedule for `sections` (meetings as produced by
     schedule_service.prepare_scheduling_input).
@@ -704,11 +723,11 @@ def _solve(sections: list, faculty_list: list, static_lookup: dict,
     meetings = _build_meetings(classroom, max_lab)
     groups = _group_table(sections, meetings, faculty_list, static_lookup)
 
-    result = _solve_with_ortools(meetings, groups, faculty_list, static_lookup, progress_cb)
+    result = None if baseline else _solve_with_ortools(meetings, groups, faculty_list, static_lookup, progress_cb)
     solver_used = "cp_sat_ortools"
     if result is None:
-        result = _solve_greedy(meetings, groups, faculty_list, static_lookup, progress_cb)
-        solver_used = "cp_backtracking"   # name kept: the service and UI already key on it
+        result = _solve_greedy(meetings, groups, faculty_list, static_lookup, progress_cb, randomize=baseline)
+        solver_used = "random_feasible" if baseline else "cp_backtracking"   # the service and UI key on cp_backtracking
     plan, info = result
     fell_back = False
     if solver_used == "cp_sat_ortools" and info.get("status") not in ("OPTIMAL", "FEASIBLE"):

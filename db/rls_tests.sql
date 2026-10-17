@@ -54,7 +54,7 @@ end $$;
 
 -- =============================================================== IT chairperson
 do $$
-declare n int;
+declare n int; act text;
 begin
   perform pg_temp.act_as(current_setting('t.it_chair'));
 
@@ -146,7 +146,14 @@ begin
   delete from public.audit_log where dept = 'IT';
   get diagnostics n = row_count;
   if n <> 0 then raise exception 'FAIL: chair deleted % audit rows', n; end if;
-  insert into public.audit_log(user_id, dept, action) values (current_setting('t.it_chair')::uuid, 'IT', 'own_row');
+  insert into public.audit_log(user_id, dept, action) values (current_setting('t.it_chair')::uuid, 'IT', 'faculty_added');
+  -- S4: a signed-in user cannot write server actions (login, approve_run, run_deleted...) or invented ones, even about themselves
+  foreach act in array array['login', 'approve_run', 'run_deleted', 'own_row'] loop
+    begin
+      insert into public.audit_log(user_id, dept, action) values (current_setting('t.it_chair')::uuid, 'IT', act);
+      raise exception 'FAIL: IT chair forged the audit action %', act;
+    exception when insufficient_privilege then null; end;
+  end loop;
   begin
     insert into public.audit_log(user_id, dept, action, meta)
       values (current_setting('t.it_chair')::uuid, 'IT', 'x', '{"email":"a@b.c"}');
@@ -154,7 +161,7 @@ begin
   exception when raise_exception then
     if sqlerrm like 'FAIL%' then raise; end if;
   end;
-  raise notice 'PASS chair appends own audit rows, cannot edit or delete them, meta is guarded';
+  raise notice 'PASS chair appends only client-origin audit rows, cannot edit or delete them, meta is guarded';
 
   reset role;
 end $$;
@@ -323,6 +330,26 @@ begin
   end;
   raise notice 'PASS an approved run cannot be deleted or edited by its chairperson';
 
+  -- S1: the chairperson cannot demote an approved run (status back to saved) and then delete it
+  begin
+    update public.schedule_runs set status = 'saved' where id = ap_id;
+    raise exception 'FAIL: chair demoted an approved run';
+  exception when insufficient_privilege then
+    if sqlerrm not like '%approved run cannot be demoted%' then
+      raise exception 'FAIL: demotion was refused for the wrong reason: %', sqlerrm; end if;
+  end;
+  begin
+    update public.schedule_runs set status = 'draft' where id = ap_id;
+    raise exception 'FAIL: chair turned an approved run into a draft';
+  exception when insufficient_privilege then null; end;
+  begin
+    delete from public.schedule_runs where id = ap_id;
+    raise exception 'FAIL: chair deleted an approved run';
+  exception when insufficient_privilege then null; end;
+  select count(*) into n from public.schedule_runs where id = ap_id and status = 'approved';
+  if n <> 1 then raise exception 'FAIL: the approved run is no longer approved after the demotion attempts'; end if;
+  raise notice 'PASS an approved run cannot be demoted, so it cannot be deleted either (S1)';
+
   -- c. status approved only through approve_run()
   begin
     update public.schedule_runs set status = 'approved' where id = old_id;
@@ -450,6 +477,28 @@ begin
       raise exception 'FAIL: recent audit rows were purged'; end if;
     reset role;
     raise notice 'PASS admin purges old audit rows only';
+
+    -- S5: the 12-month floor is enforced in the function; only a session that sets atlas.allow_short_purge may go lower
+    insert into public.audit_log(at, dept, action) values (now() - interval '30 days', 'IT', 'rls_test_30d');
+    perform pg_temp.act_as(admin_id);
+    begin
+      perform public.purge_audit_log(interval '1 day');
+      raise exception 'FAIL: admin purged below the 12-month floor';
+    exception when insufficient_privilege then null; end;
+    begin
+      perform public.purge_audit_log(interval '11 months');
+      raise exception 'FAIL: admin purged at 11 months';
+    exception when insufficient_privilege then null; end;
+    if not exists (select 1 from public.audit_log where action = 'rls_test_30d') then
+      raise exception 'FAIL: a refused purge still deleted rows'; end if;
+    perform set_config('atlas.allow_short_purge', 'on', true);
+    n := public.purge_audit_log(interval '1 day');
+    perform set_config('atlas.allow_short_purge', '', true);
+    if exists (select 1 from public.audit_log where action = 'rls_test_30d') then
+      raise exception 'FAIL: the SQL-editor override did not purge the short interval'; end if;
+    n := public.purge_audit_log(interval '12 months');
+    reset role;
+    raise notice 'PASS purge_audit_log refuses less than 12 months unless atlas.allow_short_purge is on (S5)';
   end if;
 
   -- signed-out (anon) role gets nothing

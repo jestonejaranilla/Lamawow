@@ -45,6 +45,8 @@ def _load(run_id, full=False):
         return None, _err("That run belongs to another department.", 403)
     if user["role"] == FACULTY and run.get("status") != "approved":
         return None, _err("Run not found.", 404)
+    if user["role"] == FACULTY:
+        run.pop("inputs", None)                     # the snapshot lists every professor's preferences and leave dates
     return run, None
 
 

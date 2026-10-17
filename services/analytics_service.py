@@ -9,7 +9,7 @@ from solver.constraints import (
     is_exact_spec_match, is_open_assignment, is_non_classroom, assignment_units,
     get_room_capacity, room_exceeds_hard_max, room_capacity_penalty,
 )
-from solver.objective_functions import compute_satisfaction_metrics
+from solver.objective_functions import compute_satisfaction_metrics, assignment_quality
 
 
 def _gini(values: list) -> float:
@@ -274,7 +274,11 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
                 solver_metrics.get("ga_time_sec", 0), 3
             ),
             "solver_used":       solver_metrics.get("solver_used", "unknown"),
+            # GA improvement counts only terms the GA can change (slots and rooms): preference, capacity, affinity.
             "ga_improvement":    solver_metrics.get("improvement", 0),
+            "ga_improvement_terms": solver_metrics.get("improvement_terms", {}),
+            # CP-SAT decides the professors; this is reporting only and no GA term.
+            "assignment_quality": assignment_quality(assignments, faculty_list, static_lookup),
             "ga_generations_run": solver_metrics.get("generations_run", 0),
         },
     }

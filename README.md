@@ -12,7 +12,7 @@
 
 
 
-*A hybrid CP-SAT and Genetic Algorithm engine that recommends faculty teaching loads. Chairpersons review, edit, and finalize every assignment.*
+*A two-phase engine: CP-SAT assigns professors under hard rules and balances load, then a Genetic Algorithm improves times and rooms without changing any professor. Chairpersons review, edit, and finalize every assignment.*
 
 
 
@@ -42,7 +42,7 @@ ATLAS PSU is a teaching load assignment and management system built for the Depa
 
 
 
-It replaces spreadsheet-based, manual assignment with a two-phase optimization engine. A CP-SAT constraint solver produces a hard-constraint-valid base schedule in Phase 1. A Genetic Algorithm tunes that schedule against faculty preferences in Phase 2. An analytics phase then computes workload fairness and specialization match rates.
+It replaces spreadsheet-based, manual assignment with a two-phase optimization engine. CP-SAT assigns professors under the hard rules and balances load in Phase 1; every professor assignment, and so all workload balance and specialization matching, comes from this phase. A Genetic Algorithm improves times and rooms in Phase 2, for faculty preferences, room capacity fit and building compactness, without changing any professor. An analytics phase then computes workload fairness and specialization match rates.
 
 
 
@@ -152,7 +152,7 @@ If OR-Tools is not installed, a greedy group-level solver runs instead. It place
 
 
 
-Takes the valid CP-SAT schedule as input and improves slot and room assignments against faculty soft preferences. It never generates schedules from scratch and never changes who teaches what: only slots and rooms move. Every candidate is validated, and if the result has more rule violations than the CP-SAT schedule it started from, the CP-SAT schedule is returned unchanged.
+Takes the valid CP-SAT schedule as input and improves slots and rooms. Its fitness has only the terms it can change: faculty preference score, room capacity fit, and building affinity and section clustering. It never generates schedules from scratch and never changes who teaches what: only slots and rooms move, so it cannot improve fairness or specialization match, and the Reports never credit it with either. The professor-assignment terms (specialization bonus, load variance, underload gap) live in `assignment_quality()` and are reported only. `ga_improvement` is the fitness gain on the three GA terms (`ga_improvement_terms` lists them). Every candidate is validated, and if the result has more rule violations than the CP-SAT schedule it started from, the CP-SAT schedule is returned unchanged.
 
 
 
@@ -194,7 +194,7 @@ The chairperson reviews assignments in the timetable grid and analytics panels, 
 
 **Chairperson side**
 
-- Two-phase optimization: CP-SAT for correctness, GA for preference satisfaction
+- Two-phase optimization: CP-SAT assigns professors and balances load under hard rules, GA improves times and rooms for preferences and compactness
 
 - Live phase and percentage progress while the engine runs
 
@@ -706,3 +706,11 @@ One scheduled meeting counts `units_per_assignment` units (default 2) for its pr
 `services/analytics_service.workload_metrics` is the single definition of workload fairness. It covers ALL professors (idle ones included) in units and returns mean, median, min, max, std, cv, Jain, Gini, zero-load count and over-cap counts. Saved runs (`balance_score` = 100 x Jain), the Reports panel and the Home balance card all read it. The Reports colour bands use Jain only (`JAIN_BAND_GOOD` 0.90, `JAIN_BAND_WARNING` 0.80). Underload means `0 < load < target`, target = total assigned units / number of professors. `utilization_pct` is a percent of regular load (`max_units`).
 
 Specialization is counted per course group (year, section, subject), with elective-only groups excluded: `primary_tag_match_pct` (course tag equals the professor's first listed tag), `any_tag_match_pct` ("qualified", 100 by design because the solver refuses unqualified professors) and `elective_group_count`.
+
+### Reproducible runs
+
+`/run-ga` accepts `seed` (random when missing, always returned and stored) and `deterministic` (default off in the UI, `DETERMINISTIC` in `config/settings.py`). The seed drives CP-SAT `random_seed`, one `random.Random(seed)` shared by every GA operator, and the greedy fallback. Deterministic mode runs CP-SAT with one worker and `max_deterministic_time` instead of a wall-clock limit, and removes the GA wall-clock cap, so the same department, semester, inputs and seed give byte-identical assignments on any machine load (a safety stop of `DETERMINISTIC_WALL_CAP_SECONDS` still exists and could break this if it is reached). Each saved run stores an `inputs` snapshot with a SHA-256 hash (see `docs/DATA.md`); `services/run_snapshot.py` builds and verifies it. For chairpersons the run inputs are read from the database, not from the browser.
+
+### Evaluation
+
+`python scripts/evaluate.py` regenerates the results-chapter tables (random-feasible baseline, CP-SAT only, CP-SAT + GA, 10 seeds, 5 departments x 2 semesters, plus the faculty scenarios) into `evaluation/results.csv` and `evaluation/summary.md`; the protocol is in `evaluation/README.md`. `--quick` is a smoke test. The standard faculty pool lives in `tools/faculty_pool.py` and `tests/conftest.py` re-exports it.

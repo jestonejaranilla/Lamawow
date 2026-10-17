@@ -176,3 +176,20 @@ restart. Finished runs and audit events are the only things the server writes to
 ## Load unit and derived metrics
 
 Load is counted in units: one scheduled meeting counts `units_per_assignment` units. This is a modelling choice; the optional `load_model` setting is `per_meeting` (implemented, default) or `prospectus` (not implemented). Fairness numbers (Jain, Gini, std, cv, zero-load count) are derived from the schedule by `workload_metrics` over all professors and stored in a run's `analytics` and `metrics.balance_score`. They add no new personal data.
+
+## Run snapshot (`schedule_runs.inputs`)
+
+Every saved run stores an `inputs` snapshot next to its `result`: the faculty (names, specialization tags, units, overload buffer, available days), class sizes, rooms and capacities, preferences and leave (dates only, no reasons), the subjects scheduled, academic year, semester, solver settings, the random seed, the deterministic flag, a SHA-256 hash of those inputs, the code version (git commit, or the `VERSION` setting) and the solver library versions.
+
+Why it is stored: reproducibility. The same inputs and seed in deterministic mode give the same schedule, and months later the snapshot answers which data produced a saved run. The snapshot holds pseudonymous test faculty names. Real names must not be used until the privacy review is done; after it, the snapshot should be reviewed again (retention, and whether names can be replaced by ids). Faculty accounts never receive `inputs` from the API, because it lists every professor's preferences and leave dates; a direct database read of an approved run is still possible for a signed-in faculty account under the current row level security, so keep real data out until that is closed. `inputs` is read-only for approved runs, like `result` and `analytics`.
+
+For a chairperson the run does not trust the browser: faculty, class sizes, rooms, preferences and leave are read from the database for the chair's department, and a different faculty list sent by the browser is ignored (the response says so in `warnings`). Limits: at most 200 faculty and 2000 subjects per run.
+
+## What the audit trail guarantees (and does not)
+
+- **Written by the server only, except four actions.** Login, logout, runs, approvals, rooms, class sizes and preference changes are written by the server with the service client. A signed-in user can append only these client-origin actions directly to the database, and only about themselves, in their own department: `faculty_added`, `faculty_edited`, `faculty_deleted`, `solver_settings_changed`. The same `meta` limits apply (a flat object, at most 2 KB, no schedule content or personal-data keys).
+- **Append-only for users.** Nobody can edit a row, and a chairperson cannot delete one. Only an admin or the service role can delete rows.
+- **Retention floor in the database.** `purge_audit_log` refuses anything shorter than 12 months. Only a SQL editor session that runs `set atlas.allow_short_purge = 'on'` can purge more recent rows (a development database); the purge script keeps its own check and its dry run.
+- **Not tamper-proof against an administrator or the database owner.** Both can change or delete rows, so the trail is accountability for good-faith users, not evidence against a malicious administrator.
+- **Read failures are visible.** `GET /audit` logs the exception type and message (no row data) under `atlas.audit` and answers 502 with `code: audit_read_failed`, which the screen shows as "contact the administrator".
+- **Sessions.** The server caches a user's profile for at most 15 seconds, so a removed or demoted user keeps access for at most that long.

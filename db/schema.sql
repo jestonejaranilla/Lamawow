@@ -118,6 +118,9 @@ create table if not exists public.schedule_runs (
   result           jsonb,
   analytics        jsonb
 );
+-- Part 20: the inputs snapshot (faculty, class sizes, rooms, preferences, subjects, settings, seed, hash, versions).
+-- Idempotent, so it also upgrades a database created before this column existed.
+alter table public.schedule_runs add column if not exists inputs jsonb;
 create index if not exists schedule_runs_dept_idx on public.schedule_runs(dept, academic_year, semester);
 create unique index if not exists schedule_runs_one_approved
   on public.schedule_runs(dept, academic_year, semester) where status = 'approved';
@@ -252,13 +255,18 @@ begin
   end if;
 
   if tg_op = 'UPDATE' and old.status = 'approved' then
-    if (new.result, new.analytics, new.metrics, new.coverage, new.solver_settings,
+    if (new.result, new.analytics, new.inputs, new.metrics, new.coverage, new.solver_settings,
         new.dept, new.academic_year, new.semester, new.created_by)
        is distinct from
-       (old.result, old.analytics, old.metrics, old.coverage, old.solver_settings,
+       (old.result, old.analytics, old.inputs, old.metrics, old.coverage, old.solver_settings,
         old.dept, old.academic_year, old.semester, old.created_by) then
       raise exception 'an approved run cannot be edited' using errcode = '42501';
     end if;
+  end if;
+
+  -- S1: an approved run cannot be demoted (then deleted) by a chairperson. Only approve_run() demotes the old one.
+  if tg_op = 'UPDATE' and old.status = 'approved' and new.status is distinct from 'approved' and not approving then
+    raise exception 'an approved run cannot be demoted' using errcode = '42501';
   end if;
 
   if new.status = 'approved' and not approving
@@ -309,6 +317,12 @@ begin
   end if;
   if older_than is null or older_than <= interval '0' then
     raise exception 'older_than must be a positive interval';
+  end if;
+  -- S5: the 12-month retention floor lives here, not only in the purge script. Only the SQL editor (a session
+  -- that runs  set atlas.allow_short_purge = 'on')  may purge more recent rows, for example on a development database.
+  if older_than < interval '12 months'
+     and coalesce(current_setting('atlas.allow_short_purge', true), '') <> 'on' then
+    raise exception 'the audit log keeps at least 12 months' using errcode = '42501';
   end if;
   delete from public.audit_log where at < now() - older_than;
   get diagnostics n = row_count;
@@ -427,8 +441,12 @@ create policy atlas_runs_admin on public.schedule_runs for all to authenticated
 -- admin reads, appends and deletes. Nobody updates (privilege + trigger).
 create policy atlas_audit_chair_read on public.audit_log for select to authenticated
   using (public.current_role() = 'chairperson' and dept = public.current_dept());
+-- S4: a signed-in user may only append the client-origin actions below, about themselves, in their own department.
+-- Every server action (login, runs, rooms, approve...) is written by the server with the service client.
+drop policy if exists atlas_audit_insert_self on public.audit_log;
 create policy atlas_audit_insert_self on public.audit_log for insert to authenticated
-  with check (user_id = auth.uid() and dept is not distinct from public.current_dept());
+  with check (user_id = auth.uid() and dept is not distinct from public.current_dept()
+              and action in ('faculty_added', 'faculty_edited', 'faculty_deleted', 'solver_settings_changed'));
 create policy atlas_audit_admin_read on public.audit_log for select to authenticated
   using (public.current_role() = 'admin');
 create policy atlas_audit_admin_insert on public.audit_log for insert to authenticated

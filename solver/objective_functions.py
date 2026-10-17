@@ -1,6 +1,7 @@
 """
 ATLAS PSU - solver/objective_functions.py
-Soft-constraint scoring for GA preference optimizer.
+Soft-constraint scoring. schedule_fitness() holds only the terms the GA can change (times and rooms);
+assignment_quality() holds the professor-assignment terms and is used for reporting only.
 Weights are configurable via config/settings.py GA_WEIGHTS.
 """
 
@@ -9,12 +10,10 @@ import config.settings as _cfg_obj
 from solver.constraints import room_capacity_score, is_non_classroom, assignment_units
 
 
-def score_preference(assignment: dict, soft_constraints: dict,
-                     class_sizes: dict = None) -> float:
+def preference_term(assignment: dict, soft_constraints: dict) -> float:
     """
-    Compute soft-preference score for a single assignment.
-    Positive = preference satisfied. Negative = preference violated.
-    Includes room capacity scoring.
+    Faculty preference score of one assignment (period, room, building, floor, restricted days, leave).
+    Positive = preference satisfied. Negative = preference violated. A GA term: it depends on the slot and room only.
     """
     if is_non_classroom(assignment):
         return 0.0  # no slot or room to score
@@ -78,71 +77,38 @@ def score_preference(assignment: dict, soft_constraints: dict,
         if sc.get("unavailable_dates") or sc.get("leave_dates"):
             score += w.get("leave_penalty", -10.0)
 
-    # Room capacity score (always applied when room and student count are known)
-    if room and room != "Unassigned" and class_sizes:
-        section_key = assignment.get("section", "")
-        size_entry = class_sizes.get(section_key)
-        student_count = size_entry.get("size", 0) if isinstance(size_entry, dict) else 0
-        if student_count > 0:
-            score += room_capacity_score(room, student_count)
-
     return score
 
 
-def schedule_fitness(assignments: list, faculty_list: list, soft_constraints: dict,
-                     static_lookup: dict, class_sizes: dict = None) -> float:
+def capacity_term(assignment: dict, class_sizes: dict = None) -> float:
+    """Room capacity fit of one assignment (applied when room and student count are known). A GA term."""
+    if is_non_classroom(assignment) or not class_sizes:
+        return 0.0
+    room = assignment.get("room", "")
+    if not room or room == "Unassigned":
+        return 0.0
+    size_entry = class_sizes.get(assignment.get("section", ""))
+    student_count = size_entry.get("size", 0) if isinstance(size_entry, dict) else 0
+    return room_capacity_score(room, student_count) if student_count > 0 else 0.0
+
+
+def score_preference(assignment: dict, soft_constraints: dict,
+                     class_sizes: dict = None) -> float:
+    """Preference term plus room capacity term of one assignment (used for satisfaction reporting)."""
+    return preference_term(assignment, soft_constraints) + capacity_term(assignment, class_sizes)
+
+
+def affinity_term(assignments: list) -> float:
     """
-    Compute total fitness of a schedule.
-    Used by GA to compare candidate improvements.
-    Higher = better.
+    Building affinity and section clustering: reward a professor (and a section) staying in one building per day.
+    A GA term: it depends on the rooms and slots only.
     """
-    fac_map = {f["name"]: f for f in faculty_list}
-    w = GA_WEIGHTS
-
-    preference_score = sum(
-        score_preference(a, soft_constraints, class_sizes) for a in assignments
-    )
-
-    # Specialization quality bonus
-    spec_score = 0.0
-    for a in assignments:
-        fac = fac_map.get(a.get("faculty", ""))
-        if not fac:
-            continue
-        from solver.constraints import is_exact_spec_match
-        if is_exact_spec_match(fac, a.get("subject", ""), static_lookup):
-            spec_score += w["exact_spec_match"]
-
-    # Workload fairness (penalise variance)
-    loads = {f["name"]: 0 for f in faculty_list}
-    for a in assignments:
-        if a.get("faculty") in loads:
-            loads[a["faculty"]] += assignment_units(a)
-
-    values = list(loads.values())
-    variance = 0.0
-    if values:
-        mean = sum(values) / len(values)
-        variance = sum((v - mean) ** 2 for v in values) / len(values)
-        std_dev = variance ** 0.5
-        variance_penalty = variance * w["load_variance_weight"]
-        under_penalty = 0.0
-        if std_dev > 0:
-            for v in values:
-                gap = mean - v
-                if gap > std_dev:
-                    under_penalty += (gap - std_dev) * w["underload_gap_weight"]
-    else:
-        variance_penalty = 0.0
-        under_penalty = 0.0
-
-    # ── Building affinity: reward staying in same building per day ────────────
     from solver.constraints import get_building
     from collections import Counter
+    w = GA_WEIGHTS
 
-    fac_day_buildings:  dict = {}  # (fac, day) → Counter of buildings
-    sec_day_buildings:  dict = {}  # (sec, day) → Counter of buildings
-
+    fac_day_buildings: dict = {}   # (faculty, day) -> Counter of buildings
+    sec_day_buildings: dict = {}   # (section, day) -> Counter of buildings
     for a in assignments:
         slot = a.get("slot", "")
         room = a.get("room", "")
@@ -157,26 +123,72 @@ def schedule_fitness(assignments: list, faculty_list: list, soft_constraints: di
         if sec:
             sec_day_buildings.setdefault((sec, day), Counter())[bld] += 1
 
-    affinity_score = 0.0
-    bld_bonus   = w.get("building_affinity_bonus",   4.0)
-    bld_penalty = w.get("building_affinity_penalty", -3.0)
+    score = 0.0
+    bld_bonus, bld_penalty = w.get("building_affinity_bonus", 4.0), w.get("building_affinity_penalty", -3.0)
     for counter in fac_day_buildings.values():
-        n_buildings = len(counter)
-        if n_buildings == 1:
-            affinity_score += bld_bonus * 2           # fully consolidated
-        else:
-            affinity_score += bld_penalty * (n_buildings - 1)
-
-    sec_bonus   = w.get("section_cluster_bonus",    3.0)
-    sec_penalty = w.get("section_cluster_penalty", -2.5)
+        n = len(counter)
+        score += bld_bonus * 2 if n == 1 else bld_penalty * (n - 1)
+    sec_bonus, sec_penalty = w.get("section_cluster_bonus", 3.0), w.get("section_cluster_penalty", -2.5)
     for counter in sec_day_buildings.values():
-        n_buildings = len(counter)
-        if n_buildings == 1:
-            affinity_score += sec_bonus * 2
-        else:
-            affinity_score += sec_penalty * (n_buildings - 1)
+        n = len(counter)
+        score += sec_bonus * 2 if n == 1 else sec_penalty * (n - 1)
+    return score
 
-    return preference_score + spec_score - variance_penalty - under_penalty + affinity_score
+
+def fitness_terms(assignments: list, soft_constraints: dict, class_sizes: dict = None) -> dict:
+    """
+    The terms the GA can actually change, because it moves slots and rooms and never a professor:
+    preference score, room capacity fit, building affinity and section clustering.
+    """
+    return {
+        "preference": sum(preference_term(a, soft_constraints) for a in assignments),
+        "capacity":   sum(capacity_term(a, class_sizes) for a in assignments),
+        "affinity":   affinity_term(assignments),
+    }
+
+
+def schedule_fitness(assignments: list, soft_constraints: dict, class_sizes: dict = None) -> float:
+    """
+    GA fitness (higher = better): the sum of fitness_terms(). It contains NO term that depends on who teaches
+    what (workload variance, underload gap, specialization), because the GA never changes a professor.
+    """
+    return sum(fitness_terms(assignments, soft_constraints, class_sizes).values())
+
+
+def assignment_quality(assignments: list, faculty_list: list, static_lookup: dict) -> dict:
+    """
+    REPORTING ONLY, never used by the GA: quality of the professor assignment, which CP-SAT decides.
+    Higher spec_score and lower penalties are better; total = spec_score - variance_penalty - underload_penalty.
+    """
+    from solver.constraints import is_exact_spec_match
+    fac_map = {f["name"]: f for f in faculty_list}
+    w = GA_WEIGHTS
+
+    spec_score = 0.0
+    for a in assignments:
+        fac = fac_map.get(a.get("faculty", ""))
+        if fac and is_exact_spec_match(fac, a.get("subject", ""), static_lookup):
+            spec_score += w["exact_spec_match"]
+
+    loads = {f["name"]: 0 for f in faculty_list}
+    for a in assignments:
+        if a.get("faculty") in loads:
+            loads[a["faculty"]] += assignment_units(a)
+    values = list(loads.values())
+    variance_penalty = under_penalty = 0.0
+    if values:
+        mean = sum(values) / len(values)
+        variance = sum((v - mean) ** 2 for v in values) / len(values)
+        std_dev = variance ** 0.5
+        variance_penalty = variance * w["load_variance_weight"]
+        if std_dev > 0:
+            under_penalty = sum((mean - v - std_dev) * w["underload_gap_weight"] for v in values if mean - v > std_dev)
+    return {
+        "spec_score": round(spec_score, 2),
+        "variance_penalty": round(variance_penalty, 2),
+        "underload_penalty": round(under_penalty, 2),
+        "total": round(spec_score - variance_penalty - under_penalty, 2),
+    }
 
 
 def compute_satisfaction_metrics(assignments: list, faculty_list: list,

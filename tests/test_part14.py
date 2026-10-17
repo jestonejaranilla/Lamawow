@@ -294,11 +294,18 @@ def fake_start(monkeypatch, phase="done"):
     monkeypatch.setattr(sr, "start_scheduling", start)
 
 
+def seed_it_faculty(db):
+    """Part 20: a chairperson's run reads the faculty from the database, so the fake database needs one."""
+    db.tables["faculty"] = [{"id": "fx", "dept": "IT", "name": "Prof X", "specializations": ["Programming"],
+                             "max_units": 24, "overload_buffer": 6, "availability": ["Mon", "Tue"]}]
+
+
 RUN_BODY = {"dept": "IT", "faculty": [{"name": "Prof X"}], "subjects": [{"name": "x"}], "generations": 5,
             "population": 8, "cp_sat_time_limit": 7, "active_semester": "1st Semester", "academic_year": "2026-2027"}
 
 
 def test_finished_run_is_saved_as_draft_and_audited(client, db, monkeypatch):
+    seed_it_faculty(db)
     fake_start(monkeypatch)
     r = client.post("/run-ga", json=RUN_BODY, headers=H(IT_CHAIR))
     assert r.status_code == 200
@@ -317,6 +324,7 @@ def test_finished_run_is_saved_as_draft_and_audited(client, db, monkeypatch):
 
 
 def test_engine_error_is_audited_and_not_saved(client, db, monkeypatch):
+    seed_it_faculty(db)
     fake_start(monkeypatch, phase="error")
     assert client.post("/run-ga", json=RUN_BODY, headers=H(IT_CHAIR)).status_code == 200
     assert "schedule_runs" not in db.tables or not db.tables["schedule_runs"]
@@ -326,6 +334,7 @@ def test_engine_error_is_audited_and_not_saved(client, db, monkeypatch):
 
 def test_period_falls_back_to_dept_settings(client, db, monkeypatch):
     db.tables["dept_settings"] = [{"dept": "IT", "academic_year": "2030-2031", "semester": "2nd Semester"}]
+    seed_it_faculty(db)
     fake_start(monkeypatch)
     body = {k: v for k, v in RUN_BODY.items() if k not in ("academic_year", "active_semester")}
     client.post("/run-ga", json=body, headers=H(IT_CHAIR))

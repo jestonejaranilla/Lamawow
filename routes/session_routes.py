@@ -5,10 +5,11 @@ server can audit the login and tell the page the user's role and department. POS
 sign-out. POST /audit records a few client-side configuration changes (counts and ids only).
 """
 
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, request
+from flask import Blueprint, jsonify, request
 
 from routes.schedule_routes import _err, _ok
 from services.audit_service import audit, clean_meta
@@ -16,6 +17,7 @@ from services import supabase_client
 from services.auth_service import ANY_ROLE, STAFF, clear_profile_cache, current_user, require_user, scope_dept
 
 session_bp = Blueprint("session", __name__)
+audit_log = logging.getLogger("atlas.audit")
 
 # Changes that happen in the browser (no server route to audit): action -> entity
 CLIENT_EVENTS = {
@@ -132,8 +134,10 @@ def read_audit():
             q = q.lt("at", end.isoformat())
         offset = (page - 1) * size
         rows = q.order("at", desc=True).range(offset, offset + size).execute().data or []   # one extra row: is there a next page
-    except Exception:                                                                     # noqa: BLE001
-        return _err("Could not read the audit log.", 502)
+    except Exception as e:                                                                # noqa: BLE001
+        audit_log.error("audit read failed: %s: %s", type(e).__name__, e)                 # type and message only, no row data
+        return jsonify({"success": False, "error": "Could not read the audit log. Contact the administrator.",
+                        "code": "audit_read_failed", "data": {}, "metrics": {}, "warnings": []}), 502
     return _ok({"dept": dept, "page": page, "page_size": size, "has_more": len(rows) > size,
                 "actions": KNOWN_ACTIONS,
                 "rows": [{"time": r.get("at"), "user": r.get("email"), "action": r.get("action"), "entity": r.get("entity")}

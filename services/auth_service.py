@@ -23,7 +23,7 @@ import time
 
 from flask import g, jsonify, request
 
-PROFILE_TTL_SECONDS = 60
+PROFILE_TTL_SECONDS = 15      # a removed or demoted user keeps access for at most this long (S10)
 ADMIN = "admin"
 CHAIR = "chairperson"
 FACULTY = "faculty"

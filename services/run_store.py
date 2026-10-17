@@ -65,6 +65,57 @@ def balance_score(result, faculty_list=None):
     return round(100.0 * workload_metrics(rows, faculty)["jain_exact"], 1)
 
 
+def _rows(table, dept=None, ids=None, key="faculty_id"):
+    q = _client().table(table).select("*")
+    if dept is not None:
+        q = q.eq("dept", dept)
+    if ids is not None:
+        q = q.in_(key, list(ids))
+    return q.execute().data or []
+
+
+def load_dept_inputs(dept: str) -> dict:
+    """
+    One department's run inputs read from the database with the SERVICE client, in the engine's formats:
+    faculty (sorted by name, so the order never depends on the browser), soft_constraints (preferences and
+    leave dates, keyed by faculty name), class_sizes ({block_key: {"size": n}}) and rooms (None when the
+    department has no room rows, so the curriculum defaults stay). Raises StoreUnavailable / any database error.
+    """
+    faculty_rows = sorted(_rows("faculty", dept=dept), key=lambda r: str(r.get("name") or ""))
+    faculty = []
+    for r in faculty_rows:
+        mx = int(r.get("max_units") if r.get("max_units") is not None else 24)
+        buf = int(r.get("overload_buffer") if r.get("overload_buffer") is not None else 6)
+        faculty.append({"name": r["name"], "specialization": list(r.get("specializations") or []),
+                        "max_units": mx, "overload_buffer": buf, "absolute_max_units": mx + buf,
+                        "availability": list(r.get("availability") or [])})
+    ids = [r["id"] for r in faculty_rows]
+    prefs = {r["faculty_id"]: r for r in _rows("faculty_preferences", ids=ids)} if ids else {}
+    leave: dict = {}
+    for r in (_rows("faculty_leave", ids=ids) if ids else []):
+        leave.setdefault(r["faculty_id"], []).append({"start": str(r.get("start_date")), "end": str(r.get("end_date"))})
+    soft = {}
+    for r in faculty_rows:
+        p_, sc = prefs.get(r["id"]) or {}, {}
+        for k in ("preferred_period", "preferred_room", "preferred_building", "preferred_floor"):
+            if p_.get(k):
+                sc[k] = p_[k]
+        if p_.get("avoid_days"):
+            sc["restricted_days"] = list(p_["avoid_days"])
+        if leave.get(r["id"]):
+            sc["leave_dates"] = sorted(leave[r["id"]], key=lambda x: (x["start"], x["end"]))
+        if sc:
+            soft[r["name"]] = sc
+    sizes = {r["block_key"]: {"size": int(r["size"])} for r in _rows("class_sizes", dept=dept)}
+    room_rows = _rows("rooms", dept=dept)
+    rooms = None
+    if room_rows:
+        rooms = {"lecture_rooms": [r["name"] for r in room_rows if r.get("kind") == "lecture"],
+                 "laboratory_rooms": [r["name"] for r in room_rows if r.get("kind") == "lab"],
+                 "room_capacity": {r["name"]: {"recommended": int(r["recommended"]), "max": int(r["max"])} for r in room_rows}}
+    return {"faculty": faculty, "soft_constraints": soft, "class_sizes": sizes, "rooms": rooms}
+
+
 def save_draft(dept, user_id, progress, solver_settings, duration_ms, academic_year, active_semester) -> str:
     """Insert the finished run as a draft. Returns the new run's uuid."""
     year, semester = _period(dept, academic_year, active_semester)
@@ -74,6 +125,8 @@ def save_draft(dept, user_id, progress, solver_settings, duration_ms, academic_y
     with _cfg.run_settings(units_per_assignment=(solver_settings or {}).get("units_per_assignment"),
                            non_classroom_units=(solver_settings or {}).get("non_classroom_units")):
         balance = balance_score(progress.get("result"), faculty)
+    from services import run_snapshot
+    inputs = run_snapshot.finalize(progress.get("inputs_raw") or {}, year, semester) if progress.get("inputs_raw") else None
     row = {
         "dept": dept, "academic_year": year, "semester": semester, "status": "draft",
         "created_by": user_id,
@@ -84,6 +137,7 @@ def save_draft(dept, user_id, progress, solver_settings, duration_ms, academic_y
         "duration_ms": int(duration_ms),
         "result": _json_safe(progress.get("result") or []),
         "analytics": _json_safe(progress.get("analytics") or {}),
+        "inputs": _json_safe(inputs),
     }
     res = _client().table("schedule_runs").insert(row).execute()
     return res.data[0]["id"]
