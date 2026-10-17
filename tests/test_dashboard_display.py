@@ -43,6 +43,7 @@ def browser(server):
 
 def ensure_faculty(page):
     """A department with no faculty in the database offers "Load sample faculty"; take the offer (the real feature)."""
+    page.click(".nav-item[data-panel='3']")                  # Part 25: the dashboard opens on Home; the faculty table and notice live in panel 3
     page.wait_for_function("document.querySelector('#facultyTable tbody tr') || "
                            "(document.getElementById('facultyEmptyNotice') && !document.getElementById('facultyEmptyNotice').hidden)")
     if page.locator("#facultyEmptyNotice").is_visible():
@@ -190,7 +191,7 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
     page, errors = open_dashboard(browser, "IT")
     page.goto(SETTINGS_URL + "#solver")
     assert page.locator("#solver").is_visible()
-    assert page.evaluate("document.querySelector('main .app-card').id") == "solver"       # first card
+    assert page.evaluate("document.querySelector('main .app-card:not(.period-card)').id") == "solver"       # first settings card after the period card
     assert page.input_value("#sysCpSatTimeLimit") == "30"                                 # default is 30, not 60
 
     # bad values: inline error, nothing saved
@@ -227,11 +228,10 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
     page.goto(BASE + "/pages/dashboard.html")
     ensure_faculty(page)
     assert page.inner_text("#solverSummary") == "12 s limit, 7 population, 2 generations"
-    bodies = []
-    page.on("request", lambda r: bodies.append(r.post_data) if r.url.endswith("/run-ga") else None)
-    page.evaluate("document.getElementById('runGA').click()")
+    with page.expect_request(lambda r: r.url.endswith("/run-ga")) as req_info:     # Part 25: wait for the request, no race
+        page.evaluate("document.getElementById('runGA').click()")
     page.wait_for_function("document.getElementById('runGA').disabled")
-    body = json.loads(bodies[0])
+    body = json.loads(req_info.value.post_data)
     print("\n/run-ga body:", {k: body[k] for k in ("dept", "population", "generations", "mutation", "crossover",
                                                     "cp_sat_time_limit", "units_per_assignment", "active_semester")})
     assert (body["population"], body["generations"], body["mutation"], body["crossover"]) == (7, 2, 0.2, 0.5)

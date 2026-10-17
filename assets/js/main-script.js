@@ -1174,6 +1174,9 @@ function initRunGA() {
 /* ============================================================
    9. FACULTY MANAGEMENT SYSTEM
    ============================================================ */
+// One default for a new professor, the same as the database column default (db/schema.sql) and the sample pool.
+const DEFAULT_AVAILABILITY = ['Mon', 'Tue', 'Wed', 'Thu'];
+
 function addFacultyRow(data = {}) {
   const tbody = document.querySelector('#facultyTable tbody');
   if (!tbody) return;
@@ -1188,7 +1191,7 @@ function addFacultyRow(data = {}) {
   // Availability is stored and sent to the backend as short names (Mon, Tue, Wed, Thu, Fri, Sat)
   // matching DAYS in app.py. Normalize any legacy long-name values on load.
   const DAY_LONG_TO_SHORT = { Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed', Thursday:'Thu', Friday:'Fri', Saturday:'Sat' };
-  const rawAvail = data.availability || ['Mon','Tue','Wed','Thu','Fri','Sat'];
+  const rawAvail = data.availability || DEFAULT_AVAILABILITY;
   const daysSelected = rawAvail.map(d => DAY_LONG_TO_SHORT[d] || d);
 
   const checkboxHTML = SPECIALIZATIONS.map(spec => `
@@ -1213,6 +1216,7 @@ function addFacultyRow(data = {}) {
     <td>
       <div class="multi-select-dropdown">
         <div class="dropdown-btn" title="${escapeAttr(displayText)}">${escapeHTML(displayText.length > 45 ? displayText.substring(0, 45) + '...' : displayText)}</div>
+        <div class="spec-hint" hidden>Only electives can be assigned</div>
         <div class="dropdown-content">
           ${checkboxHTML}
           <button type="button" class="dropdown-ok-btn btn">OK</button>
@@ -1254,10 +1258,15 @@ function addFacultyRow(data = {}) {
     });
   });
 
-  // Input fields change auto save triggers
-  tr.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
+  // Numbers save shortly after typing stops. The name saves once, on blur or Enter (the 'change' event), so a
+  // half-typed name is never written and the audit log gets one row per edit.
+  tr.querySelectorAll('input[type="number"]').forEach(input => {
     input.addEventListener('input', debounce(saveFaculty, 500));
   });
+  const nameInput = tr.querySelector('input[type="text"]');
+  nameInput.addEventListener('change', saveFaculty);
+  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); } });
+  updateSpecHint(tr);
 
   tr.querySelectorAll('.avail-checkboxes input').forEach(chk => {
     chk.addEventListener('change', () => {
@@ -1285,6 +1294,16 @@ function updateDropdownLabel(dropdown) {
   const txt = checked.length ? checked.join(', ') : 'Choose Specialization';
   btn.textContent = txt.length > 45 ? txt.substring(0, 45) + '...' : txt;
   btn.title = txt;
+  const row = dropdown.closest('tr');
+  if (row) updateSpecHint(row);
+}
+
+// A professor with no specialization can only get electives: say so on the row. Saving is never blocked.
+function updateSpecHint(tr) {
+  const none = !tr.querySelector('.dropdown-content input:checked');
+  tr.classList.toggle('no-specialization', none);
+  const hint = tr.querySelector('.spec-hint');
+  if (hint) hint.hidden = !none;
 }
 
 function repositionDropdown(dropdown) {
@@ -1392,7 +1411,7 @@ function initSampleFaculty() {
     const pool = defaultFaculty().map(f => ({
       name: f.name, specialization: f.specialization || [],
       max_units: f.max_units != null ? f.max_units : 24, overload_buffer: f.overload_buffer != null ? f.overload_buffer : 6,
-      availability: f.availability || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      availability: f.availability || DEFAULT_AVAILABILITY
     }));
     const res = await window.atlasData.faculty.loadSample(pool);
     btn.disabled = false;

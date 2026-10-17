@@ -32,6 +32,7 @@ SECTION = re.compile(r"\b(IT|CS|MB|ES|MedB)\d[Bb]\d\b")
 
 def ensure_faculty(page):
     """A department with no faculty in the database offers "Load sample faculty"; take the offer (the real feature)."""
+    page.click(".nav-item[data-panel='3']")                  # Part 25: the dashboard opens on Home; the faculty table and notice live in panel 3
     page.wait_for_function("document.querySelector('#facultyTable tbody tr') || "
                            "(document.getElementById('facultyEmptyNotice') && !document.getElementById('facultyEmptyNotice').hidden)")
     if page.locator("#facultyEmptyNotice").is_visible():
@@ -67,6 +68,7 @@ def run_engine(page, dept):
 
 
 def labels(page):
+    page.click(".nav-item[data-panel='1']")        # Part 25: the timetable sits in the Optimization panel; hidden text is not read
     return {m.group(1) for m in SECTION.finditer(page.inner_text("body"))}
 
 
@@ -86,7 +88,9 @@ def test_it_to_cs_to_it():
         assert labels(page) == {"IT"}
         assert local_data_keys(page) == [] or all(k.startswith("atlasCache:") for k in local_data_keys(page))
         # a professor edited in IT is saved in the database
+        page.click(".nav-item[data-panel='3']")
         page.fill("#facultyTable tbody tr:first-child input[type=text]", "ZZ IT Sentinel")
+        page.press("#facultyTable tbody tr:first-child input[type=text]", "Enter")     # Part 24: the name saves on Enter or blur
         page.wait_for_function("window.atlasData.pendingSaves() === 0 && window.__testDb.rows('faculty').some(f => f.name === 'ZZ IT Sentinel')")
 
         page.evaluate("atlasLogout()")

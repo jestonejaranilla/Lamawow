@@ -8,7 +8,19 @@
 /* ============================================================
    0. GOOGLE FONTS IMPORT
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Self-hosted fonts (assets/fonts, SIL Open Font License; licenses sit next to the files). No request goes to Google. */
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 300; font-display: swap; src: url('../fonts/dm-sans-latin-300-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/dm-sans-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/dm-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/dm-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/dm-sans-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/dm-sans-latin-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'DM Serif Display'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/dm-serif-display-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Instrument Serif'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/instrument-serif-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Serif Display'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/dm-serif-display-latin-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Instrument Serif'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/instrument-serif-latin-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2'); }
 
 /* ============================================================
    1. CSS DESIGN TOKENS
@@ -4249,9 +4261,7 @@ html[data-motion="reduce"] *, html[data-motion="reduce"] *::before, html[data-mo
 /* ============================================================
    TOP BAR: centered sticky navigation (desktop), back / title / menu (mobile)
    ============================================================ */
-.nav-back, .nav-title, .nav-more, .dash-brand { display: none; }
-.dash-brand { align-items: center; gap: 10px; margin-bottom: var(--space-4); font-size: 1.0625rem; font-weight: 700; color: var(--clr-primary-600); }
-.dash-brand img { border-radius: 10px; }
+.nav-back, .nav-title, .nav-more { display: none; }
 
 @media (min-width: 901px) {
   .top-navbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-4); }
@@ -4275,8 +4285,7 @@ html[data-motion="reduce"] *, html[data-motion="reduce"] *::before, html[data-mo
   .nav-back.is-hidden { visibility: hidden; }
   .nav-back svg, .nav-more svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .nav-title { display: block; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; font-size: 1.0625rem; font-weight: 700; color: var(--text-primary); }
-  .dash-brand { display: flex; }
-}
+  }
 
 /* ============================================================
    MOBILE GESTURES: swipe between sections, pull down to refresh
@@ -4467,3 +4476,7 @@ html { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent;
 .info-tip:hover::after, .info-tip:focus::after { display: block; }
 .info-tip::after { max-width: min(240px, calc(100vw - 48px)); }
 .app-shell, .app-content { min-width: 0; }
+/* Part 24: a professor with no specialization (only electives can be assigned) */
+#facultyTable tbody tr.no-specialization { background: rgba(217, 119, 6, 0.10); }
+#facultyTable .spec-hint { margin-top: 4px; font-size: 0.78rem; color: #b45309; }
+[data-theme="dark"] #facultyTable .spec-hint { color: #fbbf24; }

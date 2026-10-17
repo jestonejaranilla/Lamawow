@@ -74,7 +74,7 @@ member (own row), the chairperson, admin. Kept: until changed or deleted. Delete
 ### `faculty_leave`
 | Field | Why |
 |---|---|
-| `faculty_id`, `start_date`, `end_date` | Dates the person is unavailable. A one day leave has equal start and end. |
+| `faculty_id`, `start_date`, `end_date` | Dates the person is unavailable. A one day leave has equal start and end. A run ignores ranges outside the period, excludes a professor whose ranges cover the whole period, and scales the soft penalty by the covered share otherwise. |
 
 There is **no reason field, on purpose**. Read and write: same as preferences. Kept: until deleted. Deleted
 with the faculty record.
@@ -98,6 +98,7 @@ Read and write: chairperson of the department, admin. Kept: until changed or del
 | Field | Why |
 |---|---|
 | `academic_year`, `semester` | The active academic period. |
+| `period_start`, `period_end` | Optional dates of the active period (Part 24). Leave ranges are judged against them. Empty means the default calendar for the year and semester (1st Aug 1 to Dec 20, 2nd Jan 12 to May 31, Summer Jun 8 to Jul 31). |
 | `solver` | Solver settings (limits and time limit). |
 | `lab_also_lecture` | Whether lab rooms may host lectures. |
 
@@ -168,8 +169,7 @@ restart. Finished runs and audit events are the only things the server writes to
 
 ### Limits of these statements
 
-- The pages load fonts from Google Fonts (`fonts.googleapis.com`, `fonts.gstatic.com`). A browser that loads
-  them sends its IP address to Google. ATLAS itself does not record it. The fonts can be hosted locally if this must be avoided.
+- Fonts are served from this site (`assets/fonts/`), so a visitor's browser does not contact Google. The hosting provider and Supabase still see the visitor's IP address for the requests the site itself makes.
 - The hosting provider and Supabase may keep their own infrastructure request logs. ATLAS does not read or control them.
 - `profiles.email` and `audit_log.email` are personal data of the people who use the system.
 

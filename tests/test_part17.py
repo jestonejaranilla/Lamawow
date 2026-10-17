@@ -177,6 +177,7 @@ def test_page_works_with_zero_saved_runs():
                 sessionStorage.setItem('atlasUser','T'); sessionStorage.setItem('atlasEmail','t@psu.palawan.edu.ph'); """
                           + chair_profile_js("d") + " window.__testDb.seedFaculty(d, 3); }", "IT")
             page.goto("http://localhost:5000/pages/dashboard.html")
+            page.click(".nav-item[data-panel='1']")                   # Part 25: open the panel that holds the saved runs list
             page.wait_for_selector("#savedRunsCard", state="attached")
             page.wait_for_function("document.getElementById('savedRunsCount').textContent.length > 0")
             assert page.locator("#savedRunsCard").count() == 1

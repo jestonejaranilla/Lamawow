@@ -44,7 +44,10 @@ def test_it_default_pool_full_coverage_and_realistic_load(sem, monkeypatch):
     pool = copy.deepcopy(load_curriculum("IT")["default_faculty"])
     ss.reset_state("IT")
     subj = [{"group_id": g["group_id"]} for g in ss.build_groups("IT", sem, ss.get_class_sizes("IT"))[0]]
-    ss.start_scheduling("IT", pool, subj, sem, {"generations": 3, "population": 4}, {}, None, wait=True)
+    # Part 25: deterministic mode (one worker, a deterministic-time limit, fixed seed), so a loaded machine cannot
+    # make the solver run out of wall-clock time and change the result.
+    ss.start_scheduling("IT", pool, subj, sem, {"generations": 3, "population": 4}, {}, None, wait=True,
+                        seed=1, deterministic=True, run_settings={"cp_sat_time_limit": 8})
     p = ss.get_progress("IT")
     assert p["coverage"]["assigned"] == p["coverage"]["total"] and p["coverage_errors"] == []
     loads = {f["name"]: 0 for f in pool}

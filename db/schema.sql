@@ -101,6 +101,16 @@ create table if not exists public.dept_settings (
   updated_at       timestamptz not null default now()
 );
 
+-- Part 24: the active period has real dates, so leave ranges can be judged against it. Idempotent.
+alter table public.dept_settings add column if not exists period_start date;
+alter table public.dept_settings add column if not exists period_end   date;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dept_settings_period_order') then
+    alter table public.dept_settings add constraint dept_settings_period_order
+      check (period_start is null or period_end is null or period_end >= period_start);
+  end if;
+end $$;
+
 create table if not exists public.schedule_runs (
   id               uuid primary key default gen_random_uuid(),
   dept             text not null references public.departments(code),

@@ -214,6 +214,7 @@ def chair_dashboard(page, dept, pre=""):
 def test_empty_department_offers_sample_faculty_and_existing_data_is_never_overwritten(browser):
     page = new_page(browser)
     chair_dashboard(page, "IT")
+    page.click(".nav-item[data-panel='3']")                  # Part 25: the dashboard opens on Home; the faculty table and notice live in panel 3
     page.wait_for_selector("#facultyEmptyNotice:not([hidden])")
     assert page.locator("#facultyTable tbody tr").count() == 0
     page.click("#loadSampleFaculty")
@@ -221,6 +222,7 @@ def test_empty_department_offers_sample_faculty_and_existing_data_is_never_overw
     n = page.locator("#facultyTable tbody tr").count()
     assert n > 0 and len(page.evaluate("window.__testDb.rows('faculty')")) == n
     page.reload()
+    page.click(".nav-item[data-panel='3']")                  # Part 25: the dashboard opens on Home; the faculty table and notice live in panel 3
     page.wait_for_selector("#facultyTable tbody tr", state="attached")
     assert page.locator("#facultyEmptyNotice").is_hidden() and page.locator("#facultyTable tbody tr").count() == n
 
@@ -230,10 +232,11 @@ def test_empty_department_offers_sample_faculty_and_existing_data_is_never_overw
     page.evaluate("() => { atlasLogout(); }")
     page.goto(f"{BASE}/pages/login.html")
     chair_dashboard(page, "CS")
+    page.click(".nav-item[data-panel='3']")                  # Part 25: the dashboard opens on Home; the faculty table and notice live in panel 3
     page.wait_for_selector("#facultyTable tbody tr", state="attached")
     assert page.locator("#facultyEmptyNotice").is_hidden()
     assert page.locator("#facultyTable tbody tr").count() == 1
-    assert "Existing CS Prof" in page.inner_text("#facultyTable")
+    assert page.input_value("#facultyTable tbody tr:first-child input[type=text]") == "Existing CS Prof"   # a name is an input value, not text
     page.context.close()
 
 
@@ -242,6 +245,7 @@ def test_empty_department_offers_sample_faculty_and_existing_data_is_never_overw
 def test_a_failed_save_keeps_what_was_typed_and_retry_saves_it(browser):
     page = new_page(browser)
     chair_dashboard(page, "IT")
+    page.click(".nav-item[data-panel='3']")                  # Part 25: the dashboard opens on Home; the faculty table and notice live in panel 3
     page.wait_for_selector("#facultyEmptyNotice:not([hidden])")
     page.click("#loadSampleFaculty")
     page.wait_for_selector("#facultyTable tbody tr", state="attached")
@@ -249,6 +253,7 @@ def test_a_failed_save_keeps_what_was_typed_and_retry_saves_it(browser):
     page.evaluate("localStorage.setItem('__testFail', '1')")             # the connection is lost
     box = page.locator("#facultyTable tbody tr:first-child input[type=text]")
     box.fill("Typed While Offline")
+    box.press("Enter")                                                  # Part 24: the name saves on Enter or blur
     page.wait_for_function("document.getElementById('atlasSaveStatus') && document.getElementById('atlasSaveStatus').dataset.state === 'error'")
     assert box.input_value() == "Typed While Offline"                   # nothing was lost on screen
     assert not any(f["name"] == "Typed While Offline" for f in page.evaluate("window.__testDb.rows('faculty')"))

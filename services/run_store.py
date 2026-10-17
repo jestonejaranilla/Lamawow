@@ -106,6 +106,10 @@ def load_dept_inputs(dept: str) -> dict:
             sc["leave_dates"] = sorted(leave[r["id"]], key=lambda x: (x["start"], x["end"]))
         if sc:
             soft[r["name"]] = sc
+    st_rows = _rows("dept_settings", dept=dept)
+    period = {k: (str(st_rows[0].get(col)) if st_rows and st_rows[0].get(col) else None)
+              for k, col in (("start", "period_start"), ("end", "period_end"),
+                             ("academic_year", "academic_year"), ("semester", "semester"))} if st_rows else {}
     sizes = {r["block_key"]: {"size": int(r["size"])} for r in _rows("class_sizes", dept=dept)}
     room_rows = _rows("rooms", dept=dept)
     rooms = None
@@ -113,7 +117,7 @@ def load_dept_inputs(dept: str) -> dict:
         rooms = {"lecture_rooms": [r["name"] for r in room_rows if r.get("kind") == "lecture"],
                  "laboratory_rooms": [r["name"] for r in room_rows if r.get("kind") == "lab"],
                  "room_capacity": {r["name"]: {"recommended": int(r["recommended"]), "max": int(r["max"])} for r in room_rows}}
-    return {"faculty": faculty, "soft_constraints": soft, "class_sizes": sizes, "rooms": rooms}
+    return {"faculty": faculty, "soft_constraints": soft, "class_sizes": sizes, "rooms": rooms, "period": period}
 
 
 def save_draft(dept, user_id, progress, solver_settings, duration_ms, academic_year, active_semester) -> str:

@@ -190,6 +190,8 @@ def run_ga():
     sizes_in = data.get("class_sizes", {})
     replace_prefs = False
     extra_warnings = []
+    period_in = {"start": data.get("period_start"), "end": data.get("period_end"),
+                 "academic_year": data.get("academic_year")}
     if user and not user.get("dev") and user.get("role") == CHAIR and run_store.enabled():
         # A chairperson's run never trusts the browser: faculty, class sizes, rooms, preferences and leave
         # come from the database for the chair's own department, and a different list sent by the client is ignored.
@@ -205,6 +207,8 @@ def run_ga():
         if faculty_in and _faculty_key(faculty_in) != _faculty_key(db_in["faculty"]):
             extra_warnings.append("The faculty list sent by the browser differs from the saved one; the saved list was used.")
             log.warning("run in %s: client faculty list differs from the database; the database list was used", dept)
+        period_in = {"start": (db_in.get("period") or {}).get("start"), "end": (db_in.get("period") or {}).get("end"),
+                     "academic_year": data.get("academic_year") or (db_in.get("period") or {}).get("academic_year")}
         faculty_in, prefs_in, sizes_in, replace_prefs = (db_in["faculty"], db_in["soft_constraints"],
                                                          db_in["class_sizes"], True)
         if db_in["rooms"]:
@@ -251,6 +255,9 @@ def run_ga():
         replace_preferences=replace_prefs,
         seed=seed,
         deterministic=deterministic,
+        period_start=period_in["start"],
+        period_end=period_in["end"],
+        academic_year=period_in["academic_year"],
     )
 
     if "error" in result:

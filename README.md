@@ -609,7 +609,7 @@ On Workload Optimization every finished run is stored as a **Draft** (`schedule_
 
 OR-Tools is strongly recommended. Without it, the built-in greedy solver runs as a fallback: what it places is valid, but it does not guarantee full coverage or an optimal result.
 
-Chart.js is kept in `assets/vendor/`, so the dashboard needs no CDN. On Render the start command is `gunicorn app:app --timeout 120`.
+Chart.js is kept in `assets/vendor/`, so the dashboard needs no CDN. On Render the start command is `gunicorn app:app --workers 1 --threads 4 --timeout 120`. It is one process on purpose, because the state of a run lives in memory; so a restart (or a free-tier sleep) loses a running job, and two chairpersons of one department share one run state. CP-SAT uses one search worker per CPU, at most 8. The full checklist, including rotating the Supabase keys, is in `docs/DEPLOY.md`. Fonts (DM Sans, DM Serif Display, Instrument Serif, JetBrains Mono) are served from `assets/fonts/`, so no page contacts Google.
 
 
 
@@ -623,7 +623,7 @@ python -m pytest tests/test_part15.py -q  # Supabase sign in: static checks plus
 
 The Playwright tests open the dashboards with a fake Supabase (`tests/fake_auth.py`), so they need no real project.
 
-Tests marked `slow` run the solver for whole departments or open a real browser (Playwright: `pip install playwright pytest && python -m playwright install chromium`). `/run-ga` clamps its inputs (generations 1 to 200, population 4 to 100, mutation and crossover 0 to 1, solver time limit up to `CP_SAT_MAX_TIME_LIMIT_SECONDS`), answers 400 for non-numbers, and applies `units_per_assignment`, `non_classroom_units` and `cp_sat_time_limit` to that run only.
+Tests marked `slow` run the solver for whole departments or open a real browser (Playwright: `pip install -r requirements-dev.txt && python -m playwright install chromium`). `/run-ga` clamps its inputs (generations 1 to 200, population 4 to 100, mutation and crossover 0 to 1, solver time limit up to `CP_SAT_MAX_TIME_LIMIT_SECONDS`), answers 400 for non-numbers, and applies `units_per_assignment`, `non_classroom_units` and `cp_sat_time_limit` to that run only.
 
 To install the app on a phone, serve the site over HTTPS and use the browser's "Add to Home screen" option.
 
@@ -687,7 +687,7 @@ Five departments are scheduled separately: IT, CS, MB (Marine Biology), ES (Envi
 
 **Role-based behaviour.** Every request carries `dept` (query string for GET, JSON field for POST): `/run-ga`, `/progress`, `/soft-constraints`, `/rooms`, `/class-sizes`, `/analytics*`. A missing or unknown `dept` is a 400. `GET /curricula` lists the departments and `GET /curriculum/<dept>` returns a file (404 when unknown). Once a department is chosen the backend uses only its subjects, blocks, class sizes and rooms. Progress, last result, analytics, warnings, soft constraints, class sizes and room edits are stored per department, each with its own lock, so two departments can run at the same time without touching each other. `/run-ga` returns a `run_id`, echoed by `/progress`.
 
-The browser follows the same rule. The department of the signed-in profile (cached in `atlasDept` for display) decides the curriculum file, tags, rooms, defaults and every saved key: all browser data is stored as `<name>::<dept>` (for example `lastGAResult::CS`), results and reports of one department are never shown in another, and a log out or a different login empties everything held in memory. The faculty login lists only the names saved for the department picked in the same step. **Starting data.** IT starts with a pool of 10 faculty (`default_faculty` in `IT.json`, Mon to Thu, 24 units, hard cap 30); the other four departments start with 8 editable placeholder faculty (Prof A to H). The active period starts as 2026-2027, 1st Semester, until the chairperson sets one. Class sizes and, for MB, ES and MedB, room capacities are sample data (`class_sizes_placeholder`, `capacity_placeholder`): the dashboard says so, and they must be replaced with real figures before the output is used.
+The browser follows the same rule. The department of the signed-in profile (cached in `atlasDept` for display) decides the curriculum file, tags, rooms, defaults and every saved key: all browser data is stored as `<name>::<dept>` (for example `lastGAResult::CS`), results and reports of one department are never shown in another, and a log out or a different login empties everything held in memory. The faculty login lists only the names saved for the department picked in the same step. **Starting data.** IT starts with a pool of 10 faculty (`default_faculty` in `IT.json`, Mon to Thu, 24 units, hard cap 30); the other four departments start with 8 editable placeholder faculty (Prof A to H). The active period starts as 2026-2027, 1st Semester, until the chairperson sets one. A new professor defaults to Mon to Thu everywhere (form, database column, sample pool). Class sizes and, for MB, ES and MedB, room capacities are sample data (`class_sizes_placeholder`, `capacity_placeholder`): the dashboard says so, and they must be replaced with real figures before the output is used.
 
 
 
@@ -714,3 +714,7 @@ Specialization is counted per course group (year, section, subject), with electi
 ### Evaluation
 
 `python scripts/evaluate.py` regenerates the results-chapter tables (random-feasible baseline, CP-SAT only, CP-SAT + GA, 10 seeds, 5 departments x 2 semesters, plus the faculty scenarios) into `evaluation/results.csv` and `evaluation/summary.md`; the protocol is in `evaluation/README.md`. `--quick` is a smoke test. The standard faculty pool lives in `tools/faculty_pool.py` and `tests/conftest.py` re-exports it.
+
+### Leave and availability (Part 24)
+
+Leave is judged against the active period (`dept_settings.period_start` and `period_end`; when empty, the default calendar for the academic year and semester). A range outside the period is ignored. Ranges that together cover the whole period make the professor unavailable for the run (hard exclusion, with a warning, and they are left out of the load statistics). A partial range keeps the soft penalty, scaled by the share of the period covered. **Limitation:** the timetable repeats every week, so a professor on leave for part of the period is not scheduled around the weeks they are away; the penalty only discourages loading them. Available days (Mon to Sat) are still a hard rule; `restricted_days` is only a penalty. In the faculty table a professor with no specialization is highlighted with "Only electives can be assigned"; saving is never blocked. A professor's name saves on blur or Enter, numbers and checkboxes save on change.

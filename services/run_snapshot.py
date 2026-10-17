@@ -90,7 +90,7 @@ def _rooms(rs) -> dict:
 
 
 def build_data(dept, faculty_list, class_sizes, rs, soft_constraints, subjects, solver_settings,
-               seed, deterministic, active_semester=None) -> dict:
+               seed, deterministic, active_semester=None, period=None) -> dict:
     """The reproducibility inputs of one run, as plain JSON (academic year and semester are added when it is saved)."""
     data = {
         "dept": dept,
@@ -104,6 +104,8 @@ def build_data(dept, faculty_list, class_sizes, rs, soft_constraints, subjects, 
         "seed": int(seed),
         "deterministic": bool(deterministic),
     }
+    if period:                                                  # Part 24: the dates leave was judged against
+        data["period"] = {"start": str(period[0]), "end": str(period[1])}
     return json.loads(canonical_json(data))
 
 

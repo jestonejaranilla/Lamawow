@@ -20,6 +20,7 @@ from config.rooms import use_rooms
 from solver.cp_sat_solver import solve as cp_solve
 from solver.ga_optimizer import optimize as ga_optimize
 from services.analytics_service import compute_analytics
+from services import leave_service
 from solver.constraints import (
     faculty_qualifies, assignment_units, NON_CLASSROOM, validate_schedule,
 )
@@ -576,6 +577,8 @@ def run_scheduling_job(
                 why = "no specialization selected, so only electives can be assigned"
             elif not f.get("availability"):
                 why = "no available days selected"
+            elif (get_soft_constraints(dept, f["name"]) or {}).get("leave_fraction"):
+                why = "part of the period is on leave, which lowers their preference score"
             elif len(f.get("availability", [])) <= 2:
                 why = f"only {len(f['availability'])} available day(s)"
             else:
@@ -614,6 +617,9 @@ def start_scheduling(
     replace_preferences: bool = False,
     seed: Optional[int] = None,
     deterministic: Optional[bool] = None,
+    period_start=None,
+    period_end=None,
+    academic_year=None,
 ) -> dict:
     """
     Validate inputs, build the department's meetings, start the background job.
@@ -642,6 +648,17 @@ def start_scheduling(
             return {"error": "No subjects provided."}
 
         load_soft_constraints(dept, soft_constraints_incoming or {})      # replace, never merge (S2)
+        # Part 24: judge leave against the active period. Full-period leave excludes the professor (hard);
+        # partial leave becomes a penalty scaled by the share of the period. The snapshot keeps the raw ranges.
+        sem_no = parse_semester(active_semester)
+        period = leave_service.resolve_period(period_start, period_end, academic_year,
+                                              semester_label(sem_no) if sem_no else None)
+        raw_soft = copy.deepcopy(st.soft_constraints)
+        faculty_all = faculty_raw
+        faculty_raw, soft_run, leave_warnings = leave_service.apply_leave(faculty_raw, raw_soft, period)
+        if not faculty_raw:
+            return {"error": "Every professor is on leave for the whole period, so there is nobody to schedule."}
+        replace_soft_constraints(dept, soft_run)
         if class_sizes:
             update_class_sizes(dept, {k: v for k, v in class_sizes.items() if _block_key_ok(dept, k)})
         sizes = copy.deepcopy(st.class_sizes)
@@ -663,14 +680,14 @@ def start_scheduling(
                                 **{k: v for k, v in rs_now.items() if k not in ("seed", "deterministic") and v is not None}}
         effective_seed = _settings_cfg.run_seed() if rs_now.get("seed") is None else int(rs_now["seed"])
         effective_det = bool(rs_now.get("deterministic", _settings_cfg.DETERMINISTIC))
-        inputs_raw = run_snapshot.build_data(dept, faculty_raw, sizes, rooms, copy.deepcopy(st.soft_constraints),
+        inputs_raw = run_snapshot.build_data(dept, faculty_all, sizes, rooms, raw_soft,
                                              subjects_raw, solver_used_settings, effective_seed, effective_det,
-                                             active_semester)
+                                             active_semester, period)
         st.progress.update(run_id=run_id, running=True, phase="cp_sat", inputs_raw=inputs_raw,
                            coverage={"assigned": 0, "total": len(prep["groups"])})
 
     args = (dept, run_id, faculty_raw, sections, static_lookup, ga_params, sizes,
-            prep["groups"], prep["errors"], prep["warnings"], rooms)
+            prep["groups"], prep["errors"], list(prep["warnings"]) + leave_warnings, rooms)
     def job(*a):
         with _settings_cfg.run_settings(**(run_settings or {})):
             run_scheduling_job(*a)

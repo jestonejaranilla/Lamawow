@@ -39,6 +39,7 @@ hard rules (same helpers, same room matching). It is not optimal and may leave
 groups uncovered; it reports them exactly like the CP-SAT path.
 """
 
+import os
 import random
 import time
 from typing import Callable, Optional
@@ -57,6 +58,11 @@ from solver.constraints import (
 
 def _upa() -> int:
     return _cfg.units_per_assignment()
+
+
+def _search_workers() -> int:
+    """CP-SAT search workers: one per CPU, at most 8 (a small Render instance must not run 8 threads on 1 core)."""
+    return max(1, min(8, os.cpu_count() or 1))
 
 
 def _time_limit() -> float:
@@ -441,7 +447,7 @@ def _solve_with_ortools(meetings: list, groups: dict, faculty_list: list,
         solver.parameters.max_time_in_seconds = float(getattr(_cfg, "DETERMINISTIC_WALL_CAP_SECONDS", 300.0))
     else:
         solver.parameters.max_time_in_seconds = t_limit
-        solver.parameters.num_search_workers = 8
+        solver.parameters.num_search_workers = _search_workers()
     solver.parameters.random_seed = _cfg.run_seed()
 
     t_start = time.time()

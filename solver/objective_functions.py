@@ -74,7 +74,11 @@ def preference_term(assignment: dict, soft_constraints: dict) -> float:
         # Date-based unavailability / leave ranges (soft penalty - discourages
         # but does not hard-block, since slots are recurring weekly patterns
         # without concrete calendar dates).
-        if sc.get("unavailable_dates") or sc.get("leave_dates"):
+        # Part 24: with a period, services.leave_service turns the ranges into leave_fraction (share of the
+        # period on leave) and the penalty scales with it. Without a period the old flat penalty stays.
+        if sc.get("leave_fraction") is not None:
+            score += w.get("leave_penalty", -10.0) * float(sc["leave_fraction"])
+        elif sc.get("unavailable_dates") or sc.get("leave_dates"):
             score += w.get("leave_penalty", -10.0)
 
     return score

@@ -543,7 +543,8 @@
     return persist('settings', async function () {
       var r = await client().from('dept_settings').upsert({
         dept: ctx.dept, academic_year: s.academic_year, semester: s.semester,
-        solver: s.solver, lab_also_lecture: !!s.lab_also_lecture
+        solver: s.solver, lab_also_lecture: !!s.lab_also_lecture,
+        period_start: s.period_start || null, period_end: s.period_end || null   /* Part 24: dates leave is judged against */
       }, { onConflict: 'dept' });
       if (r.error) throw r.error;
       s.exists = true;
@@ -563,6 +564,14 @@
       if (SEMESTERS.indexOf(semester) < 0) return Promise.resolve({ ok: false, error: 'Unknown semester.' });
       mem.settings.academic_year = String(year).trim();
       mem.settings.semester = semester;
+      return saveSettingsRow(2);
+    },
+    /* Part 24: real dates of the active period (YYYY-MM-DD). Empty values fall back to the default for the year and semester. */
+    savePeriodDates: function (start, end) {
+      if (start && end && end < start) return Promise.resolve({ ok: false, error: 'The period must end after it starts.' });
+      if (!mem.settings) mem.settings = { academic_year: DEFAULT_PERIOD.academic_year, semester: DEFAULT_PERIOD.semester, solver: {}, lab_also_lecture: false, exists: false };
+      mem.settings.period_start = start || null;
+      mem.settings.period_end = end || null;
       return saveSettingsRow(2);
     },
     saveSolver: function (values) {
