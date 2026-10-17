@@ -172,3 +172,7 @@ restart. Finished runs and audit events are the only things the server writes to
   them sends its IP address to Google. ATLAS itself does not record it. The fonts can be hosted locally if this must be avoided.
 - The hosting provider and Supabase may keep their own infrastructure request logs. ATLAS does not read or control them.
 - `profiles.email` and `audit_log.email` are personal data of the people who use the system.
+
+## Load unit and derived metrics
+
+Load is counted in units: one scheduled meeting counts `units_per_assignment` units. This is a modelling choice; the optional `load_model` setting is `per_meeting` (implemented, default) or `prospectus` (not implemented). Fairness numbers (Jain, Gini, std, cv, zero-load count) are derived from the schedule by `workload_metrics` over all professors and stored in a run's `analytics` and `metrics.balance_score`. They add no new personal data.

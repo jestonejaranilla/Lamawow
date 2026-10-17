@@ -698,3 +698,11 @@ The browser follows the same rule. The department of the signed-in profile (cach
 **Limits.** Departments are scheduled separately: cross-department room clashes are not checked. The department comes from the signed-in user's profile and is checked by the server on every request; the browser cannot choose it.
 
 **Extract repo zip** git archive -o repository.zip HEAD
+
+### Load unit and fairness metrics
+
+One scheduled meeting counts `units_per_assignment` units (default 2) for its professor, and an unscheduled (non-classroom) group counts `non_classroom_units`. This is a modelling choice, not the teaching load as the prospectus defines it. The `load_model` setting (`LOAD_MODEL` in `config/settings.py`) names the model: `per_meeting` is the only one implemented; `prospectus` (course lecture plus lab hours divided across its meetings) is documented as future work and is not read by any code.
+
+`services/analytics_service.workload_metrics` is the single definition of workload fairness. It covers ALL professors (idle ones included) in units and returns mean, median, min, max, std, cv, Jain, Gini, zero-load count and over-cap counts. Saved runs (`balance_score` = 100 x Jain), the Reports panel and the Home balance card all read it. The Reports colour bands use Jain only (`JAIN_BAND_GOOD` 0.90, `JAIN_BAND_WARNING` 0.80). Underload means `0 < load < target`, target = total assigned units / number of professors. `utilization_pct` is a percent of regular load (`max_units`).
+
+Specialization is counted per course group (year, section, subject), with elective-only groups excluded: `primary_tag_match_pct` (course tag equals the professor's first listed tag), `any_tag_match_pct` ("qualified", 100 by design because the solver refuses unqualified professors) and `elective_group_count`.

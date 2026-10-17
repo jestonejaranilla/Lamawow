@@ -307,14 +307,14 @@
         <h3 class="section-heading">Fairness Report</h3>
         <div id="fairnessReport" class="fairness-report-grid">
           <div class="fairness-card fairness-score-card">
-            <div class="fairness-card-label">Fairness Score</div>
+            <div class="fairness-card-label">Balance Score</div>
             <div class="fairness-card-value" id="fairnessScore">-</div>
             <div class="fairness-card-sub" id="fairnessScoreLabel">Run optimization to compute</div>
           </div>
           <div class="fairness-card">
             <div class="fairness-card-label">Jain's Fairness Index</div>
             <div class="fairness-card-value" id="fairnessJain">-</div>
-            <div class="fairness-card-sub">1.00 = perfectly equal load</div>
+            <div class="fairness-card-sub">all faculty, in units. 1.00 = equal load</div>
           </div>
           <div class="fairness-card">
             <div class="fairness-card-label">Load Std. Deviation</div>
@@ -322,9 +322,29 @@
             <div class="fairness-card-sub">units - lower is more balanced</div>
           </div>
           <div class="fairness-card">
-            <div class="fairness-card-label">Specialization Match Rate</div>
+            <div class="fairness-card-label">Lowest / Highest Load</div>
+            <div class="fairness-card-value" id="fairnessMinMax">-</div>
+            <div class="fairness-card-sub">units per professor</div>
+          </div>
+          <div class="fairness-card">
+            <div class="fairness-card-label">Professors With No Load</div>
+            <div class="fairness-card-value" id="fairnessZeroLoad">-</div>
+            <div class="fairness-card-sub">zero units assigned</div>
+          </div>
+          <div class="fairness-card">
+            <div class="fairness-card-label">Primary Tag Match</div>
             <div class="fairness-card-value" id="fairnessMatchRate">-</div>
-            <div class="fairness-card-sub">% of assignments matching faculty spec</div>
+            <div class="fairness-card-sub">course groups on the professor's first tag</div>
+          </div>
+          <div class="fairness-card">
+            <div class="fairness-card-label">Qualified</div>
+            <div class="fairness-card-value" id="fairnessQualified">-</div>
+            <div class="fairness-card-sub">holds a listed tag (100% by design, a hard rule)</div>
+          </div>
+          <div class="fairness-card">
+            <div class="fairness-card-label">Elective Groups</div>
+            <div class="fairness-card-value" id="fairnessElectiveGroups">-</div>
+            <div class="fairness-card-sub">open to any professor, not scored</div>
           </div>
         </div>
         <div id="fairnessPerFaculty" style="margin-bottom:28px;"></div>

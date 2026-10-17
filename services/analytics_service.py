@@ -12,6 +12,113 @@ from solver.constraints import (
 from solver.objective_functions import compute_satisfaction_metrics
 
 
+def _gini(values: list) -> float:
+    """Gini coefficient of non-negative values (0 = equal, toward 1 = one person has everything)."""
+    n = len(values)
+    total = sum(values)
+    if n == 0 or total <= 0:
+        return 0.0
+    xs = sorted(values)
+    weighted = sum((i + 1) * x for i, x in enumerate(xs))
+    return (2.0 * weighted) / (n * total) - (n + 1.0) / n
+
+
+def workload_metrics(assignments: list, faculty_list: list) -> dict:
+    """
+    THE one definition of workload fairness. Computed over ALL faculty (zero-load professors
+    included) and in load UNITS (assignment_units), never in meeting rows.
+    Saved runs (run_store.balance_score), Reports and the analytics payload all read this.
+    """
+    names = [f["name"] for f in faculty_list]
+    loads = {name: 0 for name in names}
+    for a in assignments or []:
+        fac = a.get("faculty") if isinstance(a, dict) else None
+        if fac in loads:
+            loads[fac] += assignment_units(a)
+    meta = {f["name"]: f for f in faculty_list}
+    values = [loads[n] for n in names]
+    n = len(values)
+    total = sum(values)
+    mean = total / n if n else 0.0
+    var = sum((v - mean) ** 2 for v in values) / n if n else 0.0
+    std = var ** 0.5
+    sq = sum(v * v for v in values)
+    jain = (total * total) / (n * sq) if n and sq else 0.0
+    sorted_v = sorted(values)
+    mid = n // 2
+    median = 0.0 if not n else (sorted_v[mid] if n % 2 else (sorted_v[mid - 1] + sorted_v[mid]) / 2)
+    per = []
+    over_soft = over_hard = 0
+    for name in names:
+        soft = meta[name].get("max_units", 24)
+        hard = meta[name].get("absolute_max_units", 30)
+        over_soft += 1 if loads[name] > soft else 0
+        over_hard += 1 if loads[name] > hard else 0
+        per.append({"faculty": name, "units": loads[name], "max_units": soft, "absolute_max": hard})
+    return {
+        "unit": "load units (one scheduled meeting counts units_per_assignment units)",
+        "faculty_count": n,
+        "total_units": total,
+        "mean": round(mean, 3),
+        "median": round(median, 3),
+        "min": min(values) if n else 0,
+        "max": max(values) if n else 0,
+        "std": round(std, 3),
+        "cv": round(std / mean, 4) if mean > 0 else 0.0,
+        "jain": round(jain, 4),
+        "jain_exact": jain,
+        "gini": round(_gini(values), 4),
+        "zero_load_count": sum(1 for v in values if v == 0),
+        "over_soft_cap_count": over_soft,
+        "over_hard_cap_count": over_hard,
+        "per_professor": per,
+    }
+
+
+def _specialization_groups(assignments: list, fac_map: dict, static_lookup: dict) -> dict:
+    """
+    Specialization match, counted per COURSE GROUP (year + section + subject), not per meeting row.
+    Elective-only groups are excluded from the percentages and counted separately.
+      primary_tag_match_pct: the course carries the professor's FIRST listed tag
+      any_tag_match_pct:     the professor holds ANY tag of the course ("qualified"; 100 by design,
+                             because the solver refuses unqualified professors)
+    """
+    groups: dict = {}
+    for a in assignments or []:
+        key = (a.get("year", ""), a.get("section", ""), a.get("subject", ""))
+        groups.setdefault(key, []).append(a)
+
+    elective = scored = primary = qualified = 0
+    per_fac: dict = {}
+    for (_y, _sec, subj), rows in groups.items():
+        if is_open_assignment(subj, static_lookup):
+            elective += 1
+            continue
+        required = static_lookup.get(subj, [])
+        facs = [fac_map.get(r.get("faculty", "")) for r in rows]
+        scored += 1
+        ok_any = all(f is not None and is_exact_spec_match(f, subj, static_lookup) for f in facs)
+        ok_primary = all(f is not None and (f.get("specialization") or [None])[0] in required for f in facs)
+        qualified += 1 if ok_any else 0
+        primary += 1 if ok_primary else 0
+        first = rows[0].get("faculty", "")
+        if first:
+            d = per_fac.setdefault(first, {"faculty": first, "groups": 0, "primary": 0, "qualified": 0})
+            d["groups"] += 1
+            d["primary"] += 1 if ok_primary else 0
+            d["qualified"] += 1 if ok_any else 0
+    return {
+        "group_count": len(groups),
+        "scored_group_count": scored,
+        "elective_group_count": elective,
+        "primary_tag_match_count": primary,
+        "any_tag_match_count": qualified,
+        "primary_tag_match_pct": round(primary / scored * 100, 1) if scored else 0.0,
+        "any_tag_match_pct": round(qualified / scored * 100, 1) if scored else 0.0,
+        "per_faculty": sorted(per_fac.values(), key=lambda d: d["faculty"]),
+    }
+
+
 def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict,
                        soft_constraints: dict, solver_metrics: dict,
                        class_sizes: dict = None) -> dict:
@@ -47,7 +154,7 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
             "assigned_units":  assigned,
             "max_units":       available,
             "absolute_max":    abs_max,
-            "utilization_pct": util_pct,
+            "utilization_pct": util_pct,   # percent of regular load (max_units)
             "status": (
                 "overload"   if assigned > abs_max  else
                 "max_load"   if assigned > available else
@@ -69,7 +176,9 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
     abs_max_per_fac = {f["name"]: f.get("absolute_max_units", 30) for f in faculty_list}
     overload_count   = sum(1 for f in faculty_list if fac_loads[f["name"]] > abs_max_per_fac[f["name"]])
     at_max_count     = sum(1 for f in faculty_list if max_units_per_fac[f["name"]] < fac_loads[f["name"]] <= abs_max_per_fac[f["name"]])
-    underload_count  = sum(1 for f in faculty_list if 0 < fac_loads[f["name"]] < max_units_per_fac[f["name"]])
+    # Underload: 0 < load < target, target = total assigned units / number of professors (not max_units)
+    target_load      = sum(load_values) / n
+    underload_count  = sum(1 for f in faculty_list if 0 < fac_loads[f["name"]] < target_load)
     unassigned_count = sum(1 for f in faculty_list if fac_loads[f["name"]] == 0)
 
     workload_distribution = {
@@ -78,6 +187,7 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
         "overload_count":   overload_count,
         "at_max_count":     at_max_count,
         "underload_count":  underload_count,
+        "underload_target": round(target_load, 2),
         "unassigned_count": unassigned_count,
         "total_faculty":    len(faculty_list),
     }
@@ -107,7 +217,12 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
         "mismatch_count":    mismatches,
         "exact_match_pct":   round(exact_matches / total_assignments * 100, 1) if total_assignments else 0.0,
         "mismatch_pct":      round(mismatches / total_assignments * 100, 1)    if total_assignments else 0.0,
+        # exact_match_* above are legacy per-meeting counts (elective-only rows count as matches). The UI uses the group metrics below.
+        **_specialization_groups(assignments, fac_map, static_lookup),
     }
+
+    wl = workload_metrics(assignments, faculty_list)
+    wl["bands"] = {"good": _cfg_ana.JAIN_BAND_GOOD, "warning": _cfg_ana.JAIN_BAND_WARNING}
 
     # ── Room utilization ──────────────────────────────────────────────────────
     from config.settings import TIME_SLOTS
@@ -146,6 +261,7 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
     return {
         "faculty_utilization":    faculty_utilization,
         "workload_distribution":  workload_distribution,
+        "workload_metrics":       wl,
         "specialization_metrics": spec_metrics,
         "room_utilization":       room_utilization,
         "capacity_metrics":       capacity_metrics,
@@ -259,6 +375,7 @@ def _empty_analytics() -> dict:
     return {
         "faculty_utilization":    [],
         "workload_distribution":  {},
+        "workload_metrics":       {},
         "specialization_metrics": {},
         "room_utilization":       [],
         "capacity_metrics":       _empty_capacity_metrics(),

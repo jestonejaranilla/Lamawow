@@ -53,29 +53,32 @@ def _period(dept: str, academic_year, active_semester):
     return year or "unspecified", semester or "unspecified"
 
 
-def balance_score(result):
-    """Evenness of the teaching load as a 0-100 number (Jain's fairness index over the faculty that have classes).
-    Stored in metrics so the Saved runs list can show it without loading the large result. None when nothing is assigned."""
-    loads = {}
-    for item in result or []:
-        name = item.get("faculty") if isinstance(item, dict) else None
-        if name:
-            loads[name] = loads.get(name, 0) + 1
-    if not loads:
+def balance_score(result, faculty_list=None):
+    """Evenness of the teaching load as a 0-100 number: Jain's index over ALL faculty, in load units
+    (services.analytics_service.workload_metrics, the single definition). Idle professors lower it.
+    Without a faculty list, only the professors named in the result are known. None when nothing is assigned."""
+    from services.analytics_service import workload_metrics
+    rows = [r for r in result or [] if isinstance(r, dict) and r.get("faculty")]
+    if not rows:
         return None
-    total = sum(loads.values())
-    squares = sum(v * v for v in loads.values())
-    return round(100.0 * total * total / (len(loads) * squares), 1)
+    faculty = faculty_list or [{"name": n} for n in dict.fromkeys(r["faculty"] for r in rows)]
+    return round(100.0 * workload_metrics(rows, faculty)["jain_exact"], 1)
 
 
 def save_draft(dept, user_id, progress, solver_settings, duration_ms, academic_year, active_semester) -> str:
     """Insert the finished run as a draft. Returns the new run's uuid."""
     year, semester = _period(dept, academic_year, active_semester)
+    import config.settings as _cfg
+    faculty = [{"name": p["faculty"], "max_units": p.get("max_units", 24), "absolute_max_units": p.get("absolute_max", 30)}
+               for p in ((progress.get("analytics") or {}).get("workload_metrics") or {}).get("per_professor", [])]
+    with _cfg.run_settings(units_per_assignment=(solver_settings or {}).get("units_per_assignment"),
+                           non_classroom_units=(solver_settings or {}).get("non_classroom_units")):
+        balance = balance_score(progress.get("result"), faculty)
     row = {
         "dept": dept, "academic_year": year, "semester": semester, "status": "draft",
         "created_by": user_id,
         "solver_settings": _json_safe(solver_settings),
-        "metrics": _json_safe({**(progress.get("metrics") or {}), "balance_score": balance_score(progress.get("result"))}),
+        "metrics": _json_safe({**(progress.get("metrics") or {}), "balance_score": balance}),
         "coverage": _json_safe({"summary": progress.get("coverage") or {},
                                 "errors": progress.get("coverage_errors") or []}),
         "duration_ms": int(duration_ms),

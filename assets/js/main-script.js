@@ -522,15 +522,14 @@ function updateDashboardStats(counts, facMaxMap = {}) {
   if (!values.length) return;
   const avg = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
   const overloaded = Object.entries(counts).filter(([name, v]) => v > (facMaxMap[name] || MAX_UNITS)).length;
-  const maxV = Math.max(...values);
-  const minV = Math.min(...values);
-  const balance = maxV > 0 ? ((1 - (maxV - minV) / maxV) * 100).toFixed(0) : 100;
+  const wlm = (window.__atlasAnalytics || {}).workload_metrics;
+  const balance = wlm && wlm.jain_exact !== undefined ? Math.round(wlm.jain_exact * 100) : null;   // same number as Saved runs and Reports
   const elAvg  = document.getElementById('statAvgLoad');
   const elOver = document.getElementById('statOverloaded');
   const elBal  = document.getElementById('statBalance');
   if (elAvg)  elAvg.textContent  = avg;
   if (elOver) elOver.textContent = overloaded;
-  if (elBal)  elBal.textContent  = balance + '%';
+  if (elBal)  elBal.textContent  = balance === null ? '-' : balance + '%';
 }
 
 /* ============================================================
@@ -796,69 +795,46 @@ function specMatchesCourse(specList, subjectTitle) {
 function computeFairnessReport(data) {
   if (!data || !data.length) return;
 
-  // Build per-faculty load map
-  const upa = getUnitsPerAssignment();
-  const loadMap = {};
-  data.forEach(item => {
-    if (!item.faculty) return;
-    loadMap[item.faculty] = (loadMap[item.faculty] || 0) + upa; // units per assignment (configurable)
-  });
+  // Every number comes from the backend analytics payload (services/analytics_service.py). Nothing is recomputed here.
+  const an = window.__atlasAnalytics || {};
+  const wl = an.workload_metrics && an.workload_metrics.per_professor ? an.workload_metrics : null;
+  const sp = an.specialization_metrics && an.specialization_metrics.scored_group_count !== undefined ? an.specialization_metrics : null;
+  const el = id => document.getElementById(id);
+  const set = (id, text) => { const n = el(id); if (n) n.textContent = text; };
+
+  if (wl) {
+    const bands = wl.bands || { good: 0.9, warning: 0.8 };
+    const cls = wl.jain >= bands.good ? 'good' : wl.jain >= bands.warning ? 'warning' : 'danger';
+    const label = cls === 'good' ? 'Good - evenly balanced' : cls === 'warning' ? 'Moderate - minor imbalances' : 'Poor - significant imbalances';
+    set('fairnessScore', Math.round(wl.jain_exact * 100) + '%');
+    el('fairnessScore').className = 'fairness-card-value ' + cls;
+    set('fairnessScoreLabel', label + (window.__atlasAnalyticsStale ? ' (generated run, not updated for manual edits)' : ''));
+    set('fairnessJain', wl.jain.toFixed(4));
+    set('fairnessStdDev', wl.std.toFixed(2) + ' u');
+    set('fairnessMinMax', wl.min + ' / ' + wl.max + ' u');
+    set('fairnessZeroLoad', String(wl.zero_load_count));
+  } else {
+    ['fairnessScore', 'fairnessJain', 'fairnessStdDev', 'fairnessMinMax', 'fairnessZeroLoad'].forEach(id => set(id, '-'));
+    set('fairnessScoreLabel', 'Not available for this run');
+  }
+  if (sp) {
+    set('fairnessMatchRate', sp.primary_tag_match_pct.toFixed(1) + '%');
+    set('fairnessQualified', sp.any_tag_match_pct.toFixed(1) + '%');
+    set('fairnessElectiveGroups', String(sp.elective_group_count));
+  } else {
+    ['fairnessMatchRate', 'fairnessQualified', 'fairnessElectiveGroups'].forEach(id => set(id, '-'));
+  }
 
   const facultyData = getFacultyFromTable();
   const facMeta = {};
   facultyData.forEach(f => { facMeta[f.name] = f; });
-
-  const totalAssigned = data.length;
-  let matchedSpecs = 0;
   const perFaculty = {};
-
-  // Initialize per-faculty trackers
-  facultyData.forEach(f => {
-    perFaculty[f.name] = { total: 0, matched: 0, load: loadMap[f.name] || 0 };
+  const specByFac = {};
+  ((sp && sp.per_faculty) || []).forEach(d => { specByFac[d.faculty] = d; });
+  ((wl && wl.per_professor) || []).forEach(p => {
+    const s = specByFac[p.faculty] || { groups: 0, primary: 0 };
+    perFaculty[p.faculty] = { total: s.groups, matched: s.primary, load: p.units, max: p.max_units };
   });
-
-  data.forEach(item => {
-    if (!item.faculty || !perFaculty[item.faculty]) return;
-    perFaculty[item.faculty].total++;
-    
-    const meta = facMeta[item.faculty];
-    if (meta) {
-      const isMatch = specMatchesCourse(meta.specialization, item.subject);
-      if (isMatch) {
-        matchedSpecs++;
-        perFaculty[item.faculty].matched++;
-      }
-    }
-  });
-
-  // 1. Match Rate
-  const matchRate = totalAssigned ? (matchedSpecs / totalAssigned) * 100 : 0;
-
-  // 2. Jain's Fairness Index & Std Dev
-  const loads = facultyData.map(f => loadMap[f.name] || 0);
-  const n = loads.length;
-  let sumLoads = 0, sumSqLoads = 0;
-  loads.forEach(l => { sumLoads += l; sumSqLoads += l * l; });
-
-  const jain = (sumLoads * sumLoads) / (n * sumSqLoads || 1);
-  const mean = sumLoads / (n || 1);
-  let varianceSum = 0;
-  loads.forEach(l => { varianceSum += Math.pow(l - mean, 2); });
-  const stdDev = Math.sqrt(varianceSum / (n || 1));
-
-  // Overall combined rating score (0 - 100%)
-  const fairnessScore = Math.round((jain * 0.6 + (matchRate / 100) * 0.4) * 100);
-  const scoreClass = fairnessScore >= 85 ? 'good' : fairnessScore >= 60 ? 'warning' : 'danger';
-  const scoreLabel = fairnessScore >= 85 ? 'Excellent - Highly balanced' : fairnessScore >= 60 ? 'Moderate - minor imbalances' : 'Poor - significant imbalances';
-
-  // Update summary cards
-  const el = id => document.getElementById(id);
-  el('fairnessScore').textContent = fairnessScore + '%';
-  el('fairnessScore').className = 'fairness-card-value ' + scoreClass;
-  el('fairnessScoreLabel').textContent = scoreLabel;
-  el('fairnessJain').textContent = jain.toFixed(4);
-  el('fairnessStdDev').textContent = stdDev.toFixed(2) + ' u';
-  el('fairnessMatchRate').textContent = matchRate.toFixed(1) + '%';
 
   // Per-faculty table
   const container = document.getElementById('fairnessPerFaculty');
@@ -868,15 +844,15 @@ function computeFairnessReport(data) {
     const d = perFaculty[name];
     const pct = d.total ? Math.round((d.matched / d.total) * 100) : 0;
     const cls = pct === 100 ? 'match-yes' : pct >= 50 ? 'match-partial' : 'match-no';
-    const facMax = facMeta[name]?.max_units || MAX_UNITS;
+    const facMax = d.max || facMeta[name]?.max_units || MAX_UNITS;
     const loadCls = d.load > facMax ? 'badge-danger' : d.load === facMax ? 'badge-warning' : 'badge-success';
 
     return `
       <tr>
         <td><strong>${escapeHTML(name)}</strong></td>
-        <td><span class="load-badge ${loadCls}">${d.load} / ${facMeta[name]?.max_units || 24} u</span></td>
-        <td>${d.total} classes</td>
-        <td><span class="match-indicator ${cls}">${pct}% match (${d.matched}/${d.total})</span></td>
+        <td><span class="load-badge ${loadCls}">${d.load} / ${d.max || facMeta[name]?.max_units || 24} u</span></td>
+        <td>${d.total} scored course groups</td>
+        <td><span class="match-indicator ${cls}">${pct}% primary tag (${d.matched}/${d.total})</span></td>
       </tr>
     `;
   });
@@ -887,8 +863,8 @@ function computeFairnessReport(data) {
         <tr>
           <th>Faculty Member</th>
           <th>Workload Status</th>
-          <th>Total Classes</th>
-          <th>Specialization Accuracy</th>
+          <th>Course Groups</th>
+          <th>Primary Tag Match</th>
         </tr>
       </thead>
       <tbody>
@@ -1131,6 +1107,8 @@ function initRunGA() {
 
             screenSemester = null;                           // a new run belongs to the active period
             lastGAResult = status.result || [];
+            window.__atlasAnalytics = status.analytics && Object.keys(status.analytics).length ? status.analytics : null;
+            window.__atlasAnalyticsStale = false;
             if (status.analytics && status.analytics.capacity_metrics) {
               mergeCapacityStatuses(status.analytics);
             }
@@ -1616,6 +1594,7 @@ function initEditFacultyModal() {
 
         // Re-render all panels
         persistEditedResult();
+        window.__atlasAnalyticsStale = true;      // the payload describes the generated run, not this manual edit
         const displayResult = filterResultBySemester(lastGAResult);
         renderTable(displayResult);
         updateCharts(displayResult);
@@ -2028,6 +2007,7 @@ function generatePrintReport() {
   const fScore  = document.getElementById('fairnessScore').textContent;
   const fJain   = document.getElementById('fairnessJain').textContent;
   const fMatch  = document.getElementById('fairnessMatchRate').textContent;
+  const fQual   = document.getElementById('fairnessQualified').textContent;
   const fStdDev = document.getElementById('fairnessStdDev').textContent;
 
   const html = `
@@ -2130,7 +2110,7 @@ function generatePrintReport() {
       <tr>
         <td><div class="v">${fScore}</div><div class="l">Balance score</div></td>
         <td><div class="v">${fJain}</div><div class="l">Jain's index</div></td>
-        <td><div class="v">${fMatch}</div><div class="l">Specialization match</div></td>
+        <td><div class="v">${fMatch}</div><div class="l">Primary tag match (qualified ${fQual})</div></td>
         <td><div class="v">${fStdDev}</div><div class="l">Load std. deviation</div></td>
       </tr>
     </table>
@@ -2404,6 +2384,8 @@ function applyRunToScreen(run) {
   currentRunDbId = run ? run.id : null;
   currentRunStatus = run ? run.status : null;
   screenSemester = run && run.semester && run.semester !== 'unspecified' ? run.semester : null;
+  window.__atlasAnalytics = run && run.analytics && Object.keys(run.analytics).length ? run.analytics : null;
+  window.__atlasAnalyticsStale = false;
   const displayResult = filterResultBySemester(lastGAResult);
   renderTable(displayResult);
   updateCharts(displayResult);
@@ -3199,7 +3181,7 @@ function resetDepartmentState() {
    'lectureRoomsList', 'labRoomsList', 'editAssignmentList'
   ].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
   ['statAvgLoad', 'statOverloaded', 'statBalance', 'fairnessScore', 'fairnessScoreLabel', 'fairnessJain',
-   'fairnessStdDev', 'fairnessMatchRate', 'navUserLabel', 'deptBannerName'
+   'fairnessStdDev', 'fairnessMatchRate', 'fairnessMinMax', 'fairnessZeroLoad', 'fairnessQualified', 'fairnessElectiveGroups', 'navUserLabel', 'deptBannerName'
   ].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
   const card = document.getElementById('capacitySummaryCard');
   if (card) card.style.display = 'none';

@@ -126,7 +126,15 @@ CP_WEIGHTS = {
     "lab_for_lecture":   20,         # per lecture placed in a laboratory room
     "room_over":         1,          # per student above a room's recommended size
 }
+# Load unit (a MODELLING CHOICE, not the prospectus load): one scheduled meeting counts
+# UNITS_PER_ASSIGNMENT units for its professor. Unscheduled (non-classroom) groups count NON_CLASSROOM_UNITS.
 UNITS_PER_ASSIGNMENT = 2
+# "per_meeting" is the only implemented model. "prospectus" (units = course lec + lab hours from the
+# curriculum JSON, divided across its meetings) is NOT implemented; nothing reads this value yet.
+LOAD_MODEL = "per_meeting"
+# Colour bands of the Reports balance card, on Jain's index (0 to 1) only.
+JAIN_BAND_GOOD = 0.90      # at or above: good
+JAIN_BAND_WARNING = 0.80   # at or above: warning; below: danger
 # Load units counted for one NON_CLASSROOM group (unscheduled courses such as IT 20, IT 22, Practicum).
 NON_CLASSROOM_UNITS = 2
 
