@@ -18,7 +18,7 @@ environment settings and in your local `.env` (which is git-ignored).
 - **Solver time (optional environment variables, seconds):**
   - `ATLAS_CP_SAT_TIME_LIMIT`: default budget of a run that does not ask for one (default 30, never above the ceiling).
     The dashboard sends the department's saved Solver Settings value, so that is what a browser run uses.
-  - `ATLAS_CP_SAT_MAX_TIME_LIMIT`: hard ceiling for every run, including the browser setting (default 40, allowed up to 120).
+  - `ATLAS_CP_SAT_MAX_TIME_LIMIT`: hard ceiling for every run, including the browser setting (default 40, allowed up to 120). The Solver Settings slider goes up to 120 s (default 45 s) and the server clamps it to this ceiling, so set `ATLAS_CP_SAT_MAX_TIME_LIMIT=60` on Render to let the slider reach 60 s.
   - gunicorn's `--timeout 120` does not limit the background job, which runs in its own thread. Keep a demo run under
     about 60 s anyway.
   - If CP-SAT stops on its limit with groups still uncovered (slow free CPU), a repair step completes them without

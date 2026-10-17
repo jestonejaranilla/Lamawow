@@ -11,7 +11,7 @@
   const FIELDS = {
     max_units:            { label: 'Standard Max Units',   min: 1, max: 40,  int: true,  def: 24 },
     units_per_assignment: { label: 'Units Per Assignment', min: 1, max: 10,  int: true,  def: 2 },
-    cp_sat_time_limit:    { label: 'CP-SAT Time Limit',    min: 5, max: 40,  int: false, def: 30 },
+    cp_sat_time_limit:    { label: 'CP-SAT Time Limit',    min: 5, max: 120, int: false, def: 45 },
     population:           { label: 'Population Size',      min: 4, max: 100, int: true,  def: 50 },
     generations:          { label: 'Generations',          min: 1, max: 200, int: true,  def: 100 },
     mutation:             { label: 'Mutation Rate',        min: 0, max: 1,   int: false, def: 0.09 },
@@ -35,7 +35,7 @@
   }
 
   /* Reads the department's saved values from the data store's memory (filled from the database before the page
-     starts). A value that is missing or outside its limit (for example the old 60 s) falls back to the default. */
+     starts). A value that is missing or outside its limit (for example 200 s) falls back to the default. */
   function read(dept) {
     const s = store();
     const stored = s && s.dept() === dept ? s.settings.solver() : {};

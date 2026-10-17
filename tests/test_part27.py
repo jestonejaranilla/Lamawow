@@ -133,8 +133,8 @@ def partial_cp_sat(monkeypatch):
     real = cps._solve_with_ortools
     box = {"kept": {}, "dropped": []}
 
-    def partial(meetings, groups, faculty_list, static_lookup, progress_cb=None):
-        plan, info = real(meetings, groups, faculty_list, static_lookup, progress_cb)
+    def partial(meetings, groups, faculty_list, static_lookup, progress_cb=None, hint=None):
+        plan, info = real(meetings, groups, faculty_list, static_lookup, progress_cb, hint)
         gids = sorted(plan)
         box["dropped"] = gids[::2]
         for gid in box["dropped"]:

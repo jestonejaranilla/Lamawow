@@ -200,30 +200,9 @@ def compute_analytics(assignments: list, faculty_list: list, static_lookup: dict
 
     # ── Specialization metrics ────────────────────────────────────────────────
     total_assignments = len(assignments)
-    exact_matches = 0
-    mismatches = 0
-
-    for a in assignments:
-        fac = fac_map.get(a.get("faculty", ""))
-        if not fac:
-            mismatches += 1
-            continue
-        subj = a.get("subject", "")
-        if is_open_assignment(subj, static_lookup):      # Elective-only courses: any professor
-            exact_matches += 1
-            continue
-        if is_exact_spec_match(fac, subj, static_lookup):
-            exact_matches += 1
-        else:
-            mismatches += 1
 
     spec_metrics = {
         "total_assignments": total_assignments,
-        "exact_match_count": exact_matches,
-        "mismatch_count":    mismatches,
-        "exact_match_pct":   round(exact_matches / total_assignments * 100, 1) if total_assignments else 0.0,
-        "mismatch_pct":      round(mismatches / total_assignments * 100, 1)    if total_assignments else 0.0,
-        # exact_match_* above are legacy per-meeting counts (elective-only rows count as matches). The UI uses the group metrics below.
         **_specialization_groups(assignments, fac_map, static_lookup),
     }
 

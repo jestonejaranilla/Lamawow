@@ -194,7 +194,7 @@ def browser(server):
 
 
 def new_page(browser):
-    ctx = browser.new_context()
+    ctx = browser.new_context(bypass_csp=True)
     ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())
     page = ctx.new_page()
     page.add_init_script(FAKE_AUTH)

@@ -166,7 +166,7 @@ def test_page_works_with_zero_saved_runs():
     try:
         with pw.sync_playwright() as p:
             b = p.chromium.launch()
-            ctx = b.new_context()
+            ctx = b.new_context(bypass_csp=True)
             ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())
             page = ctx.new_page()
             errors = []

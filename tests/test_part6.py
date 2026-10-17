@@ -81,7 +81,7 @@ def test_elective_only_course_counts_as_match_in_any_department():
     rows = [{"faculty": "Prof X", "subject": "CS Elective 4", "class_type": "LECTURE", "room": "CL1",
              "section": "CS3B1", "student_count": 30}]
     out = compute_analytics(rows, fac, {"CS Elective 4": ["Elective"]}, {}, {}, {})
-    assert out["specialization_metrics"]["exact_match_count"] == 1
+    assert out["specialization_metrics"]["elective_group_count"] == 1
 
 
 def test_login_script_never_reads_an_unsuffixed_data_key():

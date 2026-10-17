@@ -80,7 +80,7 @@ def local_data_keys(page):
 def test_it_to_cs_to_it():
     with pw.sync_playwright() as p:
         browser = p.chromium.launch()
-        ctx = browser.new_context()
+        ctx = browser.new_context(bypass_csp=True)
         ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())
         page = ctx.new_page()
         login(page, "IT")

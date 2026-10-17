@@ -53,7 +53,7 @@ def ensure_faculty(page):
 
 
 def open_dashboard(browser, dept):
-    ctx = browser.new_context()
+    ctx = browser.new_context(bypass_csp=True)
     ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())   # nothing may load from the internet
     page = ctx.new_page()
     errors = []
@@ -142,10 +142,15 @@ def test_panel_layout_and_preferences_round_trip(browser, dept):
     for i in ("populationSize", "numGenerations", "mutationRate", "crossoverRate", "sysMaxUnits",
               "saveSystemSettings", "engineSettingsCard", "engineSettingsHolder"):
         assert page.locator("#" + i).count() == 0, i                 # moved to the menu settings page
-    assert page.inner_text("#solverSummary") == "30 s limit, 50 population, 100 generations"
+    assert page.inner_text("#solverSummary") == "45 s limit, 50 population, 100 generations"
     btn = page.locator("#goToAdvancedSettings")
     assert btn.inner_text().strip() == "Solver Settings"
-    assert "application-settings.html#solver" in btn.get_attribute("onclick")
+    page.click(".nav-item[data-panel='1']")               # the button lives in the Optimization panel
+    btn.click()
+    page.wait_for_url(re.compile(r"app/application-settings\.html#solver$"))
+    assert page.url.endswith("app/application-settings.html#solver")
+    page.go_back()
+    page.wait_for_url(re.compile(r"dashboard\.html"))
     # preference save and load still work
     page.wait_for_function("document.querySelector('#scFacultySelect').options.length > 1")
     name = page.evaluate("document.querySelector('#scFacultySelect').options[1].value")
@@ -192,10 +197,10 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
     page.goto(SETTINGS_URL + "#solver")
     assert page.locator("#solver").is_visible()
     assert page.evaluate("document.querySelector('main .app-card:not(.period-card)').id") == "solver"       # first settings card after the period card
-    assert page.input_value("#sysCpSatTimeLimit") == "30"                                 # default is 30, not 60
+    assert page.input_value("#sysCpSatTimeLimit") == "45"                                 # default is 45
 
     # bad values: inline error, nothing saved
-    fill(page, {"max_units": 41, "units_per_assignment": 11, "cp_sat_time_limit": 41, "population": 3,
+    fill(page, {"max_units": 41, "units_per_assignment": 11, "cp_sat_time_limit": 121, "population": 3,
                 "generations": 201, "mutation": 1.5, "crossover": -0.1})
     page.click("#btnSaveSolver")
     for field in IDS.values():
@@ -242,7 +247,7 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
     page.goto(SETTINGS_URL)
     page.click("#btnRestoreSolver")
     saved(page)
-    assert stored(page, "IT") == {"max_units": 24, "units_per_assignment": 2, "cp_sat_time_limit": 30,
+    assert stored(page, "IT") == {"max_units": 24, "units_per_assignment": 2, "cp_sat_time_limit": 45,
                                   "population": 50, "generations": 100, "mutation": 0.09, "crossover": 0.95}
     assert not errors, errors
     page.context.close()
@@ -251,15 +256,15 @@ def test_solver_settings_card_validation_per_department_and_run_request(browser)
 def test_old_out_of_range_saved_value_falls_back_to_the_default(browser):
     page, _ = open_dashboard(browser, "MB")
     page.evaluate("""() => window.__testDb.upsert('dept_settings', {dept: 'MB', academic_year: '2026-2027', semester: '1st Semester',
-        solver: {cp_sat_time_limit: 60, population: 500}, lab_also_lecture: false}, ['dept'])""")
+        solver: {cp_sat_time_limit: 200, population: 500}, lab_also_lecture: false}, ['dept'])""")
     page.reload()
     ensure_faculty(page)
-    assert page.inner_text("#solverSummary") == "30 s limit, 50 population, 100 generations"
+    assert page.inner_text("#solverSummary") == "45 s limit, 50 population, 100 generations"
     page.context.close()
 
 
 def test_faculty_account_does_not_get_the_solver_card(browser):
-    ctx = browser.new_context()
+    ctx = browser.new_context(bypass_csp=True)
     ctx.route(re.compile(r"^https?://(?!localhost:5000|127\.0\.0\.1:5000)"), lambda r: r.abort())
     page = ctx.new_page()
     page.add_init_script(FAKE_AUTH)

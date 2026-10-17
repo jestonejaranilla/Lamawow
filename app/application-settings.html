@@ -70,7 +70,8 @@
           </div>
           <div class="app-field">
             <label for="sysCpSatTimeLimit">CP-SAT Time Limit (seconds)<span class="info-tip" tabindex="0" role="note" aria-label="Max solver time before falling back to backtracking." data-tip="Max solver time before falling back to backtracking.">i</span></label>
-            <input class="app-input" type="number" id="sysCpSatTimeLimit" inputmode="decimal" min="5" max="40" step="1">
+            <input class="app-input" type="number" id="sysCpSatTimeLimit" inputmode="decimal" min="5" max="120" step="1">
+            <p class="app-hint" id="help-sysCpSatTimeLimit">The server may lower this to its own limit.</p>
             <p class="app-error" id="err-sysCpSatTimeLimit" role="alert" hidden></p>
           </div>
           </div>
