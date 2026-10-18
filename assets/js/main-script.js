@@ -191,6 +191,151 @@ function renderCoverageSummary(cov) {
       errs.map(e => `<li>${escapeHTML(AD.coverageErrorText(e))}</li>`).join('')}</ul></details>` : '');
 }
 
+/* Plain-language summary of the schedule on screen: is every class covered, is anyone overloaded, do the rooms fit.
+   Only facts the page already has are shown (coverage, loads, room fit); nothing is claimed that was not checked here. */
+const RUN_STATUS_TEXT = { draft: 'Draft', saved: 'Saved run', approved: 'Approved schedule' };
+
+function renderResultChecks() {
+  const box = document.getElementById('resultChecks');
+  if (!box) return;
+  const data = filterResultBySemester(lastGAResult || []);
+  if (!data.length) { box.hidden = true; return; }
+
+  const items = [];
+  const cov = lastCoverage && lastCoverage.coverage && lastCoverage.coverage.total ? lastCoverage.coverage : null;
+  if (cov) {
+    const missing = cov.total - cov.assigned;
+    items.push(missing > 0
+      ? { tone: 'bad', text: `${missing} of ${cov.total} classes have no professor`, sub: 'See the coverage list above for the reason.' }
+      : { tone: 'ok', text: `All ${cov.total} classes have a professor`, sub: 'Every block and course is covered.' });
+  }
+
+  const upa = getUnitsPerAssignment();
+  const facMax = getFacultyMaxUnitsMap();
+  const loads = {};
+  data.forEach(i => { if (i.faculty) loads[i.faculty] = (loads[i.faculty] || 0) + upa; });
+  const overloaded = Object.entries(loads).filter(([n, u]) => u > (facMax[n] || MAX_UNITS)).length;
+  const highest = Math.max(0, ...Object.values(loads));
+  items.push(overloaded
+    ? { tone: 'bad', text: `${overloaded} professor${overloaded > 1 ? 's are' : ' is'} above their load limit`, sub: 'Edit their assignments or raise their limit before approving.' }
+    : { tone: 'ok', text: 'No one is above their load limit', sub: `Highest load is ${highest} units (regular load ${MAX_UNITS}).` });
+
+  const cm = (window.__atlasAnalytics && window.__atlasAnalytics.capacity_metrics) || null;
+  const hard = cm ? (cm.hard_violation_count || 0) : data.filter(i => capacityStatusOf(i) === 'hard_violation').length;
+  const above = cm ? (cm.over_recommended_count || 0) : data.filter(i => capacityStatusOf(i) === 'over_recommended').length;
+  const checked = cm ? (cm.total_evaluated || 0) : data.filter(i => capacityStatusOf(i)).length;
+  if (checked) {
+    if (hard) items.push({ tone: 'bad', text: `${hard} meeting${hard > 1 ? 's are' : ' is'} over a room's maximum`, sub: 'Move these to a bigger room.', filter: 'over', action: `Show ${hard === 1 ? 'it' : 'these ' + hard}` });
+    if (above) items.push({ tone: 'warn', text: `${above} of ${checked} meetings are above the recommended room size`, sub: "Still within each room's maximum. Review them if you want roomier classes.", filter: 'above', action: `Show these ${above}` });
+    if (!hard && !above) items.push({ tone: 'ok', text: 'Every class fits its room', sub: `All ${checked} meetings are within the recommended size.` });
+  }
+
+  const toReview = items.filter(i => i.tone !== 'ok').length;
+  const status = RUN_STATUS_TEXT[currentRunStatus] || 'Draft';
+  document.getElementById('resultChecksTitle').textContent = `${status}: ` +
+    (toReview ? `${toReview} thing${toReview > 1 ? 's' : ''} to review${currentRunStatus === 'approved' ? '' : ' before approving'}` : 'everything checks out');
+  const list = document.getElementById('resultChecksList');
+  list.innerHTML = items.map(i => `
+    <li class="result-check result-check--${i.tone}">
+      <span class="result-check-ic" aria-hidden="true">${i.tone === 'ok' ? '&#10003;' : '!'}</span>
+      <span class="result-check-text"><strong>${escapeHTML(i.text)}</strong><span>${escapeHTML(i.sub)}</span>
+      ${i.filter ? `<button type="button" class="result-check-btn" data-filter="${i.filter}">${escapeHTML(i.action)}</button>` : ''}</span>
+    </li>`).join('');
+  list.querySelectorAll('.result-check-btn').forEach(b => b.addEventListener('click', () => {
+    resultFilter = b.dataset.filter;
+    renderTable(filterResultBySemester(lastGAResult));
+    document.getElementById('gaTableWrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  box.hidden = false;
+}
+
+/* Opens a section the same way the navigation does (keeps the phone title and tab bar in step). */
+function goToPanel(index) {
+  const item = document.querySelector(`.nav-item[data-panel="${index}"]`);
+  if (item) item.click(); else switchPanel(index);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ---------- Setup checklist on the Dashboard (the order of work for a semester) ---------- */
+let approvedRunExists = false;     // kept in step with the Saved runs list (see initSavedRuns)
+let keptRunExists = false;         // any run saved or approved
+
+function renderSetupChecklist() {
+  const card = document.getElementById('setupChecklist');
+  const list = document.getElementById('setupSteps');
+  if (!card || !list) return;
+  const facultyCount = getFacultyFromTable().length;
+  const roomCount = runtimeLectureRooms.length + runtimeLabRooms.length;
+  const sectionCount = Object.keys(getClassSizes()).length;
+  const c = ATLAS_CURRICULUM;
+  const sampleSizes = !!(c && (c.class_sizes_placeholder || (c.rooms && c.rooms.capacity_placeholder)));
+  const hasResult = (lastGAResult || []).length > 0;
+  const approved = approvedRunExists || currentRunStatus === 'approved';
+  const reviewed = approved || keptRunExists || currentRunStatus === 'saved';
+
+  const steps = [
+    { title: 'Add faculty', done: facultyCount > 0, panel: 3, action: 'Add faculty',
+      text: facultyCount ? `${facultyCount} professor${facultyCount > 1 ? 's' : ''} with specializations and available days` : 'Add professors, their specializations and the days they can teach' },
+    { title: 'Check rooms & class sizes', done: roomCount > 0 && sectionCount > 0, panel: 4, action: 'Check rooms',
+      text: roomCount ? `${roomCount} rooms, ${sectionCount} sections` : 'Set the rooms and how many students each section has',
+      warn: sampleSizes ? 'Class sizes are sample data. Replace them before approving.' : '' },
+    { title: 'Run optimization', done: hasResult, panel: 1, action: 'Open Optimize',
+      text: 'Builds a draft schedule in about a minute' },
+    { title: 'Review & edit', done: reviewed, panel: 1, action: 'Review the draft',
+      text: 'Check loads and room fit, edit any assignment, then save the run' },
+    { title: 'Approve & publish', done: approved, panel: 1, action: 'Approve a run', scrollTo: 'savedRunsCard',
+      text: 'Faculty see their schedule only after this step' }
+  ];
+  const doneCount = steps.filter(s => s.done).length;
+  const current = steps.findIndex(s => !s.done);
+  card.hidden = current === -1;                       // everything done: the checklist steps aside
+  if (current === -1) return;
+
+  document.getElementById('setupCount').textContent = `${doneCount} of ${steps.length} done`;
+  document.getElementById('setupProgressFill').style.width = `${(doneCount / steps.length) * 100}%`;
+  list.innerHTML = steps.map((s, i) => {
+    const state = s.done ? 'done' : i === current ? 'current' : 'todo';
+    return `<li class="setup-step setup-step--${state}"${i === current ? ' aria-current="step"' : ''}>
+      <span class="setup-step-mark" aria-hidden="true">${s.done ? '&#10003;' : i + 1}</span>
+      <span class="setup-step-body">
+        <strong>${i + 1}. ${escapeHTML(s.title)}</strong>
+        <span class="setup-step-text">${escapeHTML(s.text)}</span>
+        ${s.warn ? `<span class="setup-step-warn">${escapeHTML(s.warn)}</span>` : ''}
+        ${i === current ? `<button type="button" class="btn setup-step-btn" data-step="${i}">${escapeHTML(s.action)}</button>` : ''}
+      </span>
+      <span class="visually-hidden">${state === 'done' ? '(done)' : state === 'current' ? '(next step)' : ''}</span>
+    </li>`;
+  }).join('');
+  list.querySelectorAll('.setup-step-btn').forEach(b => b.addEventListener('click', () => {
+    const s = steps[Number(b.dataset.step)];
+    goToPanel(s.panel);
+    if (s.scrollTo) setTimeout(() => document.getElementById(s.scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+  }));
+}
+
+/* Everything that summarises the schedule on screen, and the empty states when there is none. */
+function refreshScreenSummaries() {
+  const hasResult = filterResultBySemester(lastGAResult || []).length > 0;
+  const loadCard = document.getElementById('dashboardLoadCard');
+  if (loadCard) {
+    const wasHidden = loadCard.hidden;
+    loadCard.hidden = !hasResult;
+    if (wasHidden && hasResult && dashboardChart) setTimeout(() => dashboardChart.resize(), 30);
+  }
+  const rEmpty = document.getElementById('reportsEmpty');
+  const rGrid = document.querySelector('.reports-charts-grid--insight');
+  if (rEmpty) rEmpty.hidden = hasResult;
+  if (rGrid) {
+    rGrid.hidden = !hasResult;
+    if (hasResult) setTimeout(() => { if (reportsChart) reportsChart.resize(); if (reportsBarChart) reportsBarChart.resize(); }, 30);
+  }
+  if (!hasResult) {
+    ['statAvgLoad', 'statOverloaded', 'statBalance'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '-'; });
+  }
+  renderResultChecks();
+  renderSetupChecklist();
+}
+
 /* ============================================================
    SECTION LABEL UTILITY
    Maps year field to section keys e.g. "1st Year" → ["IT1B1","IT1B2"]
@@ -280,6 +425,29 @@ function applyChartTheme() {
 }
 new MutationObserver(applyChartTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
+/* Draws the regular teaching load (MAX_UNITS) as a dashed line across a horizontal bar chart. */
+const loadLinePlugin = {
+  id: 'loadLine',
+  afterDatasetsDraw(chart, _args, opts) {
+    const x = chart.scales.x, area = chart.chartArea;
+    if (!x || !area || !chart.data.labels.length) return;
+    const px = x.getPixelForValue(MAX_UNITS);
+    if (px < area.left || px > area.right) return;
+    const c = chart.ctx;
+    c.save();
+    c.strokeStyle = cssVar('--clr-primary-500') || '#c0440a';
+    c.lineWidth = 2;
+    c.setLineDash([6, 4]);
+    c.beginPath(); c.moveTo(px, area.top); c.lineTo(px, area.bottom); c.stroke();
+    c.setLineDash([]);
+    c.fillStyle = cssVar('--clr-primary-600') || '#9a3608';
+    c.font = "600 11px 'DM Sans', system-ui, sans-serif";
+    c.textAlign = 'right';
+    c.fillText(`${(opts && opts.label) || 'Regular load'} · ${MAX_UNITS}`, px - 6, area.top + 10);
+    c.restore();
+  }
+};
+
 function initCharts() {
   if (typeof Chart === 'undefined') { console.warn('Chart.js is not loaded; charts are skipped.'); return; }
   styleChartDefaults();
@@ -342,16 +510,16 @@ function initCharts() {
     });
   }
 
-  // Reports pie chart
+  // Reports room fit doughnut: three categories, so a doughnut reads well (the old one split ten near-equal loads)
   const ctxPie = document.getElementById('reportsChart');
   if (ctxPie) {
     reportsChart = new Chart(ctxPie, {
       type: 'doughnut',
       data: {
-        labels: [],
+        labels: ['Fits the room', 'Above recommended', 'Over room maximum'],
         datasets: [{
           data: [],
-          backgroundColor: THEME.series,
+          backgroundColor: [THEME.ok, THEME.warn, THEME.bad],
           borderColor: THEME.surface,
           borderWidth: 3,
           hoverOffset: 6
@@ -362,23 +530,14 @@ function initCharts() {
         maintainAspectRatio: false,
         cutout: '64%',
         plugins: {
-          legend: { position: window.innerWidth < 768 ? 'bottom' : 'right' },
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const v = ctx.raw;
-                const fmax = getFacultyMaxUnitsMap()[ctx.label] || MAX_UNITS;
-                const status = v > fmax ? ' (OVERLOAD)' : v === fmax ? ' (MAX LOAD)' : '';
-                return `${ctx.label}: ${v} units${status}`;
-              }
-            }
-          }
+          legend: { position: 'bottom' },
+          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw} meeting${ctx.raw === 1 ? '' : 's'}` } }
         }
       }
     });
   }
 
-  // Reports bar chart
+  // Reports bar chart, with the regular load drawn as a dashed line
   const ctxBar = document.getElementById('reportsBarChart');
   if (ctxBar) {
     reportsBarChart = new Chart(ctxBar, {
@@ -388,12 +547,13 @@ function initCharts() {
         indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: { legend: { display: false }, loadLine: { label: 'Regular load' } },
         scales: {
-          x: { beginAtZero: true, border: { display: false }, grid: { color: THEME.grid }, ticks: { precision: 0 } },
+          x: { beginAtZero: true, suggestedMax: MAX_UNITS + 2, border: { display: false }, grid: { color: THEME.grid }, ticks: { precision: 0 } },
           y: { border: { display: false }, grid: { display: false }, ticks: { autoSkip: false } }
         }
-      }
+      },
+      plugins: [loadLinePlugin]
     });
   }
 
@@ -499,19 +659,54 @@ function updateCharts(data) {
     miniDashChart.data.datasets[0].backgroundColor = colors;
     miniDashChart.update();
   }
-  if (reportsChart) {
-    reportsChart.data.labels = labels;
-    reportsChart.data.datasets[0].data = values;
-    reportsChart.update();
-  }
   if (reportsBarChart) {
     reportsBarChart.data.labels = labels;
     reportsBarChart.data.datasets[0].data = values;
     reportsBarChart.data.datasets[0].backgroundColor = colors;
+    reportsBarChart.options.scales.x.suggestedMax = MAX_UNITS + 2;    // keeps the regular-load line in view
     reportsBarChart.update();
   }
+  updateRoomFitChart(data);
+  updateReportsHeadlines(values, facMaxMap, labels);
 
   updateDashboardStats(counts, facMaxMap);
+}
+
+/* Room fit doughnut on Reports: meetings that fit, are above the recommended size, or are over the room's maximum. */
+function updateRoomFitChart(data) {
+  const cm = (window.__atlasAnalytics && window.__atlasAnalytics.capacity_metrics) || null;
+  const count = s => (data || []).filter(i => capacityStatusOf(i) === s).length;
+  const ok = cm ? (cm.within_recommended_count || 0) : count('ok');
+  const above = cm ? (cm.over_recommended_count || 0) : count('over_recommended');
+  const over = cm ? (cm.hard_violation_count || 0) : count('hard_violation');
+  const total = ok + above + over;
+  const head = document.getElementById('reportsRoomHeadline');
+  if (head) {
+    head.textContent = !total ? 'Room fit'
+      : over ? `${over} of ${total} meetings are over a room's maximum`
+      : above ? `${ok} of ${total} meetings fit their room; ${above} are above the recommended size`
+      : `All ${total} meetings fit their room`;
+  }
+  if (!reportsChart) return;
+  reportsChart.data.labels = ['Fits the room', 'Above recommended', 'Over room maximum'];
+  reportsChart.data.datasets[0].data = total ? [ok, above, over] : [];
+  reportsChart.data.datasets[0].backgroundColor = [THEME.ok, THEME.warn, THEME.bad];
+  reportsChart.update();
+}
+
+/* The chart titles on Reports state the finding, not the chart type. */
+function updateReportsHeadlines(values, facMaxMap, labels) {
+  const head = document.getElementById('reportsLoadHeadline');
+  const cap = document.getElementById('reportsLoadCaption');
+  if (!head || !values.length) return;
+  const lo = Math.min(...values), hi = Math.max(...values);
+  const over = labels.filter((n, i) => values[i] > (facMaxMap[n] || MAX_UNITS)).length;
+  const range = lo === hi ? `${hi} units` : `${lo}–${hi} units`;
+  head.textContent = over
+    ? `${over} professor${over > 1 ? 's are' : ' is'} above the ${MAX_UNITS}-unit regular load`
+    : hi === MAX_UNITS ? `Every professor teaches ${range}; the busiest are at the ${MAX_UNITS}-unit regular load`
+    : `Every professor teaches ${range}, under the ${MAX_UNITS}-unit regular load`;
+  if (cap) cap.textContent = `Units per professor this semester (${values.length} professors with classes). The dashed line is the regular load of ${MAX_UNITS} units.`;
 }
 
 /* ============================================================
@@ -530,6 +725,10 @@ function updateDashboardStats(counts, facMaxMap = {}) {
   if (elAvg)  elAvg.textContent  = avg;
   if (elOver) elOver.textContent = overloaded;
   if (elBal)  elBal.textContent  = balance === null ? '-' : balance + '%';
+  const subAvg = document.getElementById('statAvgLoadSub');
+  const subOver = document.getElementById('statOverloadedSub');
+  if (subAvg) subAvg.textContent = `units per professor · regular load is ${MAX_UNITS}`;
+  if (subOver) subOver.textContent = `above their load limit (standard ${MAX_UNITS} units)`;
 }
 
 /* ============================================================
@@ -564,13 +763,13 @@ function renderCapacityMetrics(capacityMetrics) {
   const badge = document.getElementById('capacityOverallBadge');
   if (badge) {
     if (hardCt > 0) {
-      badge.textContent = `${hardCt} Hard Violation${hardCt > 1 ? 's' : ''}`;
+      badge.textContent = `${hardCt} over room maximum`;
       badge.className = 'capacity-overall-badge badge-hard';
     } else if (warnCt > 0) {
-      badge.textContent = `${warnCt} Over Recommended`;
+      badge.textContent = `${warnCt} above recommended size`;
       badge.className = 'capacity-overall-badge badge-warn';
     } else {
-      badge.textContent = 'All Rooms Within Capacity';
+      badge.textContent = 'Every class fits its room';
       badge.className = 'capacity-overall-badge badge-ok';
     }
   }
@@ -749,7 +948,7 @@ function updateReportsPanel(data) {
         </tr>`;
     }).join('');
 
-    const initials = faculty.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    const initials = initialsOf(faculty);
 
     const card = document.createElement('div');
     card.className = 'summary-faculty-card';
@@ -883,14 +1082,49 @@ function computeFairnessReport(data) {
 /* ============================================================
    7. TABLE RENDERING & SORTING
    ============================================================ */
+// Filter chips above the results table: all meetings, the ones that need a look, or one class type.
+let resultFilter = 'all';
+const RESULT_FILTERS = [
+  { key: 'all',   label: 'All',               test: () => true },
+  { key: 'above', label: 'Above recommended', test: i => capacityStatusOf(i) === 'over_recommended' },
+  { key: 'over',  label: 'Over room max',     test: i => capacityStatusOf(i) === 'hard_violation', hideWhenEmpty: true },
+  { key: 'lec',   label: 'Lectures',          test: i => (i.class_type || 'LECTURE').toUpperCase() === 'LECTURE' },
+  { key: 'lab',   label: 'Labs',              test: i => (i.class_type || '').toUpperCase() === 'LAB' }
+];
+
+function renderResultFilters(data) {
+  const box = document.getElementById('resultFilters');
+  if (!box) return;
+  if (!data || !data.length) { box.hidden = true; box.innerHTML = ''; resultFilter = 'all'; return; }
+  const chips = RESULT_FILTERS.map(f => ({ ...f, count: data.filter(f.test).length }))
+    .filter(f => f.key === 'all' || f.count > 0 || (!f.hideWhenEmpty && f.key === resultFilter));
+  if (!chips.some(f => f.key === resultFilter)) resultFilter = 'all';
+  box.innerHTML = chips.map(f => `<button type="button" class="result-chip${f.key === resultFilter ? ' active' : ''}" data-filter="${f.key}" aria-pressed="${f.key === resultFilter}">${escapeHTML(f.label)} <span class="result-chip-count">${f.count}</span></button>`).join('');
+  box.hidden = false;
+  box.querySelectorAll('.result-chip').forEach(btn => btn.addEventListener('click', () => {
+    resultFilter = btn.dataset.filter;
+    renderTable(filterResultBySemester(lastGAResult));
+  }));
+}
+
 function renderTable(data) {
   const tbody = document.querySelector('#gaScheduleTable tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
+  renderResultFilters(data);
 
   if (!data || !data.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state-msg">No optimal assignments found. Adjust parameters and click "Run Engine".</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state-msg">No schedule yet. Click "Run Optimization" to build a draft you can review before approving.</td></tr>';
     return;
+  }
+
+  const active = RESULT_FILTERS.find(f => f.key === resultFilter) || RESULT_FILTERS[0];
+  if (active.key !== 'all') {
+    data = data.filter(active.test);
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state-msg">Nothing matches this filter.</td></tr>';
+      return;
+    }
   }
 
   // Pre-sort by Day Order then Slot Order by default
@@ -1146,6 +1380,7 @@ function initRunGA() {
             if (savedRunsCtl && currentRunDbId) savedRunsCtl.noteFreshRun(currentRunDbId);   // banner, "Save this run", list
             lastCoverage = { coverage: status.coverage || {assigned: 0, total: 0}, errors: status.coverage_errors || [] };
             renderCoverageSummary(lastCoverage);
+            refreshScreenSummaries();
             const metricsSuffix = status.metrics && status.metrics.solve_time_sec
               ? ` (CP-SAT: ${status.metrics.solve_time_sec}s, GA: ${status.metrics.ga_time_sec || 0}s)`
               : '';
@@ -1281,9 +1516,17 @@ function addFacultyRow(data = {}) {
     });
   });
 
-  // Row delete handler action integration layer
-  tr.querySelector('.btn-delete').addEventListener('click', () => {
+  // Row delete: a saved professor is removed from the database, so ask first and say what it affects
+  tr.querySelector('.btn-delete').addEventListener('click', async () => {
     const fid = tr.dataset.fid;
+    const name = tr.querySelector('input[type="text"]').value.trim();
+    if (fid || name) {
+      const n = (lastGAResult || []).filter(r => r.faculty === name).length;
+      const msg = `${name || 'This professor'} will be removed from the faculty list and from future optimization runs.` +
+        (n ? ` Their ${n} class meeting${n > 1 ? 's' : ''} in the schedule on screen will need a new professor when you run again.` : '') +
+        ` The approved schedule that faculty see does not change. This can't be undone.`;
+      if (!(await confirmDelete(msg, `Delete ${name || 'this professor'}?`, 'Delete professor'))) return;
+    }
     tr.remove();
     if (fid) window.atlasData.faculty.remove(fid);     // explicit delete: the only way a professor leaves the database
     saveFaculty();
@@ -1394,6 +1637,7 @@ function getFacultyRowsForSync() {
 function saveFaculty() {
   updateAllSelectAllBtnStates();
   refreshFacultyEmptyNotice();
+  renderSetupChecklist();
   return window.atlasData.faculty.save(getFacultyRowsForSync());
 }
 
@@ -1737,7 +1981,10 @@ function addSubjectRow(data = {}) {
     }
   });
 
-  tr.querySelector('.btn-delete').addEventListener('click', () => {
+  tr.querySelector('.btn-delete').addEventListener('click', async () => {
+    const title = tr.querySelector('.subject-name')?.value.trim();
+    if (title && !(await confirmDelete(`${title} will be left out of runs you start from this page. Reload the page to bring it back.`,
+      'Remove this subject?', 'Remove subject'))) return;
     tr.remove();
     saveSubjects();
   });
@@ -1843,7 +2090,12 @@ function renderDashboardAssignments(data) {
   });
 
   if (!Object.keys(byFaculty).length) {
-    container.innerHTML = '<p class="empty-state-msg">No assignments to display.</p>';
+    container.innerHTML = `<div class="empty-cta">
+      <strong>No schedule yet for ${escapeHTML((getActiveSemester() || {}).semester || 'this semester')}</strong>
+      <span>Run the optimization to get a draft you can review and edit. Faculty don't see anything until you approve a run.</span>
+      <button type="button" class="btn" data-goto="1">Open Optimize</button>
+    </div>`;
+    container.querySelector('[data-goto]').addEventListener('click', () => goToPanel(1));
     return;
   }
 
@@ -1895,7 +2147,7 @@ function renderDashboardAssignments(data) {
     html += `
       <div class="fac-assign-card">
         <div class="fac-assign-header">
-          <span class="fac-assign-avatar">${escapeHTML(faculty.charAt(0))}</span>
+          <span class="fac-assign-avatar" aria-hidden="true">${escapeHTML(initialsOf(faculty))}</span>
           <div class="fac-assign-header-info">
             <span class="fac-assign-name">${escapeHTML(faculty)}</span>
             <span class="fac-assign-count">${items.length} assignment${items.length !== 1 ? 's' : ''}</span>
@@ -1923,7 +2175,7 @@ function initExports() {
   if (csvBtn) {
     csvBtn.addEventListener('click', () => {
       if (!lastGAResult || !lastGAResult.length) {
-        alert('Run the optimization framework engine first before exporting data records.');
+        alert('There is no schedule to export yet. Run the optimization or load a saved run first.');
         return;
       }
       const exportData = filterResultBySemester(lastGAResult);
@@ -2315,6 +2567,22 @@ function escapeAttr(str) {
     .replace(/'/g, '&#39;');
 }
 
+// Avatar initials from a name, skipping titles: "Prof. Maria Santos" -> "MS" (every avatar used to read "P").
+function initialsOf(name) {
+  const words = String(name || '').replace(/\b(prof|dr|engr|mr|mrs|ms|sir|maam)\.?(?=\s)/gi, ' ')
+    .split(/\s+/).filter(w => /[a-z0-9]/i.test(w));
+  if (!words.length) return '?';
+  const first = words[0][0], last = words.length > 1 ? words[words.length - 1][0] : '';
+  return (first + last).toUpperCase();
+}
+
+// Every delete in this page asks first, with the site dialog (red confirm button).
+function confirmDelete(message, title, ok) {
+  return window.atlasDialog
+    ? window.atlasDialog.confirm(message, { title, ok, cancel: 'Cancel', danger: true })
+    : Promise.resolve(window.confirm(message));
+}
+
 function debounce(fn, delay) {
   let timer;
   return (...args) => {
@@ -2364,6 +2632,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   initSampleFaculty();
   refreshFacultyEmptyNotice();
   updateAllSelectAllBtnStates();
+  refreshScreenSummaries();
 
   // Load subjects (defaults come from the department's curriculum file)
   let savedSubjects = loadSubjectsFromStorage();
@@ -2437,6 +2706,7 @@ function applyRunToScreen(run) {
       renderCapacityAnalytics(analytics);
     } catch (e) { console.warn('Analytics render error:', e); }
   }
+  refreshScreenSummaries();
 }
 
 async function lookupRunnerNames(ids) {
@@ -2451,6 +2721,15 @@ async function initSavedRuns() {
   const ui = window.AtlasSavedRuns.createDomUi(document, {
     applyRun: applyRunToScreen, toast: showToast, confirm: (msg, o) => window.atlasDialog ? window.atlasDialog.confirm(msg, o) : Promise.resolve(window.confirm(msg))
   });
+  const renderList = ui.renderList;                   // the setup checklist follows the Saved runs list
+  ui.renderList = model => {
+    renderList.call(ui, model);
+    const rows = (model && model.rows) || [];
+    approvedRunExists = rows.some(r => r.status === 'approved');
+    keptRunExists = rows.some(r => r.status === 'saved' || r.status === 'approved');
+    renderSetupChecklist();
+    renderResultChecks();
+  };
   savedRunsCtl = window.AtlasSavedRuns.createController({
     api: runsApi, ui, dept: DEPT, now: () => new Date(),
     userId: window.atlasAuth.user && window.atlasAuth.user.id,
@@ -2657,7 +2936,7 @@ function renderRoomList(containerId, rooms) {
       <input type="text" value="${escapeAttr(room)}" placeholder="Room name" class="room-name-input" style="flex:2;min-width:0;">
       <input type="number" value="${cap.recommended !== '' ? cap.recommended : ''}" placeholder="Rec." class="room-cap-input room-rec-input" min="1" max="999" title="Recommended capacity">
       <input type="number" value="${cap.max !== '' ? cap.max : ''}" placeholder="Max" class="room-cap-input room-max-input" min="1" max="999" title="Hard max capacity">
-      <button class="room-item-del" data-idx="${idx}" title="Delete">&times;</button>
+      <button type="button" class="room-item-del" data-idx="${idx}" title="Remove this room (saved when you press Save Rooms)" aria-label="Remove room ${escapeAttr(room || 'without a name')}">&times;</button>
     `;
     const nameInp = item.querySelector('.room-name-input');
     const recInp  = item.querySelector('.room-rec-input');
@@ -2740,6 +3019,7 @@ function initRoomManagement() {
     populateSCBuildingDropdown();
     if (!savedRooms.ok) return;
     showToast('Rooms saved successfully.', 'success');
+    renderSetupChecklist();
     await syncRoomsToBackend();
   });
 
@@ -2784,7 +3064,9 @@ function renderClassSizesTable() {
       <td><input type="number" class="cs-size" value="${val.size||0}" min="1" max="200" style="max-width:100px;"></td>
       <td><button type="button" class="btn-delete row-action-btn cs-del" title="Delete">Delete</button></td>
     `;
-    tr.querySelector('.cs-del').addEventListener('click', () => {
+    tr.querySelector('.cs-del').addEventListener('click', async () => {
+      if (!(await confirmDelete(`Remove section ${key}? Its classes are left out of the next run once you save the class sizes.`,
+        'Remove this section?', 'Remove section'))) return;
       tr.remove();
     });
     tbody.appendChild(tr);
@@ -2813,6 +3095,7 @@ function initClassSizesManagement() {
     const saved = await saveClassSizes(sizes);
     if (!saved.ok) return;
     showToast('Class sizes saved.', 'success');
+    renderSetupChecklist();
     try {
       await window.atlasAuth.fetch(`${API_BASE}/class-sizes`, {
         method: 'POST',
@@ -2841,7 +3124,10 @@ function initClassSizesManagement() {
       <td><input type="number" class="cs-size" value="30" min="1" max="200" style="max-width:100px;"></td>
       <td><button type="button" class="btn-delete row-action-btn cs-del" title="Delete">Delete</button></td>
     `;
-    tr.querySelector('.cs-del').addEventListener('click', () => tr.remove());
+    tr.querySelector('.cs-del').addEventListener('click', async () => {
+      const key = tr.querySelector('.cs-key')?.value.trim() || 'this section';
+      if (await confirmDelete(`Remove ${key}? It has not been saved yet.`, 'Remove this section?', 'Remove section')) tr.remove();
+    });
     tbody.appendChild(tr);
   });
 
@@ -3029,12 +3315,24 @@ function initSoftConstraints() {
    CAPACITY BADGE HELPER & ANALYTICS PANEL RENDERER
    ============================================================ */
 
+// Plain-language room fit. "Above recommended" is still under the room's maximum (a soft rule); "Over room max" breaks it.
+const CAPACITY_LABEL = { hard_violation: 'Over room max', over_recommended: 'Above recommended', ok: 'Fits' };
+
+function capacityStatusOf(item) {
+  return (item && (item._cap_status || item.capacity_status)) || null;
+}
+
 function buildCapacityBadge(item) {
-  const status = item._cap_status || item.capacity_status || null;
-  if (status === 'hard_violation')   return `<span class="capacity-overall-badge badge-hard" title="Exceeds max capacity">Violation</span>`;
-  if (status === 'over_recommended') return `<span class="capacity-overall-badge badge-warn" title="Exceeds recommended">Over Cap</span>`;
-  if (status === 'ok')               return `<span class="capacity-overall-badge badge-ok"   title="Within recommended">OK</span>`;
-  return '';
+  const status = capacityStatusOf(item);
+  if (!CAPACITY_LABEL[status]) return '';
+  const cap = (item.room && runtimeRoomCapacity[item.room]) || null;
+  const numbers = cap && item.student_count > 0 && cap.recommended
+    ? ` (${item.student_count} students; recommended ${cap.recommended}${cap.max ? ', maximum ' + cap.max : ''})` : '';
+  const why = status === 'hard_violation' ? "More students than the room's maximum"
+    : status === 'over_recommended' ? "More students than the room's comfortable size, still under its maximum"
+    : "Within the room's recommended size";
+  const cls = status === 'hard_violation' ? 'badge-hard' : status === 'over_recommended' ? 'badge-warn' : 'badge-ok';
+  return `<span class="capacity-overall-badge ${cls}" title="${escapeAttr(why + numbers)}">${CAPACITY_LABEL[status]}</span>`;
 }
 
 function mergeCapacityStatuses(analytics) {
@@ -3108,7 +3406,7 @@ function renderCapacityAnalytics(analytics) {
       const utilPct = d.recommended_cap > 0 ? Math.round(d.student_count / d.recommended_cap * 100) : 0;
       const utilCls = d.status === 'hard_violation' ? 'match-no' : d.status === 'over_recommended' ? 'match-partial' : 'match-yes';
       const badgeCls   = d.status === 'hard_violation' ? 'badge-hard' : d.status === 'over_recommended' ? 'badge-warn' : 'badge-ok';
-      const badgeLabel = d.status === 'hard_violation' ? 'Violation' : d.status === 'over_recommended' ? 'Over Cap' : 'OK';
+      const badgeLabel = CAPACITY_LABEL[d.status] || CAPACITY_LABEL.ok;
       return `<tr>
         <td><span class="room-badge">${escapeHTML(d.room)}</span></td>
         <td>${d.section ? `<span class="section-badge">${escapeHTML(d.section)}</span>` : '<span class="text-muted">-</span>'}</td>
@@ -3213,6 +3511,8 @@ function resetDepartmentState() {
   if (card) card.style.display = 'none';
   const banner = document.getElementById('deptBanner');
   if (banner) banner.style.display = 'none';
+  approvedRunExists = false; keptRunExists = false;
+  ['setupChecklist', 'resultChecks', 'resultFilters'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
 }
 window.addEventListener('atlas:logout', resetDepartmentState);
 

@@ -234,7 +234,17 @@
     return `<div class="fs-empty">${text}</div>`;
   }
 
-  const NO_DATA = 'No schedule on this device yet';
+  // No approved run yet: say what is happening and what the professor can do meanwhile (it used to read
+  // "No schedule on this device yet", which sounded like a problem with the phone).
+  const NO_DATA = '<strong class="fs-empty-title">Your schedule isn\'t published yet</strong>' +
+    '<span class="fs-empty-text">Your chairperson is preparing this semester\'s schedule. It appears here as soon as it is approved.</span>' +
+    '<button type="button" class="btn fs-empty-btn" data-fs-goto="1">Set my preferences and leave</button>';
+  document.addEventListener('click', e => {
+    const go = e.target.closest && e.target.closest('[data-fs-goto]');
+    if (!go) return;
+    const item = document.querySelector(`.nav-item[data-panel="${go.dataset.fsGoto}"]`);
+    if (item) item.click(); else if (window.switchPanel) window.switchPanel(Number(go.dataset.fsGoto));
+  });
 
   function renderMine(now) {
     const host = $('fsMineList');
@@ -406,9 +416,9 @@
       meta.textContent = [DAY_NAMES[next.day], formatRange(next), next.room].filter(Boolean).join(' \u00b7 ');
       count.textContent = 'Starts in ' + formatDuration(wait);
     } else {
-      label.textContent = 'No classes';
-      title.textContent = state.schedule.length ? 'Nothing assigned yet' : 'No schedule on this device';
-      meta.textContent = '';
+      label.textContent = state.schedule.length ? 'No classes' : 'Not published';
+      title.textContent = state.schedule.length ? 'Nothing assigned to you yet' : 'Schedule not published yet';
+      meta.textContent = state.schedule.length ? '' : 'Your chairperson is still preparing it.';
       count.textContent = '';
     }
   }

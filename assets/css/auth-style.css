@@ -154,3 +154,11 @@ body[data-role="faculty"] [data-only="chairperson"], body[data-role="chairperson
 
 .auth-modal-text { margin: 0 0 var(--space-4); text-align: center; font-size: 0.9375rem; line-height: 1.45; color: var(--text-secondary); }
 .auth-modal-card .auth-btn { width: 100%; }
+/* UI redesign: the privacy notice is one tap away instead of outweighing the form */
+.auth-privacy-details summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; cursor: pointer; list-style: none; }
+.auth-privacy-details summary::-webkit-details-marker { display: none; }
+.auth-privacy-details summary::after { content: "Show"; margin-left: auto; font-weight: 600; color: var(--clr-primary-600); }
+.auth-privacy-details[open] summary::after { content: "Hide"; }
+.auth-privacy-details summary h2 { margin: 0; }
+.auth-privacy-hint { font-size: 0.8125rem; color: var(--text-muted); }
+.auth-privacy-details[open] summary { margin-bottom: var(--space-2); }

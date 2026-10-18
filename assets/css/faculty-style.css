@@ -164,3 +164,16 @@
 [data-theme="dark"] .fs-chip-live { background: rgba(34, 197, 94, 0.18); color: #8fd9a8; }
 [data-theme="dark"] .fs-status-live .fs-status-count { color: #fff; }
 [data-theme="dark"] .fs-error { color: #f19a93; }
+/* ---------- UI redesign: the next class leads, the clock follows; a clearer "not published" state ---------- */
+.fs-now { grid-template-columns: 2fr minmax(200px, 1fr); }
+.fs-status { order: -1; }
+.fs-clock-time { font-size: 1.5rem; }
+@media (max-width: 768px) {
+  .fs-now { grid-template-columns: 1fr; }
+  .fs-clock { order: 1; }
+  .fs-clock-time { font-size: 1.25rem; }
+}
+.fs-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.fs-empty-title { font-size: 1.05rem; color: var(--text-primary); }
+.fs-empty-text { max-width: 440px; font-size: 0.9rem; line-height: 1.5; color: var(--text-secondary); }
+.fs-empty-btn { margin-top: 6px; }

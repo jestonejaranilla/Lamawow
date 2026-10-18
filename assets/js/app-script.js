@@ -344,6 +344,7 @@
     if (!card) return;
     if (isFaculty || !window.atlasData) { card.remove(); return; }
     card.hidden = false;
+    if (window.location.hash === '#periodCard') card.scrollIntoView();   // the "Showing: ..." badge on the dashboard links here
     const show = () => {
       const p = window.atlasData.settings.period();
       $('periodYear').value = p.year || '';
