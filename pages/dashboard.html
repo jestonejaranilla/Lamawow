@@ -48,10 +48,10 @@
       </div>
       <div class="nav-menu" role="menubar">
         <div class="nav-item" role="menuitem" tabindex="0" data-panel="0"><span class="nav-ic ic ic-dashboard" aria-hidden="true"></span><span>Dashboard</span></div>
-        <div class="nav-item" role="menuitem" tabindex="0" data-panel="1"><span class="nav-ic ic ic-optimize" aria-hidden="true"></span><span>Workload Optimization</span></div>
+        <div class="nav-item" role="menuitem" tabindex="0" data-panel="1"><span class="nav-ic ic ic-optimize" aria-hidden="true"></span><span>Optimize</span></div>
         <div class="nav-item" role="menuitem" tabindex="0" data-panel="2"><span class="nav-ic ic ic-reports" aria-hidden="true"></span><span>Reports</span></div>
-        <div class="nav-item" role="menuitem" tabindex="0" data-panel="3"><span class="nav-ic ic ic-faculty" aria-hidden="true"></span><span>Faculty &amp; Subjects</span></div>
-        <div class="nav-item" role="menuitem" tabindex="0" data-panel="4" aria-label="Rooms"><span class="nav-ic ic ic-rooms" aria-hidden="true"></span><span>Rooms</span></div>
+        <div class="nav-item" role="menuitem" tabindex="0" data-panel="3"><span class="nav-ic ic ic-faculty" aria-hidden="true"></span><span>Faculty</span></div>
+        <div class="nav-item" role="menuitem" tabindex="0" data-panel="4" aria-label="Rooms"><span class="nav-ic ic ic-door" aria-hidden="true"></span><span>Rooms</span></div>
       </div>
     </div>
 
@@ -96,28 +96,41 @@
           <div>
             <h2><span class="title-ic ic ic-dashboard" aria-hidden="true"></span>Dashboard</h2>
           </div>
-          <div id="dashboardSemContext" class="sem-context-badge" style="display:none;"></div>
+          <a id="dashboardSemContext" class="sem-context-badge sem-context-link" href="../app/application-settings.html#periodCard" title="Change the active academic period" style="display:none;"></a>
         </div>
+
+        <!-- Setup checklist: the order of work for a semester, filled in by renderSetupChecklist() in main-script.js -->
+        <section class="setup-card" id="setupChecklist" aria-labelledby="setupTitle" hidden>
+          <div class="setup-head">
+            <div>
+              <h3 id="setupTitle">Get your semester schedule ready</h3>
+              <p class="setup-sub">Follow these steps in order. Nothing reaches faculty until you approve it.</p>
+            </div>
+            <span class="setup-count" id="setupCount"></span>
+          </div>
+          <div class="setup-progress" aria-hidden="true"><span id="setupProgressFill"></span></div>
+          <ol class="setup-steps" id="setupSteps"></ol>
+        </section>
 
         <div class="stats-row">
           <div class="stat-card">
             <div class="stat-label">Average Load</div>
             <div class="stat-value" id="statAvgLoad">-</div>
-            <div class="stat-sub">units per faculty</div>
+            <div class="stat-sub" id="statAvgLoadSub">units per professor</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Overloaded Faculty</div>
+            <div class="stat-label">Overloaded Professors</div>
             <div class="stat-value" id="statOverloaded">-</div>
-            <div class="stat-sub">above 24 units</div>
+            <div class="stat-sub" id="statOverloadedSub">above 24 units</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Balance Score</div>
+            <div class="stat-label">Workload Balance</div>
             <div class="stat-value" id="statBalance">-</div>
-            <div class="stat-sub">workload equity</div>
+            <div class="stat-sub">100% means every professor has the same load</div>
           </div>
         </div>
 
-        
+
         <!-- Schedule assignments emphasized first -->
         <div class="dashboard-chart-card dashboard-schedule-card">
           <div class="dashboard-card-header">
@@ -126,7 +139,7 @@
             </div>
           </div>
           <div id="dashboardFacultyAssignments" class="faculty-assignments-container">
-            <p class="empty-state-msg">No results yet</p>
+            <p class="empty-state-msg">No schedule yet</p>
           </div>
         </div>
 
@@ -145,28 +158,29 @@
             </div>
             <div class="capacity-metric-tile capacity-warn">
               <div class="capacity-metric-value" id="capMetricWarn">-</div>
-              <div class="capacity-metric-label">Over Recommended</div>
+              <div class="capacity-metric-label">Above Recommended</div>
               <div class="capacity-metric-pct" id="capMetricWarnPct"></div>
             </div>
             <div class="capacity-metric-tile capacity-hard">
               <div class="capacity-metric-value" id="capMetricHard">-</div>
-              <div class="capacity-metric-label">Hard Violations</div>
+              <div class="capacity-metric-label">Over Room Maximum</div>
               <div class="capacity-metric-pct" id="capMetricHardPct"></div>
             </div>
             <div class="capacity-metric-tile capacity-total">
               <div class="capacity-metric-value" id="capMetricTotal">-</div>
-              <div class="capacity-metric-label">Total Evaluated</div>
-              <div class="capacity-metric-pct">assignments</div>
+              <div class="capacity-metric-label">Meetings Checked</div>
+              <div class="capacity-metric-pct">class meetings</div>
             </div>
           </div>
+          <p class="capacity-legend-note">Above recommended means more students than the room's comfortable size, but still under its maximum.</p>
           <div id="capacityHardViolationsList" class="capacity-violations-list" style="display:none;">
-            <div class="capacity-violations-header">Hard Capacity Violations</div>
+            <div class="capacity-violations-header">Classes over a room's maximum</div>
             <div id="capacityHardViolationsItems"></div>
           </div>
         </div>
 
         <!-- Workload chart secondary -->
-        <div class="dashboard-chart-card dashboard-chart-secondary">
+        <div class="dashboard-chart-card dashboard-chart-secondary" id="dashboardLoadCard" hidden>
           <div class="dashboard-card-header">
             <div>
               <h3>Faculty Load Distribution<span class="info-tip" tabindex="0" role="note" aria-label="Tap a legend item to sort by load status" data-tip="Tap a legend item to sort by load status">i</span></h3>
@@ -179,25 +193,27 @@
       </section>
 
       <!-- PANEL 1: WORKLOAD OPTIMIZATION -->
-      <section class="panel" data-title="Optimization" aria-label="Workload Optimization">
+      <section class="panel" data-title="Optimize" aria-label="Optimize">
         <div class="page-header">
           <div>
-            <h2><span class="title-ic ic ic-optimize" aria-hidden="true"></span>Workload Optimization</h2>
+            <h2><span class="title-ic ic ic-optimize" aria-hidden="true"></span>Optimize</h2>
+            <p class="page-lead">Build a draft schedule, review it, then approve it so faculty can see it.</p>
           </div>
-          <div id="optimizationSemContext" class="sem-context-badge" style="display:none;"></div>
+          <a id="optimizationSemContext" class="sem-context-badge sem-context-link" href="../app/application-settings.html#periodCard" title="Change the active academic period" style="display:none;"></a>
         </div>
 
         <div class="workload-grid">
           <!-- LEFT: Controls -->
           <div class="workload-controls-card">
-          <img src="../assets/images/ga-evolution.svg" class="ga-image" alt="Genetic Algorithm">
-          
-          <p class="subtitle">Powered by:<br>CP-SAT & Genetic Algorithm</p>
-          
+          <img src="../assets/images/ga-evolution.svg" class="ga-image" alt="">
+
+          <p class="subtitle">Assigns every class to a qualified professor, balances teaching loads, then finds good times and rooms.</p>
+
           <button id="runGA" class="btn btn-full" aria-label="Run optimization">
             Run Optimization
           </button>
 
+          <p class="solver-summary-label">Advanced search settings</p>
           <p class="solver-summary" id="solverSummary" aria-live="polite"></p>
 
           <button class="btn btn-outline btn-full btn-advanced-settings" id="goToAdvancedSettings">
@@ -233,7 +249,12 @@
               <button type="button" class="btn" id="saveRunBtn">Save this run</button>
             </div>
             <div id="coverageSummary" class="coverage-summary hidden" role="status"></div>
+            <section id="resultChecks" class="result-checks" aria-labelledby="resultChecksTitle" hidden>
+              <h4 id="resultChecksTitle"></h4>
+              <ul id="resultChecksList"></ul>
+            </section>
             <div id="gaTableWrapper">
+              <div id="resultFilters" class="result-filters" role="group" aria-label="Filter the assignments" hidden></div>
               <table id="gaScheduleTable">
                 <thead>
                   <tr>
@@ -245,7 +266,7 @@
                     <th data-key="slot">Slot <span class="sort-arrow">&#9650;</span></th>
                     <th data-key="room">Room <span class="sort-arrow">&#9650;</span></th>
                     <th>Students</th>
-                    <th>Capacity</th>
+                    <th>Room fit</th>
                   </tr>
                 </thead>
                 <tbody></tbody>
@@ -277,20 +298,24 @@
           <div>
             <h2><span class="title-ic ic ic-reports" aria-hidden="true"></span>Reports</h2>
           </div>
-          <div id="reportsSemContext" class="sem-context-badge" style="display:none;"></div>
+          <a id="reportsSemContext" class="sem-context-badge sem-context-link" href="../app/application-settings.html#periodCard" title="Change the active academic period" style="display:none;"></a>
         </div>
 
-        <div class="reports-charts-grid">
+        <p class="empty-state-msg reports-empty" id="reportsEmpty">No schedule to report on yet. Run the optimization, or approve a run, and the reports appear here.</p>
+
+        <div class="reports-charts-grid reports-charts-grid--insight">
           <div class="chart-card">
-            <h3>Load Distribution (Pie)</h3>
+            <h3 id="reportsLoadHeadline">Teaching load per professor</h3>
+            <p class="chart-caption" id="reportsLoadCaption">Units per professor this semester. The dashed line is the regular load.</p>
             <div class="chart-canvas-wrap">
-              <canvas id="reportsChart"></canvas>
+              <canvas id="reportsBarChart"></canvas>
             </div>
           </div>
           <div class="chart-card">
-            <h3>Faculty Units (Bar)</h3>
+            <h3 id="reportsRoomHeadline">Room fit</h3>
+            <p class="chart-caption">Class meetings by how well the room fits the number of students.</p>
             <div class="chart-canvas-wrap">
-              <canvas id="reportsBarChart"></canvas>
+              <canvas id="reportsChart"></canvas>
             </div>
           </div>
         </div>
@@ -360,18 +385,18 @@
           </div>
           <div class="capacity-metric-tile capacity-warn">
             <div class="capacity-metric-value" id="analyticsCapOver">-</div>
-            <div class="capacity-metric-label">Over Recommended</div>
+            <div class="capacity-metric-label">Above Recommended</div>
             <div class="capacity-metric-pct" id="analyticsCapOverPct"></div>
           </div>
           <div class="capacity-metric-tile capacity-hard">
             <div class="capacity-metric-value" id="analyticsCapViolations">-</div>
-            <div class="capacity-metric-label">Hard Violations</div>
+            <div class="capacity-metric-label">Over Room Maximum</div>
             <div class="capacity-metric-pct" id="analyticsCapViolationsPct"></div>
           </div>
           <div class="capacity-metric-tile capacity-total">
             <div class="capacity-metric-value" id="analyticsCapTotal">-</div>
-            <div class="capacity-metric-label">Total Evaluated</div>
-            <div class="capacity-metric-pct">assignments</div>
+            <div class="capacity-metric-label">Meetings Checked</div>
+            <div class="capacity-metric-pct">class meetings</div>
           </div>
         </div>
         <div class="dashboard-chart-card" style="margin-bottom:28px;">
@@ -407,8 +432,8 @@
         </table>
 
         <div class="export-buttons">
-          <button id="exportPDF" class="btn">Export to PDF</button>
-          <button id="exportCSV" class="btn btn-secondary">Export to CSV</button>
+          <button id="exportPDF" class="btn">Download PDF report</button>
+          <button id="exportCSV" class="btn btn-secondary">Download CSV</button>
         </div>
       </section>
 
@@ -436,14 +461,14 @@
                 <th>Max Units</th>
                 <th title="Added to Max Units to get the absolute hard cap (absolute_max_units = Max + Buffer)">Overload Buffer</th>
                 <th class="avail-th">
-                  <span class="avail-th-label">Availability</span>
+                  <span class="avail-th-label">Availability <span class="avail-th-hint">tap a day to set it for everyone</span></span>
                   <div class="avail-select-all-row">
-                    <button type="button" class="btn-select-day" data-day="Mon" title="Select All Monday">Mon</button>
-                    <button type="button" class="btn-select-day" data-day="Tue" title="Select All Tuesday">Tue</button>
-                    <button type="button" class="btn-select-day" data-day="Wed" title="Select All Wednesday">Wed</button>
-                    <button type="button" class="btn-select-day" data-day="Thu" title="Select All Thursday">Thu</button>
-                    <button type="button" class="btn-select-day" data-day="Fri" title="Select All Friday">Fri</button>
-                    <button type="button" class="btn-select-day" data-day="Sat" title="Select All Saturday">Sat</button>
+                    <button type="button" class="btn-select-day" data-day="Mon" title="Turn Monday on or off for every professor" aria-label="Turn Monday on or off for every professor">Mon</button>
+                    <button type="button" class="btn-select-day" data-day="Tue" title="Turn Tuesday on or off for every professor" aria-label="Turn Tuesday on or off for every professor">Tue</button>
+                    <button type="button" class="btn-select-day" data-day="Wed" title="Turn Wednesday on or off for every professor" aria-label="Turn Wednesday on or off for every professor">Wed</button>
+                    <button type="button" class="btn-select-day" data-day="Thu" title="Turn Thursday on or off for every professor" aria-label="Turn Thursday on or off for every professor">Thu</button>
+                    <button type="button" class="btn-select-day" data-day="Fri" title="Turn Friday on or off for every professor" aria-label="Turn Friday on or off for every professor">Fri</button>
+                    <button type="button" class="btn-select-day" data-day="Sat" title="Turn Saturday on or off for every professor" aria-label="Turn Saturday on or off for every professor">Sat</button>
                   </div>
                 </th>
                 <th>Actions</th>
@@ -528,6 +553,7 @@
         <div class="section-divider"></div>
 
         <h3 class="section-heading">Subjects</h3>
+        <p class="dept-notice subjects-notice" id="subjectsNotSavedNotice">Subject edits are <strong>not saved</strong>. They apply to runs you start from this page and reset to the curriculum when you reload.</p>
         <div class="faculty-scroll-wrap">
           <table id="subjectsTable">
             <thead>
@@ -553,7 +579,7 @@
       <!-- PANEL 4: SETTINGS -->
       <section class="panel" data-title="Rooms" aria-label="Rooms and Blocks">
         <div class="page-header">
-          <h2><span class="title-ic ic ic-rooms" aria-hidden="true"></span>Rooms and Blocks</h2>
+          <h2><span class="title-ic ic ic-door" aria-hidden="true"></span>Rooms and Blocks</h2>
         </div>
 
         <!-- The active academic period is set at sign in and in Application Settings. -->
@@ -662,11 +688,11 @@
   </div>
 
   <nav class="bottom-nav" aria-label="Primary">
-    <button type="button" class="bn-item" data-go="0"><span class="bn-ic ic ic-dashboard" aria-hidden="true"></span><span>Home</span></button>
+    <button type="button" class="bn-item" data-go="0"><span class="bn-ic ic ic-dashboard" aria-hidden="true"></span><span>Dashboard</span></button>
     <button type="button" class="bn-item" data-go="1"><span class="bn-ic ic ic-optimize" aria-hidden="true"></span><span>Optimize</span></button>
     <button type="button" class="bn-item" data-go="2"><span class="bn-ic ic ic-reports" aria-hidden="true"></span><span>Reports</span></button>
     <button type="button" class="bn-item" data-go="3"><span class="bn-ic ic ic-faculty" aria-hidden="true"></span><span>Faculty</span></button>
-    <button type="button" class="bn-item" data-go="4" aria-label="Rooms"><span class="bn-ic ic ic-rooms" aria-hidden="true"></span><span>Rooms</span></button>
+    <button type="button" class="bn-item" data-go="4" aria-label="Rooms"><span class="bn-ic ic ic-door" aria-hidden="true"></span><span>Rooms</span></button>
   </nav>
 
   <!-- Toast notification -->

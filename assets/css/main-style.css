@@ -4480,3 +4480,97 @@ html { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent;
 #facultyTable tbody tr.no-specialization { background: rgba(217, 119, 6, 0.10); }
 #facultyTable .spec-hint { margin-top: 4px; font-size: 0.78rem; color: #b45309; }
 [data-theme="dark"] #facultyTable .spec-hint { color: #fbbf24; }
+/* ============================================================
+   UI REDESIGN (case study): setup checklist, plain-language result summary, filters, empty states
+   Colours come from the existing tokens, so light and night themes both work.
+   ============================================================ */
+.ic-door { -webkit-mask-image: url("../images/icons/door.svg"); mask-image: url("../images/icons/door.svg"); }
+.setup-card[hidden], .result-checks[hidden], .result-filters[hidden], #dashboardLoadCard[hidden],
+.reports-charts-grid[hidden], .reports-empty[hidden] { display: none !important; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* the "Showing: <period>" badge is a link to the active period setting */
+a.sem-context-link { text-decoration: none; cursor: pointer; }
+a.sem-context-link::after { content: "Change"; margin-left: 6px; padding-left: 8px; border-left: 1px solid currentColor; opacity: .75; font-weight: 600; }
+a.sem-context-link:hover { filter: brightness(0.96); text-decoration: underline; }
+
+.page-lead { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-secondary); }
+
+/* Setup checklist */
+.setup-card { margin: 0 0 var(--space-5); padding: 20px 22px; background: var(--card-bg); border: 1px solid var(--border-subtle); border-radius: 14px; }
+.setup-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.setup-head h3 { margin: 0; font-size: 1.125rem; font-weight: 600; color: var(--text-primary); }
+.setup-sub { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-secondary); }
+.setup-count { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: var(--clr-primary-50); color: var(--clr-primary-700); }
+.setup-progress { height: 6px; margin: 14px 0 16px; border-radius: 3px; background: var(--bg-surface-3); overflow: hidden; }
+.setup-progress span { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--clr-primary-500); transition: width .3s ease; }
+.setup-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.setup-step { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 10px; background: var(--bg-surface-2); border: 1.5px solid transparent; }
+.setup-step--current { background: var(--clr-primary-50); border-color: var(--clr-primary-500); }
+.setup-step-mark { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.75rem; font-weight: 700; border: 1.5px solid var(--border-strong); color: var(--text-muted); }
+.setup-step--done .setup-step-mark { border-color: transparent; background: var(--ok-soft); color: var(--ok); }
+.setup-step--current .setup-step-mark { border-color: var(--clr-primary-500); color: var(--clr-primary-600); }
+.setup-step-body { display: flex; flex-direction: column; gap: 4px; }
+.setup-step-body strong { font-size: 0.875rem; color: var(--text-primary); }
+.setup-step--todo .setup-step-body strong { color: var(--text-muted); }
+.setup-step-text { font-size: 0.78rem; line-height: 1.4; color: var(--text-secondary); }
+.setup-step-warn { align-self: flex-start; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; background: var(--warn-soft); color: var(--warn); }
+.setup-step-btn { align-self: flex-start; margin-top: 4px; }
+@media (max-width: 1100px) { .setup-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) {
+  .setup-steps { grid-template-columns: 1fr; }
+  .setup-step { flex-direction: row; align-items: flex-start; }
+  .setup-step--todo .setup-step-text, .setup-step--done .setup-step-text { display: none; }
+}
+
+/* Result summary on Optimize */
+.result-checks { margin: 0 0 16px; padding: 16px 18px; background: var(--card-bg); border: 1px solid var(--border-subtle); border-radius: 12px; }
+.result-checks h4 { margin: 0 0 12px; font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+.result-checks ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.result-check { display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; }
+.result-check--ok { background: var(--ok-soft); }
+.result-check--warn { background: var(--warn-soft); }
+.result-check--bad { background: var(--bad-soft); }
+.result-check-ic { flex-shrink: 0; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.75rem; font-weight: 700; color: var(--on-accent); }
+.result-check--ok .result-check-ic { background: var(--ok); }
+.result-check--warn .result-check-ic { background: var(--warn); }
+.result-check--bad .result-check-ic { background: var(--bad); }
+[data-theme="dark"] .result-check-ic { color: #1a130e; }
+.result-check-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.result-check-text strong { font-size: 0.85rem; color: var(--text-primary); }
+.result-check-text span { font-size: 0.78rem; line-height: 1.4; color: var(--text-secondary); }
+.result-check-btn { align-self: flex-start; margin-top: 4px; padding: 0; border: 0; background: none; font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--clr-primary-600); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+/* Filter chips above the results table */
+.result-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.result-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border-subtle); background: var(--bg-surface-2); color: var(--text-secondary); font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.result-chip:hover { border-color: var(--border-strong); }
+.result-chip.active { background: var(--text-primary); border-color: var(--text-primary); color: var(--text-inverse); }
+.result-chip-count { font-weight: 500; opacity: .8; }
+
+/* Empty states with a next step */
+.empty-cta { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 16px; text-align: center; }
+.empty-cta strong { font-size: 1rem; color: var(--text-primary); }
+.empty-cta span { max-width: 520px; font-size: 0.875rem; line-height: 1.5; color: var(--text-secondary); }
+.empty-cta .btn { margin-top: 6px; }
+.reports-empty { margin: 0 0 var(--space-6); padding: 24px 16px; border: 1px dashed var(--border); border-radius: 12px; font-style: normal; }
+
+/* Reports: insight titles with a caption under them */
+.reports-charts-grid--insight { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+@media (max-width: 900px) { .reports-charts-grid--insight { grid-template-columns: 1fr; } }
+.chart-caption { margin: -4px 0 12px; font-size: 0.8rem; line-height: 1.45; color: var(--text-muted); }
+.capacity-legend-note { margin: 10px 0 0; font-size: 0.78rem; color: var(--text-muted); }
+
+/* Optimize controls: the solver numbers are labelled as advanced */
+.solver-summary-label { margin: 14px 0 0; font-size: 0.7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+
+/* Faculty table: the day buttons explain themselves; the subjects warning stands out */
+.avail-th-hint { display: block; margin-top: 2px; font-size: 0.68rem; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text-muted); }
+.subjects-notice { background: var(--warn-soft); color: var(--text-primary); }
+
+/* Rooms: the maximum is a limit, not an error, so it is no longer red; the legend dots match the fields */
+.room-item .room-rec-input { border-color: var(--ok); }
+.room-item .room-max-input { border-color: var(--border-strong); }
+.room-cap-dot.dot-rec { background: var(--ok); }
+.room-cap-dot.dot-max { background: var(--border-strong); }
+.room-item-del { min-width: 32px; min-height: 32px; }

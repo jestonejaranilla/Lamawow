@@ -64,13 +64,15 @@
           Continue with Google
         </button>
 
-        <p class="auth-fine">Access is limited to PSU accounts that end in @psu.palawan.edu.ph. Accounts are created by your administrator, and your role and department come from your profile.</p>
+        <p class="auth-fine">Access is limited to PSU accounts that end in @psu.palawan.edu.ph. Accounts are created by your administrator, and your role and department come from your profile. Forgot your password? Ask your department's ATLAS administrator to reset it.</p>
 
         <aside class="auth-privacy" aria-labelledby="privTitle">
-          <h2 id="privTitle">Privacy notice</h2>
+          <details class="auth-privacy-details">
+          <summary><h2 id="privTitle">Privacy notice</h2><span class="auth-privacy-hint">What we collect and who can see it</span></summary>
           <p><strong>We collect:</strong> your name, email, role and department; faculty scheduling data (specializations, unit limits, availability, preferences, leave dates); saved schedules; and an audit log of who did what and when (ids and counts only).</p>
-          <p><strong>We never collect:</strong> student names, student IDs or grades, your password (Supabase Auth handles sign in and we never see it), or IP tracking. Our hosting providers may keep standard server logs.</p>
+          <p><strong>We never collect:</strong> student names, student IDs or grades, your password (a secure sign-in service handles it and we never see it), or IP tracking. Our hosting providers may keep standard server logs.</p>
           <p><strong>Who can see it:</strong> a chairperson sees only their own department. Faculty see their own preferences and leave and their department's approved schedule. Developers (admin) can see everything for maintenance.</p>
+          </details>
         </aside>
       </section>
 
